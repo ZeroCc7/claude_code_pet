@@ -41,4 +41,4 @@ Result: ACCEPTANCE PASS
 
 ## Stability test
 
-- 30-minute diagnostics soak: pending
+- 30-minute diagnostics soak: skipped by user on 2026-06-19

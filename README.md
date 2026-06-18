@@ -49,4 +49,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\upload-firmware.ps
 - K1–K4：已验证
 - LittleFS 256KB：已验证
 - 串口自动验收：通过
-- 30 分钟稳定性测试：待完成
+- 30 分钟稳定性测试：用户选择跳过
