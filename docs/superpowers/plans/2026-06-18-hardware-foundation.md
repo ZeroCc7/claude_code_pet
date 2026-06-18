@@ -4,9 +4,9 @@
 
 **Goal:** 建立可重复编译和烧录的 RP2040-Zero 固件工程，完成 ST7735S、背光、四键、USB CDC 和板载 Flash 的硬件自检，并留下后续游戏系统可复用的驱动接口。
 
-**Architecture:** 固件使用 Arduino-Pico Core，将硬件访问封装为 `DisplayDevice`、`ButtonScanner`、`FlashProbe`，由非阻塞的 `DiagnosticsApp` 组织自检页面。电脑端只提供工具链脚本、串口验收脚本和编译检查；这一阶段不实现宠物养成、战斗或 AI Hook。
+**Architecture:** 固件使用 Arduino-Pico Core，将硬件访问封装为 `DisplayDevice`、`ButtonScanner`、`FlashProbe`，由非阻塞的 `DiagnosticsApp` 组织自检页面。日常编译、烧录和串口观察以本机 Arduino IDE 2.3.10 为主；命令行脚本只用于自动验证和后续持续集成。这一阶段不实现宠物养成、战斗或 AI Hook。
 
-**Tech Stack:** Arduino C++、Arduino-Pico Core、Adafruit GFX、Adafruit ST7735、LittleFS、USB CDC、PowerShell、Python 3、pyserial、pytest
+**Tech Stack:** Arduino IDE 2.3.10、Arduino C++、Arduino-Pico Core、Adafruit GFX、Adafruit ST7735、LittleFS、USB CDC、PowerShell、Python 3、pyserial、pytest
 
 ---
 
@@ -45,10 +45,67 @@ claude_code_pet/
 │  ├─ compile-firmware.ps1           固定参数编译并报告资源占用
 │  └─ upload-firmware.ps1            指定 COM 口上传
 └─ docs/
-   └─ hardware-bringup.md            焊接、通电和实测结果记录
+   ├─ arduino-ide-guide.md            Arduino IDE 中文操作指南
+   └─ hardware-bringup.md             焊接、通电和实测结果记录
 ```
 
-## Task 1: 建立可复现工具链
+## Arduino IDE 主操作流程
+
+本机已确认安装：
+
+```text
+C:\Program Files\Arduino IDE\Arduino IDE.exe
+版本：2.3.10
+```
+
+第一次配置：
+
+1. 打开 Arduino IDE。
+2. 进入 `文件 -> 首选项`。
+3. 在“其他开发板管理器地址”加入：
+
+```text
+https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+```
+
+4. 打开左侧“开发板管理器”，搜索 `Raspberry Pi Pico/RP2040`。
+5. 安装 `Raspberry Pi Pico/RP2040 by Earle F. Philhower, III`。
+6. 打开左侧“库管理器”，依次安装：
+   - `Adafruit GFX Library`
+   - `Adafruit ST7735 and ST7789 Library`
+7. 使用 `文件 -> 打开`，选择：
+
+```text
+G:\code\claude_code_pet\firmware\ai_pet\ai_pet.ino
+```
+
+8. 进入 `工具 -> 开发板 -> Raspberry Pi RP2040 Boards`，选择：
+
+```text
+Waveshare RP2040 Zero
+```
+
+9. 将 RP2040-Zero 用 USB-C 数据线连接电脑。
+10. 进入 `工具 -> 端口`，选择新出现的 COM 端口。
+11. 点击左上角“验证”按钮编译；点击“上传”按钮烧录。
+12. 打开右上角“串口监视器”，速度选择 `115200`，行尾选择“新行”。
+
+首次无法上传时：
+
+1. 按住板上 `BOOT`。
+2. 点按一次 `RESET`。
+3. 先松开 `RESET`，再松开 `BOOT`。
+4. Windows 出现 `RPI-RP2` 磁盘后，再点击 Arduino IDE 的“上传”。
+
+每次代码改动的验收顺序固定为：
+
+```text
+Arduino IDE 验证 -> Arduino IDE 上传 -> 串口监视器检查 -> 实物屏幕/按键检查
+```
+
+命令行脚本不替代上述流程，只在提交前补充执行自动编译。
+
+## Task 1: 配置 Arduino IDE 与可复现辅助工具链
 
 **Files:**
 - Create: `.gitignore`
@@ -57,8 +114,19 @@ claude_code_pet/
 - Create: `scripts/compile-firmware.ps1`
 - Create: `scripts/upload-firmware.ps1`
 - Create: `README.md`
+- Create: `docs/arduino-ide-guide.md`
 
-- [ ] **Step 1: 写入工具链验收测试**
+- [ ] **Step 1: 按主操作流程配置 Arduino IDE**
+
+完成本计划“Arduino IDE 主操作流程”中的开发板地址、RP2040 Core 和两个 Adafruit 库安装。
+
+Expected:
+
+- 开发板菜单中可以选择 `Waveshare RP2040 Zero`。
+- 库管理器中两个 Adafruit 库均显示 `INSTALLED`。
+- `工具 -> 端口` 能看到 RP2040-Zero 对应的 COM 端口。
+
+- [ ] **Step 2: 写入辅助工具链验收测试**
 
 创建 `scripts/compile-firmware.ps1`：
 
@@ -88,7 +156,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 
-- [ ] **Step 2: 运行测试并确认当前失败**
+- [ ] **Step 3: 运行测试并确认当前失败**
 
 Run:
 
@@ -98,7 +166,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\compile-firmware.p
 
 Expected: FAIL，提示 `Arduino CLI not found`。
 
-- [ ] **Step 3: 写入工具链安装脚本和依赖**
+- [ ] **Step 4: 写入辅助工具链安装脚本、依赖和 IDE 指南**
 
 创建 `scripts/bootstrap-arduino.ps1`：
 
@@ -179,6 +247,17 @@ __pycache__/
 *.bin
 ```
 
+创建 `docs/arduino-ide-guide.md`，完整写入本计划“Arduino IDE 主操作流程”的内容，并增加以下故障表：
+
+| 现象 | 处理 |
+|---|---|
+| 找不到 Waveshare RP2040 Zero | 检查附加网址，重新打开开发板管理器并安装 Philhower Core |
+| `Adafruit_ST7735.h` 不存在 | 在库管理器安装 `Adafruit ST7735 and ST7789 Library` |
+| 没有端口 | 更换支持数据的 USB-C 线，检查设备管理器 |
+| 上传停在等待设备 | 使用 BOOT+RESET 进入 `RPI-RP2` 模式 |
+| 串口监视器乱码 | 选择 115200 |
+| 屏幕白屏 | 先检查 3V3、GND、SCL、SDA、CS、DC、RST 焊线 |
+
 在 `README.md` 写明：
 
 ````markdown
@@ -206,7 +285,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\upload-firmware.ps
 ```
 ````
 
-- [ ] **Step 4: 安装工具链并验证版本**
+- [ ] **Step 5: 安装辅助工具链并验证版本**
 
 Run:
 
@@ -218,12 +297,35 @@ py -3 -m pip install -r .\host\requirements-dev.txt
 
 Expected: 输出 `Waveshare RP2040 Zero`，且无安装错误。
 
-- [ ] **Step 5: 提交**
+- [ ] **Step 6: 在 Arduino IDE 中打开最小草图目录**
+
+在 Arduino IDE 选择：
+
+```text
+文件 -> 打开 -> G:\code\claude_code_pet\firmware\ai_pet\ai_pet.ino
+```
+
+此时文件还会在 Task 2 创建。若文件尚不存在，本步骤只确认目录路径，Task 2 创建后立即重新打开。
+
+- [ ] **Step 7: 提交**
 
 ```powershell
-git add .gitignore README.md host/requirements-dev.txt scripts
-git commit -m "build: add reproducible RP2040 toolchain"
+git add .gitignore README.md host/requirements-dev.txt scripts docs/arduino-ide-guide.md
+git commit -m "build: add Arduino IDE workflow and RP2040 toolchain"
 ```
+
+### 后续任务的 IDE 与脚本关系
+
+从 Task 2 开始，每个“编译并确认”步骤先在 Arduino IDE 点击“验证”。每个“烧录并验证”步骤按以下顺序操作：
+
+1. Arduino IDE 点击“验证”，确认输出区显示编译成功。
+2. 在 `工具 -> 端口` 确认当前 RP2040-Zero 的 COM 端口。
+3. 点击“上传”，确认输出区显示上传完成。
+4. 打开串口监视器，设置为 `115200`。
+5. 观察串口日志和实物画面。
+6. 最后再运行计划中的 PowerShell 编译命令，作为可重复的自动检查。
+
+计划中的 `COM5` 只是示例，必须替换为 Arduino IDE `工具 -> 端口` 当前显示的实际端口。
 
 ## Task 2: 固化板级配置并建立最小可编译固件
 
@@ -247,6 +349,8 @@ void setup() {
 void loop() {
 }
 ```
+
+使用 Arduino IDE 打开该 `ai_pet.ino`，确认顶部标签显示草图及同目录文件。
 
 - [ ] **Step 2: 编译并确认失败**
 
@@ -1156,8 +1260,10 @@ git commit -m "docs: record verified hardware bring-up"
 
 只有以下条件全部满足，才进入“本地宠物游戏”实施计划：
 
-- 工具链可由脚本在新环境安装。
-- 固件可命令行编译并上传。
+- Arduino IDE 2.3.10 已配置 RP2040 Core 和两个显示库。
+- 用户可在 Arduino IDE 中完成验证、选择端口、上传和查看串口监视器。
+- 辅助工具链可由脚本在新环境安装。
+- 固件既可在 Arduino IDE 中验证和上传，也可由命令行自动编译。
 - 屏幕方向、颜色、偏移和 SPI 频率均经实物确认。
 - 四个按键的有效电平、消抖和长按均经实物确认。
 - 背光 PWM 正常。
