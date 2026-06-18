@@ -1,0 +1,105 @@
+#include "game_app.h"
+
+#include "input_actions.h"
+
+namespace {
+
+constexpr uint32_t kSaveDelayMs = 1000;
+
+}  // namespace
+
+void GameApp::begin() {
+  Serial.begin(board::kUsbBaud);
+  const uint32_t waitStarted = millis();
+  while (!Serial && millis() - waitStarted < 1200) {
+    delay(10);
+  }
+
+  display_.begin();
+  buttons_.begin();
+
+  const bool fsReady = saves_.begin();
+  const bool loaded = fsReady && saves_.load(state_);
+  Serial.printf("GAME fs=%d save=%s\n", fsReady, loaded ? "loaded" : "new");
+  if (fsReady && !loaded) {
+    saves_.save(state_);
+  }
+
+  ui_.begin(display_);
+  ui_.draw(state_, millis(), true);
+  lastTickAt_ = millis();
+}
+
+void GameApp::update(uint32_t now) {
+  processSerial();
+  buttons_.update(now);
+  processInput(now);
+
+  if (now - lastTickAt_ >= 1000) {
+    const uint32_t seconds = (now - lastTickAt_) / 1000;
+    state_.mutableData().playSeconds += seconds;
+    lastTickAt_ += seconds * 1000;
+  }
+
+  if (savePending_ && now - lastSaveAt_ >= kSaveDelayMs) {
+    if (saves_.save(state_)) {
+      savePending_ = false;
+      lastSaveAt_ = now;
+      Serial.println("SAVE ok");
+    } else {
+      Serial.println("SAVE failed");
+    }
+  }
+
+  ui_.draw(state_, now);
+}
+
+void GameApp::processInput(uint32_t now) {
+  (void)now;
+  for (size_t i = 0; i < board::kButtonCount; ++i) {
+    const InputAction action = actionForButton(i, buttons_.state(i).event);
+    if (action == InputAction::None) {
+      continue;
+    }
+    ui_.handle(action, state_);
+    requestSave();
+  }
+}
+
+void GameApp::processSerial() {
+  while (Serial.available()) {
+    const char next = static_cast<char>(Serial.read());
+    if (next == '\r') {
+      continue;
+    }
+    if (next == '\n') {
+      serialCommand_.trim();
+      if (serialCommand_ == "STATUS") {
+        printStatus();
+      }
+      serialCommand_ = "";
+    } else if (serialCommand_.length() < 64) {
+      serialCommand_ += next;
+    }
+  }
+}
+
+void GameApp::printStatus() {
+  const PetSaveData& data = state_.data();
+  Serial.printf(
+      "STATUS level=%u form=%u xp=%u mood=%u stamina=%u coins=%u "
+      "energy=%u page=%u\n",
+      data.level,
+      static_cast<unsigned>(data.form),
+      data.experience,
+      data.mood,
+      data.stamina,
+      data.coins,
+      data.energy,
+      static_cast<unsigned>(ui_.page()));
+}
+
+void GameApp::requestSave() {
+  savePending_ = true;
+}
+

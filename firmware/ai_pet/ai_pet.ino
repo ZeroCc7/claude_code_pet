@@ -1,6 +1,6 @@
-#include "diagnostics_app.h"
+#include "game_app.h"
 
-DiagnosticsApp app;
+GameApp app;
 
 void setup() {
   app.begin();
