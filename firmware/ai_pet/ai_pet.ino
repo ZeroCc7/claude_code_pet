@@ -1,11 +1,12 @@
-#include "board_config.h"
+#include "diagnostics_app.h"
+
+DiagnosticsApp app;
 
 void setup() {
-  Serial.begin(board::kUsbBaud);
-  pinMode(board::kBacklightPin, OUTPUT);
-  digitalWrite(board::kBacklightPin, LOW);
+  app.begin();
 }
 
 void loop() {
+  app.update(millis());
 }
 
