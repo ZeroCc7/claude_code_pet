@@ -14,6 +14,13 @@
 firmware/ai_pet/ai_pet.ino
 ```
 
+开发板菜单必须设置：
+
+```text
+Board: Waveshare RP2040 Zero
+Flash Size: 2MB (Sketch: 1792KB, FS: 256KB)
+```
+
 ## 辅助命令行工具
 
 安装本地 Arduino CLI、RP2040 Core 和显示库：
@@ -35,3 +42,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\compile-firmware.p
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\upload-firmware.ps1 -Port COM端口
 ```
 
+## Hardware status
+
+- ST7735S 128×160：已验证
+- 背光 PWM：已验证
+- K1–K4：已验证
+- LittleFS 256KB：已验证
+- 串口自动验收：通过
+- 30 分钟稳定性测试：待完成

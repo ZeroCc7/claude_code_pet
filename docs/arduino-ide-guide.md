@@ -70,6 +70,14 @@ Arduino IDE 会把同目录的 `.h`、`.cpp` 文件显示为顶部标签。
 
 不要选择 ESP32、Arduino Nano RP2040 Connect 或 Raspberry Pi Pico W。
 
+随后进入：
+
+```text
+工具 -> Flash Size -> 2MB (Sketch: 1792KB, FS: 256KB)
+```
+
+不能选择 `2MB (no FS)`，否则宠物存档无法挂载。
+
 ## 连接和选择端口
 
 1. 使用支持数据传输的 USB-C 线连接 RP2040-Zero。
@@ -111,4 +119,3 @@ Arduino IDE 会把同目录的 `.h`、`.cpp` 文件显示为顶部标签。
 | 串口监视器乱码 | 波特率选择 115200 |
 | 屏幕白屏 | 检查 3V3、GND、SCL、SDA、CS、DC、RST 焊线 |
 | 屏幕完全不亮 | 检查 BLK 接线和背光有效电平 |
-

@@ -15,7 +15,7 @@ if (-not (Test-Path $Cli)) {
 New-Item -ItemType Directory -Force $build | Out-Null
 
 & $Cli compile `
-    --fqbn "rp2040:rp2040:waveshare_rp2040_zero" `
+    --fqbn "rp2040:rp2040:waveshare_rp2040_zero:flash=2097152_262144" `
     --warnings all `
     --output-dir $build `
     $sketch
@@ -23,4 +23,3 @@ New-Item -ItemType Directory -Force $build | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Firmware compile failed with exit code $LASTEXITCODE"
 }
-

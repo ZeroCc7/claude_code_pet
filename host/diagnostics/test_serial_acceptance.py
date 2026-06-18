@@ -20,3 +20,8 @@ def test_report_rejects_failed_flash_verification():
     assert not report.complete
     assert report.errors == ["flash probe failed"]
 
+
+def test_report_command_is_stable():
+    from serial_acceptance import REPORT_COMMAND
+
+    assert REPORT_COMMAND == b"REPORT\n"

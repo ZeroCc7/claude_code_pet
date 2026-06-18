@@ -5,6 +5,8 @@ import time
 
 import serial
 
+REPORT_COMMAND = b"REPORT\n"
+
 
 class DiagnosticReport:
     def __init__(self) -> None:
@@ -40,6 +42,9 @@ def collect(port: str, timeout: float) -> DiagnosticReport:
     deadline = time.monotonic() + timeout
 
     with serial.Serial(port, 115200, timeout=0.25) as device:
+        device.reset_input_buffer()
+        device.write(REPORT_COMMAND)
+        device.flush()
         while time.monotonic() < deadline and not report.complete:
             raw = device.readline()
             if not raw:
@@ -68,4 +73,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

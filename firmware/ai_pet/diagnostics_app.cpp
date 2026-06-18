@@ -17,19 +17,20 @@ void DiagnosticsApp::begin() {
   display_.begin();
   buttons_.begin();
 
-  const FlashProbeResult flash = flashProbe_.run();
+  flashResult_ = flashProbe_.run();
   Serial.printf(
       "FLASH mounted=%d wrote=%d verified=%d cleaned=%d\n",
-      flash.mounted,
-      flash.wrote,
-      flash.verified,
-      flash.cleaned);
+      flashResult_.mounted,
+      flashResult_.wrote,
+      flashResult_.verified,
+      flashResult_.cleaned);
 
   showPage(page_);
   pageStartedAt_ = millis();
 }
 
 void DiagnosticsApp::update(uint32_t now) {
+  processSerial();
   buttons_.update(now);
   printButtonEvents();
 
@@ -56,6 +57,37 @@ void DiagnosticsApp::update(uint32_t now) {
           buttons_.state(i).pressed ? "DOWN" : "UP");
     }
   }
+}
+
+void DiagnosticsApp::processSerial() {
+  while (Serial.available()) {
+    const char next = static_cast<char>(Serial.read());
+    if (next == '\r') {
+      continue;
+    }
+    if (next == '\n') {
+      serialCommand_.trim();
+      if (serialCommand_ == "REPORT") {
+        printReport();
+      }
+      serialCommand_ = "";
+      continue;
+    }
+    if (serialCommand_.length() < 32) {
+      serialCommand_ += next;
+    }
+  }
+}
+
+void DiagnosticsApp::printReport() {
+  Serial.println("DIAG boot");
+  Serial.printf(
+      "FLASH mounted=%d wrote=%d verified=%d cleaned=%d\n",
+      flashResult_.mounted,
+      flashResult_.wrote,
+      flashResult_.verified,
+      flashResult_.cleaned);
+  Serial.println("DIAG ready");
 }
 
 void DiagnosticsApp::showPage(Page page) {
@@ -109,4 +141,3 @@ void DiagnosticsApp::printButtonEvents() {
 void DiagnosticsApp::printReady() {
   Serial.println("DIAG ready");
 }
-

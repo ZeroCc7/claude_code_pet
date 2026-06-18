@@ -18,7 +18,7 @@ if (-not (Test-Path $Cli)) {
 }
 
 & $Cli upload `
-    --fqbn "rp2040:rp2040:waveshare_rp2040_zero" `
+    --fqbn "rp2040:rp2040:waveshare_rp2040_zero:flash=2097152_262144" `
     --port $Port `
     $sketch
 

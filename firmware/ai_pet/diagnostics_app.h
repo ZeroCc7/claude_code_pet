@@ -23,6 +23,8 @@ class DiagnosticsApp {
 
   void showPage(Page page);
   void printButtonEvents();
+  void processSerial();
+  void printReport();
   void printReady();
 
   DisplayDevice display_;
@@ -31,5 +33,6 @@ class DiagnosticsApp {
   Page page_ = Page::Red;
   uint32_t pageStartedAt_ = 0;
   uint32_t lastKeyDrawAt_ = 0;
+  FlashProbeResult flashResult_{};
+  String serialCommand_;
 };
-
