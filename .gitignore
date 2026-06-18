@@ -1,0 +1,9 @@
+build/
+tools/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.uf2
+*.elf
+*.bin
+
