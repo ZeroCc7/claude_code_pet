@@ -29,7 +29,6 @@ class GameUi {
   void drawHomeStats(const PetSaveData& data);
   void restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
                              int16_t height);
-  void restoreHomeDynamicRegions();
   void drawCare(const PetSaveData& data);
   void drawAdventure(const PetSaveData& data);
   void drawBattle(const PetSaveData& data);
@@ -40,6 +39,7 @@ class GameUi {
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
+  GFXcanvas16 petCanvas_{56, 50};
   ChineseText chinese_;
   UiPage page_ = UiPage::Home;
   uint8_t selection_ = 0;

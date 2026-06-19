@@ -2,6 +2,15 @@
 
 #include "assets/immortal_cave_home.h"
 
+namespace {
+
+constexpr int16_t kPetRegionX = 36;
+constexpr int16_t kPetRegionY = 28;
+constexpr int16_t kPetRegionWidth = 56;
+constexpr int16_t kPetRegionHeight = 50;
+
+}  // namespace
+
 void GameUi::begin(DisplayDevice& display) {
   display_ = &display;
   chinese_.begin(display);
@@ -127,7 +136,6 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
         break;
     }
   } else if (page_ == UiPage::Home) {
-    restoreHomeDynamicRegions();
     if (feedbackExpired) {
       restoreBackgroundRect(14, 84, 100, 24);
     }
@@ -179,6 +187,19 @@ void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
 
 void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
   Adafruit_ST7735& tft = display_->raw();
+  uint16_t* frame = petCanvas_.getBuffer();
+  if (!frame) {
+    return;
+  }
+  for (int16_t row = 0; row < kPetRegionHeight; ++row) {
+    for (int16_t column = 0; column < kPetRegionWidth; ++column) {
+      frame[row * kPetRegionWidth + column] =
+          pgm_read_word(kImmortalCaveHome +
+                        (kPetRegionY + row) * kImmortalCaveHomeWidth +
+                        kPetRegionX + column);
+    }
+  }
+
   int16_t petY = 38;
   if ((feedback_ == Feedback::MoodUp ||
        feedback_ == Feedback::StaminaUp) &&
@@ -186,7 +207,9 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
     const uint32_t phase = (now - feedbackStartedAt_) % 350;
     petY -= phase < 175 ? phase / 25 : (350 - phase) / 25;
   }
-  pet_.draw(tft, data.form, 44, petY, now);
+  pet_.draw(petCanvas_, data.form, 44 - kPetRegionX, petY - kPetRegionY, now);
+  tft.drawRGBBitmap(kPetRegionX, kPetRegionY, petCanvas_.getBuffer(),
+                    kPetRegionWidth, kPetRegionHeight);
 }
 
 void GameUi::drawHomeStats(const PetSaveData& data) {
@@ -214,11 +237,6 @@ void GameUi::restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
         kImmortalCaveHome + (y + row) * kImmortalCaveHomeWidth + x;
     tft.drawRGBBitmap(x, y + row, source, width, 1);
   }
-}
-
-void GameUi::restoreHomeDynamicRegions() {
-  // 宠物跳动和粒子只会进入这块区域，避免动画时重刷整屏。
-  restoreBackgroundRect(36, 28, 56, 50);
 }
 
 void GameUi::drawCare(const PetSaveData& data) {

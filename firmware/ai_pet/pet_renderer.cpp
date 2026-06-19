@@ -1,7 +1,9 @@
 #include "pet_renderer.h"
 
-void PetRenderer::draw(Adafruit_ST7735& tft, PetForm form, int16_t x,
-                       int16_t y, uint32_t now) {
+#include <Adafruit_ST7735.h>
+
+void PetRenderer::draw(Adafruit_GFX& tft, PetForm form, int16_t x, int16_t y,
+                       uint32_t now) {
   const uint16_t body = bodyColor(form);
   const int16_t bob = ((now / 600) % 2) ? 1 : 0;
   y += bob;
