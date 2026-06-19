@@ -42,4 +42,5 @@ class GameUi {
   uint32_t lastAnimationAt_ = 0;
   Feedback feedback_ = Feedback::None;
   uint32_t feedbackStartedAt_ = 0;
+  uint32_t lastFeedbackFrameAt_ = 0;
 };

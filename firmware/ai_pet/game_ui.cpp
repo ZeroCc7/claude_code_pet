@@ -1,5 +1,7 @@
 #include "game_ui.h"
 
+#include "assets/immortal_cave_home.h"
+
 void GameUi::begin(DisplayDevice& display) {
   display_ = &display;
   chinese_.begin(display);
@@ -88,14 +90,19 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   const bool animate = page_ == UiPage::Home && now - lastAnimationAt_ >= 600;
   const bool feedbackActive =
       feedback_ != Feedback::None && now - feedbackStartedAt_ < 1200;
-  if (!dirty_ && !force && !animate && !feedbackActive) {
+  const bool feedbackFrame =
+      feedbackActive && now - lastFeedbackFrameAt_ >= 80;
+  if (!dirty_ && !force && !animate && !feedbackFrame) {
     return;
   }
   if (animate) {
     lastAnimationAt_ = now;
   }
+  if (feedbackFrame) {
+    lastFeedbackFrameAt_ = now;
+  }
 
-  if (dirty_ || force) {
+  if (dirty_ || force || animate || feedbackFrame) {
     drawInkBackground();
     drawHeader(state.data());
   }
@@ -143,16 +150,8 @@ void GameUi::drawHeader(const PetSaveData& data) {
 
 void GameUi::drawInkBackground() {
   Adafruit_ST7735& tft = display_->raw();
-  tft.fillScreen(0x0861);
-  tft.fillCircle(106, 38, 22, 0xBDD7);
-  tft.fillCircle(106, 38, 16, 0xDED9);
-  tft.fillTriangle(0, 88, 35, 52, 72, 88, 0x10C3);
-  tft.fillTriangle(42, 88, 82, 42, 127, 88, 0x1924);
-  tft.drawFastHLine(0, 88, 128, 0x3AE8);
-  for (int16_t x = 4; x < 128; x += 15) {
-    tft.drawPixel(x, 96 + (x % 9), 0x7D0F);
-    tft.drawPixel(x + 1, 96 + (x % 9), 0x7D0F);
-  }
+  tft.drawRGBBitmap(0, 0, kImmortalCaveHome, kImmortalCaveHomeWidth,
+                    kImmortalCaveHomeHeight);
   tft.fillRect(0, 112, 128, 48, 0x0861);
   tft.drawFastHLine(0, 112, 128, 0x6B8D);
 }

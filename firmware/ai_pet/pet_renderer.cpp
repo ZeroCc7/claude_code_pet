@@ -6,7 +6,6 @@ void PetRenderer::draw(Adafruit_ST7735& tft, PetForm form, int16_t x,
   const int16_t bob = ((now / 600) % 2) ? 1 : 0;
   y += bob;
 
-  tft.fillRect(x, y, 40, 40, ST77XX_BLACK);
   if (form >= PetForm::FinalA1) {
     tft.fillCircle(x + 20, y + 8, 6, 0xF5CC);
     tft.fillTriangle(x + 14, y + 6, x + 16, y, x + 19, y + 7, 0x6D2B);
