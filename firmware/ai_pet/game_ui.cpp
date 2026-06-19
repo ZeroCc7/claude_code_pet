@@ -14,6 +14,7 @@ constexpr int16_t kPetRegionHeight = 50;
 void GameUi::begin(DisplayDevice& display) {
   display_ = &display;
   chinese_.begin(display);
+  menuChinese_.begin(menuCanvas_);
   dirty_ = true;
 }
 
@@ -96,7 +97,8 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (!display_) {
     return;
   }
-  const bool fullRedraw = dirty_ || force;
+  const bool fullRedraw = (dirty_ || force) && page_ == UiPage::Home;
+  const bool menuRedraw = (dirty_ || force) && page_ != UiPage::Home;
   const bool animate = page_ == UiPage::Home && now - lastAnimationAt_ >= 600;
   const bool feedbackActive =
       feedback_ != Feedback::None && now - feedbackStartedAt_ < 1200;
@@ -105,7 +107,8 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
       now - lastFeedbackFrameAt_ >= 80;
   const bool feedbackExpired =
       feedback_ != Feedback::None && !feedbackActive;
-  if (!fullRedraw && !animate && !feedbackFrame && !feedbackExpired) {
+  if (!fullRedraw && !menuRedraw && !animate && !feedbackFrame &&
+      !feedbackExpired) {
     return;
   }
   if (animate) {
@@ -115,26 +118,12 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
     lastFeedbackFrameAt_ = now;
   }
 
-  if (fullRedraw) {
+  if (menuRedraw) {
+    drawMenuFrame(state.data());
+  } else if (fullRedraw) {
     drawInkBackground();
     drawHeader(state.data());
-    switch (page_) {
-      case UiPage::Home:
-        drawHome(state.data(), now);
-        break;
-      case UiPage::Care:
-        drawCare(state.data());
-        break;
-      case UiPage::Adventure:
-        drawAdventure(state.data());
-        break;
-      case UiPage::Status:
-        drawStatus(state.data());
-        break;
-      case UiPage::Battle:
-        drawBattle(state.data());
-        break;
-    }
+    drawHome(state.data(), now);
   } else if (page_ == UiPage::Home) {
     if (feedbackExpired) {
       restoreBackgroundRect(14, 84, 100, 24);
@@ -143,7 +132,7 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   }
 
   if (feedbackActive) {
-    if (fullRedraw || feedbackFrame) {
+    if (fullRedraw || menuRedraw || feedbackFrame) {
       drawFeedback(now);
     }
   } else if (feedback_ != Feedback::None) {
@@ -162,7 +151,7 @@ UiPage GameUi::page() const {
 }
 
 void GameUi::drawHeader(const PetSaveData& data) {
-  Adafruit_ST7735& tft = display_->raw();
+  Adafruit_GFX& tft = target();
   tft.fillRect(0, 0, 128, 18, 0x18E3);
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
@@ -173,11 +162,44 @@ void GameUi::drawHeader(const PetSaveData& data) {
 }
 
 void GameUi::drawInkBackground() {
-  Adafruit_ST7735& tft = display_->raw();
+  Adafruit_GFX& tft = target();
   tft.drawRGBBitmap(0, 0, kImmortalCaveHome, kImmortalCaveHomeWidth,
                     kImmortalCaveHomeHeight);
   tft.fillRect(0, 112, 128, 48, 0x0861);
   tft.drawFastHLine(0, 112, 128, 0x6B8D);
+}
+
+void GameUi::drawMenuFrame(const PetSaveData& data) {
+  uint16_t* frame = menuCanvas_.getBuffer();
+  if (!frame) {
+    return;
+  }
+
+  renderTarget_ = &menuCanvas_;
+  renderText_ = &menuChinese_;
+  drawInkBackground();
+  drawHeader(data);
+  switch (page_) {
+    case UiPage::Care:
+      drawCare(data);
+      break;
+    case UiPage::Adventure:
+      drawAdventure(data);
+      break;
+    case UiPage::Status:
+      drawStatus(data);
+      break;
+    case UiPage::Battle:
+      drawBattle(data);
+      break;
+    case UiPage::Home:
+      break;
+  }
+  renderTarget_ = nullptr;
+  renderText_ = nullptr;
+
+  Adafruit_ST7735& tft = display_->raw();
+  tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer(), 128, 160);
 }
 
 void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
@@ -213,14 +235,14 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
 }
 
 void GameUi::drawHomeStats(const PetSaveData& data) {
-  Adafruit_ST7735& tft = display_->raw();
-  chinese_.color(0xF7BE);
-  chinese_.draw(5, 124, "心境");
-  chinese_.draw(67, 124, "体力");
+  Adafruit_GFX& tft = target();
+  text().color(0xF7BE);
+  text().draw(5, 124, "心境");
+  text().draw(67, 124, "体力");
   drawBar(5, 128, data.mood, 0xF9B2);
   drawBar(67, 128, data.stamina, 0x5EAA);
-  chinese_.draw(5, 148, "灵力");
-  chinese_.draw(67, 148, "灵石");
+  text().draw(5, 148, "灵力");
+  text().draw(67, 148, "灵石");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
   tft.setCursor(35, 141);
@@ -240,42 +262,42 @@ void GameUi::restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
 }
 
 void GameUi::drawCare(const PetSaveData& data) {
-  Adafruit_ST7735& tft = display_->raw();
-  chinese_.color(0x7FFF);
-  chinese_.draw(8, 38, "培养");
+  Adafruit_GFX& tft = target();
+  text().color(0x7FFF);
+  text().draw(8, 38, "培养");
   const char* items[] = {"喂食  十灵石", "互动"};
   for (uint8_t i = 0; i < 2; ++i) {
-    chinese_.color(i == selection_ ? 0xFFE0 : ST77XX_WHITE);
-    chinese_.draw(20, 70 + i * 24, items[i]);
+    text().color(i == selection_ ? 0xFFE0 : ST77XX_WHITE);
+    text().draw(20, 70 + i * 24, items[i]);
     if (i == selection_) {
       tft.fillTriangle(8, 62 + i * 24, 14, 66 + i * 24,
                        8, 70 + i * 24, 0xFFE0);
     }
   }
-  chinese_.color(ST77XX_WHITE);
-  chinese_.draw(12, 126, "灵石");
-  chinese_.draw(66, 126, "体力");
+  text().color(ST77XX_WHITE);
+  text().draw(12, 126, "灵石");
+  text().draw(66, 126, "体力");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
   tft.setCursor(42, 119);
   tft.print(data.coins);
   tft.setCursor(96, 119);
   tft.print(data.stamina);
-  chinese_.draw(12, 151, "返回");
+  text().draw(12, 151, "返回");
 }
 
 void GameUi::drawAdventure(const PetSaveData& data) {
-  Adafruit_ST7735& tft = display_->raw();
-  chinese_.color(0x7FEF);
-  chinese_.draw(8, 38, "历练");
+  Adafruit_GFX& tft = target();
+  text().color(0x7FEF);
+  text().draw(8, 38, "历练");
   const char* zones[] = {"青竹灵境", "云海剑台", "玄岳古域"};
   for (uint8_t i = 0; i < 3; ++i) {
     const bool unlocked =
         i == 0 || (data.bossDefeatedMask & (1U << (i - 1)));
-    chinese_.color(!unlocked ? 0x7BEF
-                             : i == selection_ ? ST77XX_YELLOW
-                                               : ST77XX_WHITE);
-    chinese_.draw(18, 66 + i * 22, unlocked ? zones[i] : "尚未解锁");
+    text().color(!unlocked ? 0x7BEF
+                           : i == selection_ ? ST77XX_YELLOW
+                                             : ST77XX_WHITE);
+    text().draw(18, 66 + i * 22, unlocked ? zones[i] : "尚未解锁");
     tft.setTextColor(i == selection_ ? ST77XX_YELLOW : ST77XX_WHITE);
     tft.setTextSize(1);
     tft.setCursor(92, 59 + i * 22);
@@ -285,9 +307,9 @@ void GameUi::drawAdventure(const PetSaveData& data) {
                        7, 66 + i * 22, ST77XX_YELLOW);
     }
   }
-  chinese_.color(ST77XX_WHITE);
-  chinese_.draw(10, 137, "灵力");
-  chinese_.draw(76, 151, "返回");
+  text().color(ST77XX_WHITE);
+  text().draw(10, 137, "灵力");
+  text().draw(76, 151, "返回");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
   tft.setCursor(42, 130);
@@ -295,20 +317,20 @@ void GameUi::drawAdventure(const PetSaveData& data) {
 }
 
 void GameUi::drawBattle(const PetSaveData& data) {
-  Adafruit_ST7735& tft = display_->raw();
-  chinese_.color(0xFFE0);
-  chinese_.draw(8, 36, "秘境首领");
-  chinese_.color(ST77XX_WHITE);
-  chinese_.draw(8, 58, "敌方气血");
+  Adafruit_GFX& tft = target();
+  text().color(0xFFE0);
+  text().draw(8, 36, "秘境首领");
+  text().color(ST77XX_WHITE);
+  text().draw(8, 58, "敌方气血");
   tft.drawRect(70, 50, 50, 7, ST77XX_WHITE);
   tft.fillRect(71, 51, 48, 5, ST77XX_BLACK);
   if (data.bossMaxHp) {
     tft.fillRect(71, 51, data.bossHp * 48 / data.bossMaxHp, 5, ST77XX_RED);
   }
-  chinese_.draw(8, 82, "一键 攻击");
-  chinese_.draw(8, 102, "二键 法诀");
-  chinese_.draw(8, 122, "三键 丹药");
-  chinese_.draw(8, 142, "四键 防御");
+  text().draw(8, 82, "一键 攻击");
+  text().draw(8, 102, "二键 法诀");
+  text().draw(8, 122, "三键 丹药");
+  text().draw(8, 142, "四键 防御");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
   tft.setCursor(87, 72);
@@ -316,28 +338,28 @@ void GameUi::drawBattle(const PetSaveData& data) {
 }
 
 void GameUi::drawStatus(const PetSaveData& data) {
-  Adafruit_ST7735& tft = display_->raw();
-  chinese_.color(ST77XX_YELLOW);
-  chinese_.draw(8, 38, "状态");
-  chinese_.color(ST77XX_WHITE);
+  Adafruit_GFX& tft = target();
+  text().color(ST77XX_YELLOW);
+  text().draw(8, 38, "状态");
+  text().color(ST77XX_WHITE);
   const char* forms[] = {"混沌灵卵", "凌霄麒麟", "镇岳麒麟", "太虚剑仙",
                          "九转丹仙", "不灭武仙", "万灵仙尊"};
-  chinese_.draw(10, 65, "形态");
-  chinese_.draw(48, 65, forms[static_cast<unsigned>(data.form)]);
-  chinese_.draw(10, 88, "修炼");
+  text().draw(10, 65, "形态");
+  text().draw(48, 65, forms[static_cast<unsigned>(data.form)]);
+  text().draw(10, 88, "修炼");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
   tft.setCursor(48, 81);
   tft.printf("%lus", static_cast<unsigned long>(data.playSeconds));
-  chinese_.draw(10, 112, "剑  丹  体  灵");
+  text().draw(10, 112, "剑  丹  体  灵");
   tft.setCursor(15, 120);
   tft.printf("%u  %u  %u  %u", data.tendencies[0], data.tendencies[1],
              data.tendencies[2], data.tendencies[3]);
-  chinese_.draw(76, 151, "返回");
+  text().draw(76, 151, "返回");
 }
 
 void GameUi::drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color) {
-  Adafruit_ST7735& tft = display_->raw();
+  Adafruit_GFX& tft = target();
   const int16_t width = 56;
   tft.drawRect(x, y, width, 7, ST77XX_WHITE);
   tft.fillRect(x + 1, y + 1, width - 2, 5, ST77XX_BLACK);
@@ -386,4 +408,12 @@ void GameUi::drawFeedback(uint32_t now) {
     case Feedback::None:
       break;
   }
+}
+
+Adafruit_GFX& GameUi::target() {
+  return renderTarget_ ? *renderTarget_ : display_->raw();
+}
+
+ChineseText& GameUi::text() {
+  return renderText_ ? *renderText_ : chinese_;
 }

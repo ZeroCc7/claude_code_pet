@@ -7,10 +7,10 @@
 class ChineseText {
  public:
   void begin(DisplayDevice& display);
+  void begin(Adafruit_GFX& target);
   void color(uint16_t foreground);
   void draw(int16_t x, int16_t baseline, const char* text);
 
  private:
   U8G2_FOR_ADAFRUIT_GFX text_;
 };
-

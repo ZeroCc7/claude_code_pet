@@ -1,7 +1,11 @@
 #include "chinese_text.h"
 
 void ChineseText::begin(DisplayDevice& display) {
-  text_.begin(display.raw());
+  begin(display.raw());
+}
+
+void ChineseText::begin(Adafruit_GFX& target) {
+  text_.begin(target);
   text_.setFontMode(1);
   text_.setFontDirection(0);
   text_.setFont(u8g2_font_wqy12_t_gb2312b);
@@ -15,4 +19,3 @@ void ChineseText::color(uint16_t foreground) {
 void ChineseText::draw(int16_t x, int16_t baseline, const char* text) {
   text_.drawUTF8(x, baseline, text);
 }
-

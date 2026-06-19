@@ -24,6 +24,7 @@ class GameUi {
 
   void drawHeader(const PetSaveData& data);
   void drawInkBackground();
+  void drawMenuFrame(const PetSaveData& data);
   void drawHome(const PetSaveData& data, uint32_t now);
   void drawHomePet(const PetSaveData& data, uint32_t now);
   void drawHomeStats(const PetSaveData& data);
@@ -36,11 +37,17 @@ class GameUi {
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
   void startFeedback(Feedback feedback);
   void drawFeedback(uint32_t now);
+  Adafruit_GFX& target();
+  ChineseText& text();
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
   GFXcanvas16 petCanvas_{56, 50};
+  GFXcanvas16 menuCanvas_{128, 160};
   ChineseText chinese_;
+  ChineseText menuChinese_;
+  Adafruit_GFX* renderTarget_ = nullptr;
+  ChineseText* renderText_ = nullptr;
   UiPage page_ = UiPage::Home;
   uint8_t selection_ = 0;
   bool dirty_ = true;
