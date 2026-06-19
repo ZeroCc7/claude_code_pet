@@ -25,6 +25,6 @@ class GameApp {
   String serialCommand_;
   uint32_t lastTickAt_ = 0;
   uint32_t lastSaveAt_ = 0;
+  uint32_t lastExplorationAt_ = 0;
   bool savePending_ = false;
 };
-

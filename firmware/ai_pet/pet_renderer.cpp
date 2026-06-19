@@ -7,6 +7,18 @@ void PetRenderer::draw(Adafruit_ST7735& tft, PetForm form, int16_t x,
   y += bob;
 
   tft.fillRect(x, y, 40, 40, ST77XX_BLACK);
+  if (form >= PetForm::FinalA1) {
+    tft.fillCircle(x + 20, y + 8, 6, 0xF5CC);
+    tft.fillTriangle(x + 14, y + 6, x + 16, y, x + 19, y + 7, 0x6D2B);
+    tft.fillTriangle(x + 21, y + 7, x + 25, y, x + 27, y + 7, 0x6D2B);
+    tft.fillRect(x + 14, y + 14, 13, 18, body);
+    tft.fillTriangle(x + 14, y + 20, x + 6, y + 34, x + 16, y + 30, body);
+    tft.fillTriangle(x + 27, y + 20, x + 34, y + 34, x + 25, y + 30, body);
+    tft.drawCircle(x + 20, y + 21, 14, 0xFFE0);
+    tft.drawPixel(x + 18, y + 8, ST77XX_BLACK);
+    tft.drawPixel(x + 22, y + 8, ST77XX_BLACK);
+    return;
+  }
   tft.fillRoundRect(x + 5, y + 8, 30, 25, 7, body);
   tft.fillTriangle(x + 8, y + 11, x + 11, y + 2, x + 16, y + 11, body);
   tft.fillTriangle(x + 24, y + 11, x + 29, y + 2, x + 32, y + 11, body);
@@ -38,4 +50,3 @@ uint16_t PetRenderer::bodyColor(PetForm form) const {
   }
   return ST77XX_CYAN;
 }
-

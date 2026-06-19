@@ -51,6 +51,7 @@ Invoke-ArduinoCli core update-index
 Invoke-ArduinoCli core install "rp2040:rp2040"
 Invoke-ArduinoCli lib install "Adafruit GFX Library"
 Invoke-ArduinoCli lib install "Adafruit ST7735 and ST7789 Library"
+Invoke-ArduinoCli lib install "U8g2_for_Adafruit_GFX"
 Invoke-ArduinoCli version
 Invoke-ArduinoCli core list
 Invoke-ArduinoCli lib list

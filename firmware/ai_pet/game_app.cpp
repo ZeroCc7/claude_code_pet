@@ -28,6 +28,7 @@ void GameApp::begin() {
   ui_.begin(display_);
   ui_.draw(state_, millis(), true);
   lastTickAt_ = millis();
+  lastExplorationAt_ = millis();
 }
 
 void GameApp::update(uint32_t now) {
@@ -39,6 +40,14 @@ void GameApp::update(uint32_t now) {
     const uint32_t seconds = (now - lastTickAt_) / 1000;
     state_.mutableData().playSeconds += seconds;
     lastTickAt_ += seconds * 1000;
+  }
+
+  if (now - lastExplorationAt_ >= 60000) {
+    lastExplorationAt_ += 60000;
+    if (state_.tickExploration(state_.data().playSeconds)) {
+      requestSave();
+      ui_.draw(state_, now, true);
+    }
   }
 
   if (savePending_ && now - lastSaveAt_ >= kSaveDelayMs) {
@@ -102,4 +111,3 @@ void GameApp::printStatus() {
 void GameApp::requestSave() {
   savePending_ = true;
 }
-

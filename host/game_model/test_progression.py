@@ -1,4 +1,4 @@
-from progression import GameState, crc32
+from progression import GameState, PetForm, crc32
 
 
 def test_new_game_has_safe_defaults():
@@ -55,3 +55,67 @@ def test_failed_task_grants_reduced_experience():
 
 def test_crc32_matches_standard_vector():
     assert crc32(b"123456789") == 0xCBF43926
+
+
+def test_exploration_tick_consumes_energy_and_advances_region():
+    state = GameState(energy=5)
+    assert state.start_exploration(0)
+
+    state.tick_exploration(seed=1)
+
+    assert state.energy == 1
+    assert state.region_progress[0] == 2
+    assert state.coins == 31
+
+
+def test_locked_region_cannot_start_until_previous_boss_is_defeated():
+    state = GameState(energy=10)
+
+    assert not state.start_exploration(1)
+    state.boss_defeated_mask = 0b001
+    assert state.start_exploration(1)
+
+
+def test_boss_battle_attack_and_defense():
+    state = GameState(region_progress=[100, 0, 0], stamina=80)
+    assert state.start_boss(0)
+
+    first_hp = state.boss_hp
+    state.battle_action("attack")
+    assert state.boss_hp < first_hp
+    stamina_after_attack = state.stamina
+
+    state.battle_action("defend")
+    assert state.stamina >= stamina_after_attack - 3
+
+
+def test_boss_victory_unlocks_next_region():
+    state = GameState(region_progress=[100, 0, 0], stamina=100)
+    assert state.start_boss(0)
+    state.boss_hp = 1
+
+    state.battle_action("attack")
+
+    assert state.boss_defeated_mask & 0b001
+    assert state.coins >= 50
+    assert not state.in_battle
+
+
+def test_level_five_evolves_to_a_rookie_branch():
+    state = GameState(level=4, experience=79)
+    state.tendencies = [8, 2, 1, 0]
+
+    state.gain_experience(1)
+
+    assert state.level == 5
+    assert state.form == PetForm.ROOKIE_A
+
+
+def test_level_twelve_evolves_to_matching_final_form():
+    state = GameState(level=11, experience=219, form=PetForm.ROOKIE_B)
+    state.tendencies = [1, 2, 12, 6]
+
+    state.gain_experience(1)
+
+    assert state.level == 12
+    assert state.form == PetForm.FINAL_B1

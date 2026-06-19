@@ -2,6 +2,7 @@
 
 void GameUi::begin(DisplayDevice& display) {
   display_ = &display;
+  chinese_.begin(display);
   dirty_ = true;
 }
 
@@ -20,7 +21,7 @@ void GameUi::handle(InputAction action, GameState& state) {
     } else if (action == InputAction::Back) {
       page_ = UiPage::Status;
     }
-  } else if (action == InputAction::Back) {
+  } else if (action == InputAction::Back && page_ != UiPage::Battle) {
     page_ = UiPage::Home;
   } else if (page_ == UiPage::Care) {
     if (action == InputAction::Up || action == InputAction::Down) {
@@ -38,7 +39,29 @@ void GameUi::handle(InputAction action, GameState& state) {
     } else if (action == InputAction::Down) {
       selection_ = (selection_ + 1) % 3;
     } else if (action == InputAction::Confirm) {
-      state.startExploration(selection_);
+      if (state.data().regionProgress[selection_] >= 100 &&
+          !(state.data().bossDefeatedMask & (1U << selection_))) {
+        if (state.startBoss(selection_)) {
+          page_ = UiPage::Battle;
+        }
+      } else {
+        state.startExploration(selection_);
+      }
+    }
+  } else if (page_ == UiPage::Battle) {
+    uint8_t battleAction = 0;
+    if (action == InputAction::Confirm) {
+      battleAction = 0;
+    } else if (action == InputAction::Up) {
+      battleAction = 1;
+    } else if (action == InputAction::Down) {
+      battleAction = 2;
+    } else {
+      battleAction = 3;
+    }
+    state.battleAction(battleAction);
+    if (!state.data().inBattle) {
+      page_ = UiPage::Adventure;
     }
   }
   dirty_ = true;
@@ -56,9 +79,8 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
     lastAnimationAt_ = now;
   }
 
-  Adafruit_ST7735& tft = display_->raw();
   if (dirty_ || force) {
-    tft.fillScreen(ST77XX_BLACK);
+    drawInkBackground();
     drawHeader(state.data());
   }
 
@@ -76,6 +98,7 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
       drawStatus(state.data());
       break;
     case UiPage::Battle:
+      drawBattle(state.data());
       break;
   }
   dirty_ = false;
@@ -96,84 +119,141 @@ void GameUi::drawHeader(const PetSaveData& data) {
   tft.print("USB");
 }
 
+void GameUi::drawInkBackground() {
+  Adafruit_ST7735& tft = display_->raw();
+  tft.fillScreen(0x0861);
+  tft.fillCircle(106, 38, 22, 0xBDD7);
+  tft.fillCircle(106, 38, 16, 0xDED9);
+  tft.fillTriangle(0, 88, 35, 52, 72, 88, 0x10C3);
+  tft.fillTriangle(42, 88, 82, 42, 127, 88, 0x1924);
+  tft.drawFastHLine(0, 88, 128, 0x3AE8);
+  for (int16_t x = 4; x < 128; x += 15) {
+    tft.drawPixel(x, 96 + (x % 9), 0x7D0F);
+    tft.drawPixel(x + 1, 96 + (x % 9), 0x7D0F);
+  }
+  tft.fillRect(0, 112, 128, 48, 0x0861);
+  tft.drawFastHLine(0, 112, 128, 0x6B8D);
+}
+
 void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
   Adafruit_ST7735& tft = display_->raw();
   pet_.draw(tft, data.form, 44, 38, now);
+  chinese_.color(0xF7BE);
+  chinese_.draw(5, 124, "心境");
+  chinese_.draw(67, 124, "体力");
+  drawBar(5, 128, data.mood, 0xF9B2);
+  drawBar(67, 128, data.stamina, 0x5EAA);
+  chinese_.draw(5, 148, "灵力");
+  chinese_.draw(67, 148, "灵石");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
-  tft.setCursor(5, 91);
-  tft.printf("Mood %u", data.mood);
-  drawBar(5, 102, data.mood, ST77XX_MAGENTA);
-  tft.setCursor(5, 116);
-  tft.printf("Stamina %u", data.stamina);
-  drawBar(5, 127, data.stamina, ST77XX_GREEN);
-  tft.setCursor(5, 141);
-  tft.printf("Energy %u  Coin %u", data.energy, data.coins);
+  tft.setCursor(35, 141);
+  tft.print(data.energy);
+  tft.setCursor(97, 141);
+  tft.print(data.coins);
 }
 
 void GameUi::drawCare(const PetSaveData& data) {
   Adafruit_ST7735& tft = display_->raw();
-  tft.setTextColor(ST77XX_CYAN);
-  tft.setTextSize(2);
-  tft.setCursor(8, 28);
-  tft.print("CARE");
-  const char* items[] = {"Feed -10", "Interact"};
+  chinese_.color(0x7FFF);
+  chinese_.draw(8, 38, "培养");
+  const char* items[] = {"喂食  十灵石", "互动"};
   for (uint8_t i = 0; i < 2; ++i) {
-    tft.setTextColor(i == selection_ ? ST77XX_YELLOW : ST77XX_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(12, 62 + i * 24);
-    tft.printf("%c %s", i == selection_ ? '>' : ' ', items[i]);
+    chinese_.color(i == selection_ ? 0xFFE0 : ST77XX_WHITE);
+    chinese_.draw(20, 70 + i * 24, items[i]);
+    if (i == selection_) {
+      tft.fillTriangle(8, 62 + i * 24, 14, 66 + i * 24,
+                       8, 70 + i * 24, 0xFFE0);
+    }
   }
-  tft.setCursor(12, 120);
+  chinese_.color(ST77XX_WHITE);
+  chinese_.draw(12, 126, "灵石");
+  chinese_.draw(66, 126, "体力");
   tft.setTextColor(ST77XX_WHITE);
-  tft.printf("Coin %u  STA %u", data.coins, data.stamina);
-  tft.setCursor(12, 145);
-  tft.print("K4 Back");
+  tft.setTextSize(1);
+  tft.setCursor(42, 119);
+  tft.print(data.coins);
+  tft.setCursor(96, 119);
+  tft.print(data.stamina);
+  chinese_.draw(12, 151, "返回");
 }
 
 void GameUi::drawAdventure(const PetSaveData& data) {
   Adafruit_ST7735& tft = display_->raw();
-  tft.setTextColor(ST77XX_GREEN);
-  tft.setTextSize(2);
-  tft.setCursor(8, 26);
-  tft.print("ADVENTURE");
+  chinese_.color(0x7FEF);
+  chinese_.draw(8, 38, "历练");
+  const char* zones[] = {"青竹灵境", "云海剑台", "玄岳古域"};
   for (uint8_t i = 0; i < 3; ++i) {
+    const bool unlocked =
+        i == 0 || (data.bossDefeatedMask & (1U << (i - 1)));
+    chinese_.color(!unlocked ? 0x7BEF
+                             : i == selection_ ? ST77XX_YELLOW
+                                               : ST77XX_WHITE);
+    chinese_.draw(18, 66 + i * 22, unlocked ? zones[i] : "尚未解锁");
     tft.setTextColor(i == selection_ ? ST77XX_YELLOW : ST77XX_WHITE);
     tft.setTextSize(1);
-    tft.setCursor(10, 62 + i * 22);
-    tft.printf("%c Zone %u  %u%%", i == selection_ ? '>' : ' ', i + 1,
-               data.regionProgress[i]);
+    tft.setCursor(92, 59 + i * 22);
+    tft.printf("%u%%", data.regionProgress[i]);
+    if (i == selection_) {
+      tft.fillTriangle(7, 58 + i * 22, 13, 62 + i * 22,
+                       7, 66 + i * 22, ST77XX_YELLOW);
+    }
   }
+  chinese_.color(ST77XX_WHITE);
+  chinese_.draw(10, 137, "灵力");
+  chinese_.draw(76, 151, "返回");
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(10, 135);
-  tft.printf("Energy %u", data.energy);
-  tft.setCursor(10, 149);
-  tft.print("K4 Back");
+  tft.setTextSize(1);
+  tft.setCursor(42, 130);
+  tft.print(data.energy);
+}
+
+void GameUi::drawBattle(const PetSaveData& data) {
+  Adafruit_ST7735& tft = display_->raw();
+  chinese_.color(0xFFE0);
+  chinese_.draw(8, 36, "秘境首领");
+  chinese_.color(ST77XX_WHITE);
+  chinese_.draw(8, 58, "敌方气血");
+  tft.drawRect(70, 50, 50, 7, ST77XX_WHITE);
+  tft.fillRect(71, 51, 48, 5, ST77XX_BLACK);
+  if (data.bossMaxHp) {
+    tft.fillRect(71, 51, data.bossHp * 48 / data.bossMaxHp, 5, ST77XX_RED);
+  }
+  chinese_.draw(8, 82, "一键 攻击");
+  chinese_.draw(8, 102, "二键 法诀");
+  chinese_.draw(8, 122, "三键 丹药");
+  chinese_.draw(8, 142, "四键 防御");
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setTextSize(1);
+  tft.setCursor(87, 72);
+  tft.printf("HP %u", data.stamina);
 }
 
 void GameUi::drawStatus(const PetSaveData& data) {
   Adafruit_ST7735& tft = display_->raw();
-  tft.setTextColor(ST77XX_YELLOW);
-  tft.setTextSize(2);
-  tft.setCursor(8, 26);
-  tft.print("STATUS");
+  chinese_.color(ST77XX_YELLOW);
+  chinese_.draw(8, 38, "状态");
+  chinese_.color(ST77XX_WHITE);
+  const char* forms[] = {"混沌灵卵", "凌霄麒麟", "镇岳麒麟", "太虚剑仙",
+                         "九转丹仙", "不灭武仙", "万灵仙尊"};
+  chinese_.draw(10, 65, "形态");
+  chinese_.draw(48, 65, forms[static_cast<unsigned>(data.form)]);
+  chinese_.draw(10, 88, "修炼");
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(1);
-  tft.setCursor(10, 60);
-  tft.printf("Form %u", static_cast<unsigned>(data.form));
-  tft.setCursor(10, 78);
-  tft.printf("Play %lus", static_cast<unsigned long>(data.playSeconds));
-  tft.setCursor(10, 100);
-  tft.printf("T %u %u %u %u", data.tendencies[0], data.tendencies[1],
+  tft.setCursor(48, 81);
+  tft.printf("%lus", static_cast<unsigned long>(data.playSeconds));
+  chinese_.draw(10, 112, "剑  丹  体  灵");
+  tft.setCursor(15, 120);
+  tft.printf("%u  %u  %u  %u", data.tendencies[0], data.tendencies[1],
              data.tendencies[2], data.tendencies[3]);
-  tft.setCursor(10, 149);
-  tft.print("K4 Back");
+  chinese_.draw(76, 151, "返回");
 }
 
 void GameUi::drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color) {
   Adafruit_ST7735& tft = display_->raw();
-  tft.drawRect(x, y, 118, 7, ST77XX_WHITE);
-  tft.fillRect(x + 1, y + 1, 116, 5, ST77XX_BLACK);
-  tft.fillRect(x + 1, y + 1, value * 116 / 100, 5, color);
+  const int16_t width = 56;
+  tft.drawRect(x, y, width, 7, ST77XX_WHITE);
+  tft.fillRect(x + 1, y + 1, width - 2, 5, ST77XX_BLACK);
+  tft.fillRect(x + 1, y + 1, value * (width - 2) / 100, 5, color);
 }
-

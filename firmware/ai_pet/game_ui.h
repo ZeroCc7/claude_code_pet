@@ -1,6 +1,7 @@
 #pragma once
 
 #include "display_device.h"
+#include "chinese_text.h"
 #include "game_state.h"
 #include "input_actions.h"
 #include "pet_renderer.h"
@@ -14,17 +15,19 @@ class GameUi {
 
  private:
   void drawHeader(const PetSaveData& data);
+  void drawInkBackground();
   void drawHome(const PetSaveData& data, uint32_t now);
   void drawCare(const PetSaveData& data);
   void drawAdventure(const PetSaveData& data);
+  void drawBattle(const PetSaveData& data);
   void drawStatus(const PetSaveData& data);
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
+  ChineseText chinese_;
   UiPage page_ = UiPage::Home;
   uint8_t selection_ = 0;
   bool dirty_ = true;
   uint32_t lastAnimationAt_ = 0;
 };
-

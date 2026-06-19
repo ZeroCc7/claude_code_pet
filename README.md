@@ -50,3 +50,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\upload-firmware.ps
 - LittleFS 256KB：已验证
 - 串口自动验收：通过
 - 30 分钟稳定性测试：用户选择跳过
+
+## 当前玩法
+
+- 全中文修仙界面
+- 程序化水墨洞府背景
+- 培养：喂食、互动
+- 历练：青竹灵境、云海剑台、玄岳古域
+- 区域进度达到100%后挑战首领
+- 战斗：攻击、法诀、丹药、防御
+- 5级进入凌霄/镇岳分支，12级化形为四种青年仙人

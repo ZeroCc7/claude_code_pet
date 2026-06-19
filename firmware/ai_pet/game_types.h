@@ -36,7 +36,10 @@ struct PetSaveData {
   uint8_t regionProgress[3];
   uint8_t bossDefeatedMask;
   uint8_t activeRegion;
+  uint8_t battleRegion;
+  uint8_t bossHp;
+  uint8_t bossMaxHp;
+  uint8_t inBattle;
   uint32_t playSeconds;
   uint32_t crc32;
 };
-

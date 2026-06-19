@@ -40,6 +40,7 @@ https://github.com/earlephilhower/arduino-pico/releases/download/global/package_
 ```text
 Adafruit GFX Library
 Adafruit ST7735 and ST7789 Library
+U8g2_for_Adafruit_GFX
 ```
 
 如果 IDE 提示安装依赖，选择安装全部依赖。

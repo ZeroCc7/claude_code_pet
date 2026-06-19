@@ -14,10 +14,15 @@ class GameState {
   void interact();
   bool feed();
   bool startExploration(uint8_t region);
+  bool regionUnlocked(uint8_t region) const;
+  bool tickExploration(uint32_t seed);
+  bool startBoss(uint8_t region);
+  bool battleAction(uint8_t action);
+  void gainExperience(uint16_t amount);
   void applyTask(uint32_t durationSeconds, bool success);
 
  private:
+  void updateEvolution();
   static uint8_t clampPercent(uint16_t value);
   PetSaveData data_{};
 };
-

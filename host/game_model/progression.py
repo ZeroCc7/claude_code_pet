@@ -1,4 +1,15 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import IntEnum
+
+
+class PetForm(IntEnum):
+    EGG = 0
+    ROOKIE_A = 1
+    ROOKIE_B = 2
+    FINAL_A1 = 3
+    FINAL_A2 = 4
+    FINAL_B1 = 5
+    FINAL_B2 = 6
 
 
 def crc32(payload: bytes) -> int:
@@ -20,29 +31,131 @@ class GameState:
     coins: int = 30
     energy: int = 10
     active_region: int | None = None
+    region_progress: list[int] = field(default_factory=lambda: [0, 0, 0])
+    boss_defeated_mask: int = 0
+    tendencies: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
+    form: PetForm = PetForm.EGG
+    in_battle: bool = False
+    battle_region: int = 0
+    boss_hp: int = 0
+    boss_max_hp: int = 0
 
     def interact(self) -> None:
         self.mood = min(100, self.mood + 5)
+        self.tendencies[3] += 1
 
     def feed(self) -> bool:
         if self.coins < 10 or self.stamina >= 100:
             return False
         self.coins -= 10
         self.stamina = min(100, self.stamina + 20)
+        self.tendencies[3] += 1
         return True
 
+    def region_unlocked(self, region: int) -> bool:
+        return region == 0 or bool(self.boss_defeated_mask & (1 << (region - 1)))
+
     def start_exploration(self, region: int) -> bool:
-        if region not in (0, 1, 2) or self.energy < 3:
+        if (
+            region not in (0, 1, 2)
+            or not self.region_unlocked(region)
+            or self.energy < 3
+        ):
             return False
         self.energy -= 3
         self.active_region = region
         return True
 
+    def tick_exploration(self, seed: int) -> None:
+        if self.active_region is None or self.energy == 0:
+            return
+        self.energy -= 1
+        gain = 1 + seed % 3
+        region = self.active_region
+        self.region_progress[region] = min(100, self.region_progress[region] + gain)
+        self.coins += 1
+        self.tendencies[0 if region == 0 else 2] += 1
+        if self.region_progress[region] == 100 or self.energy == 0:
+            self.active_region = None
+
+    def start_boss(self, region: int) -> bool:
+        if (
+            region not in (0, 1, 2)
+            or self.region_progress[region] < 100
+            or self.boss_defeated_mask & (1 << region)
+        ):
+            return False
+        self.in_battle = True
+        self.battle_region = region
+        self.boss_max_hp = 25 + region * 20
+        self.boss_hp = self.boss_max_hp
+        return True
+
+    def battle_action(self, action: str) -> None:
+        if not self.in_battle:
+            return
+        damage = 0
+        incoming = 5 + self.battle_region * 2
+        if action == "attack":
+            damage = 6 + self.level
+            self.tendencies[0] += 1
+        elif action == "skill" and self.energy >= 2:
+            self.energy -= 2
+            damage = 10 + self.level * 2
+            self.tendencies[1] += 1
+        elif action == "item" and self.coins >= 5:
+            self.coins -= 5
+            self.stamina = min(100, self.stamina + 15)
+            incoming = 0
+            self.tendencies[3] += 1
+        elif action == "defend":
+            incoming = 3
+            self.tendencies[2] += 1
+        else:
+            return
+
+        self.boss_hp = max(0, self.boss_hp - damage)
+        if self.boss_hp == 0:
+            self.boss_defeated_mask |= 1 << self.battle_region
+            self.coins += 20 + self.battle_region * 15
+            self.gain_experience(20 + self.battle_region * 10)
+            self.in_battle = False
+            return
+
+        self.stamina = max(0, self.stamina - incoming)
+        if self.stamina == 0:
+            self.in_battle = False
+            self.stamina = 30
+
+    def gain_experience(self, amount: int) -> None:
+        self.experience += amount
+        self.level = min(30, self.experience // 20 + 1)
+        self.update_evolution()
+
+    def update_evolution(self) -> None:
+        if self.level >= 12 and self.form in (PetForm.ROOKIE_A, PetForm.ROOKIE_B):
+            if self.form == PetForm.ROOKIE_A:
+                self.form = (
+                    PetForm.FINAL_A1
+                    if self.tendencies[0] >= self.tendencies[1]
+                    else PetForm.FINAL_A2
+                )
+            else:
+                self.form = (
+                    PetForm.FINAL_B1
+                    if self.tendencies[2] >= self.tendencies[3]
+                    else PetForm.FINAL_B2
+                )
+        elif self.level >= 5 and self.form == PetForm.EGG:
+            agile = self.tendencies[0] + self.tendencies[1]
+            steady = self.tendencies[2] + self.tendencies[3]
+            self.form = PetForm.ROOKIE_A if agile >= steady else PetForm.ROOKIE_B
+
     def apply_task(self, duration_seconds: int, success: bool) -> None:
         minutes = max(1, min(60, duration_seconds // 60))
         if success:
-            self.experience += minutes * 2
+            self.gain_experience(minutes * 2)
             self.coins += minutes
             self.energy = min(999, self.energy + max(1, minutes // 2))
         else:
-            self.experience += max(1, (minutes + 1) // 2)
+            self.gain_experience(max(1, (minutes + 1) // 2))
