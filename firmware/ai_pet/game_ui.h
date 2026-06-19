@@ -14,6 +14,14 @@ class GameUi {
   UiPage page() const;
 
  private:
+  enum class Feedback : uint8_t {
+    None,
+    MoodUp,
+    StaminaUp,
+    NoCoins,
+    AlreadyFull,
+  };
+
   void drawHeader(const PetSaveData& data);
   void drawInkBackground();
   void drawHome(const PetSaveData& data, uint32_t now);
@@ -22,6 +30,8 @@ class GameUi {
   void drawBattle(const PetSaveData& data);
   void drawStatus(const PetSaveData& data);
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
+  void startFeedback(Feedback feedback);
+  void drawFeedback(uint32_t now);
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
@@ -30,4 +40,6 @@ class GameUi {
   uint8_t selection_ = 0;
   bool dirty_ = true;
   uint32_t lastAnimationAt_ = 0;
+  Feedback feedback_ = Feedback::None;
+  uint32_t feedbackStartedAt_ = 0;
 };

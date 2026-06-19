@@ -13,7 +13,10 @@ void GameUi::handle(InputAction action, GameState& state) {
 
   if (page_ == UiPage::Home) {
     if (action == InputAction::Confirm) {
+      const uint8_t oldMood = state.data().mood;
       state.interact();
+      startFeedback(state.data().mood > oldMood ? Feedback::MoodUp
+                                                : Feedback::AlreadyFull);
     } else if (action == InputAction::Up) {
       page_ = UiPage::Care;
     } else if (action == InputAction::Down) {
@@ -28,9 +31,20 @@ void GameUi::handle(InputAction action, GameState& state) {
       selection_ = 1 - selection_;
     } else if (action == InputAction::Confirm) {
       if (selection_ == 0) {
-        state.feed();
+        const uint16_t oldCoins = state.data().coins;
+        const uint8_t oldStamina = state.data().stamina;
+        if (state.feed()) {
+          startFeedback(Feedback::StaminaUp);
+        } else if (oldCoins < 10) {
+          startFeedback(Feedback::NoCoins);
+        } else if (oldStamina >= 100) {
+          startFeedback(Feedback::AlreadyFull);
+        }
       } else {
+        const uint8_t oldMood = state.data().mood;
         state.interact();
+        startFeedback(state.data().mood > oldMood ? Feedback::MoodUp
+                                                  : Feedback::AlreadyFull);
       }
     }
   } else if (page_ == UiPage::Adventure) {
@@ -72,7 +86,9 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
     return;
   }
   const bool animate = page_ == UiPage::Home && now - lastAnimationAt_ >= 600;
-  if (!dirty_ && !force && !animate) {
+  const bool feedbackActive =
+      feedback_ != Feedback::None && now - feedbackStartedAt_ < 1200;
+  if (!dirty_ && !force && !animate && !feedbackActive) {
     return;
   }
   if (animate) {
@@ -100,6 +116,12 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
     case UiPage::Battle:
       drawBattle(state.data());
       break;
+  }
+  if (feedbackActive) {
+    drawFeedback(now);
+  } else if (feedback_ != Feedback::None) {
+    feedback_ = Feedback::None;
+    dirty_ = true;
   }
   dirty_ = false;
 }
@@ -137,7 +159,14 @@ void GameUi::drawInkBackground() {
 
 void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
   Adafruit_ST7735& tft = display_->raw();
-  pet_.draw(tft, data.form, 44, 38, now);
+  int16_t petY = 38;
+  if ((feedback_ == Feedback::MoodUp ||
+       feedback_ == Feedback::StaminaUp) &&
+      now - feedbackStartedAt_ < 700) {
+    const uint32_t phase = (now - feedbackStartedAt_) % 350;
+    petY -= phase < 175 ? phase / 25 : (350 - phase) / 25;
+  }
+  pet_.draw(tft, data.form, 44, petY, now);
   chinese_.color(0xF7BE);
   chinese_.draw(5, 124, "心境");
   chinese_.draw(67, 124, "体力");
@@ -256,4 +285,48 @@ void GameUi::drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color) {
   tft.drawRect(x, y, width, 7, ST77XX_WHITE);
   tft.fillRect(x + 1, y + 1, width - 2, 5, ST77XX_BLACK);
   tft.fillRect(x + 1, y + 1, value * (width - 2) / 100, 5, color);
+}
+
+void GameUi::startFeedback(Feedback feedback) {
+  feedback_ = feedback;
+  feedbackStartedAt_ = millis();
+  dirty_ = true;
+}
+
+void GameUi::drawFeedback(uint32_t now) {
+  Adafruit_ST7735& tft = display_->raw();
+  const uint32_t elapsed = now - feedbackStartedAt_;
+  const int16_t rise = min<uint32_t>(10, elapsed / 80);
+
+  if (feedback_ == Feedback::MoodUp || feedback_ == Feedback::StaminaUp) {
+    const int16_t centerX = 64;
+    const int16_t centerY = 43 - rise;
+    for (uint8_t i = 0; i < 6; ++i) {
+      const int16_t x = centerX - 24 + i * 9;
+      const int16_t y = centerY + ((i * 7 + elapsed / 100) % 13);
+      tft.drawPixel(x, y, 0xFFE0);
+      tft.drawFastHLine(x - 1, y, 3, 0xFFE0);
+      tft.drawFastVLine(x, y - 1, 3, 0xFFE0);
+    }
+  }
+
+  tft.fillRoundRect(14, 84, 100, 24, 4, 0x18C3);
+  tft.drawRoundRect(14, 84, 100, 24, 4, 0xD5EA);
+  chinese_.color(feedback_ == Feedback::NoCoins ? 0xFB08 : 0xFFE0);
+  switch (feedback_) {
+    case Feedback::MoodUp:
+      chinese_.draw(34, 101, "心境提升");
+      break;
+    case Feedback::StaminaUp:
+      chinese_.draw(34, 101, "体力恢复");
+      break;
+    case Feedback::NoCoins:
+      chinese_.draw(34, 101, "灵石不足");
+      break;
+    case Feedback::AlreadyFull:
+      chinese_.draw(34, 101, "当前已满");
+      break;
+    case Feedback::None:
+      break;
+  }
 }
