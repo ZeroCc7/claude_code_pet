@@ -87,12 +87,16 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (!display_) {
     return;
   }
+  const bool fullRedraw = dirty_ || force;
   const bool animate = page_ == UiPage::Home && now - lastAnimationAt_ >= 600;
   const bool feedbackActive =
       feedback_ != Feedback::None && now - feedbackStartedAt_ < 1200;
   const bool feedbackFrame =
-      feedbackActive && now - lastFeedbackFrameAt_ >= 80;
-  if (!dirty_ && !force && !animate && !feedbackFrame) {
+      page_ == UiPage::Home && feedbackActive &&
+      now - lastFeedbackFrameAt_ >= 80;
+  const bool feedbackExpired =
+      feedback_ != Feedback::None && !feedbackActive;
+  if (!fullRedraw && !animate && !feedbackFrame && !feedbackExpired) {
     return;
   }
   if (animate) {
@@ -102,33 +106,45 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
     lastFeedbackFrameAt_ = now;
   }
 
-  if (dirty_ || force || animate || feedbackFrame) {
+  if (fullRedraw) {
     drawInkBackground();
     drawHeader(state.data());
+    switch (page_) {
+      case UiPage::Home:
+        drawHome(state.data(), now);
+        break;
+      case UiPage::Care:
+        drawCare(state.data());
+        break;
+      case UiPage::Adventure:
+        drawAdventure(state.data());
+        break;
+      case UiPage::Status:
+        drawStatus(state.data());
+        break;
+      case UiPage::Battle:
+        drawBattle(state.data());
+        break;
+    }
+  } else if (page_ == UiPage::Home) {
+    restoreHomeDynamicRegions();
+    if (feedbackExpired) {
+      restoreBackgroundRect(14, 84, 100, 24);
+    }
+    drawHomePet(state.data(), now);
   }
 
-  switch (page_) {
-    case UiPage::Home:
-      drawHome(state.data(), now);
-      break;
-    case UiPage::Care:
-      drawCare(state.data());
-      break;
-    case UiPage::Adventure:
-      drawAdventure(state.data());
-      break;
-    case UiPage::Status:
-      drawStatus(state.data());
-      break;
-    case UiPage::Battle:
-      drawBattle(state.data());
-      break;
-  }
   if (feedbackActive) {
-    drawFeedback(now);
+    if (fullRedraw || feedbackFrame) {
+      drawFeedback(now);
+    }
   } else if (feedback_ != Feedback::None) {
     feedback_ = Feedback::None;
-    dirty_ = true;
+    if (page_ != UiPage::Home) {
+      dirty_ = true;
+      draw(state, now, false);
+      return;
+    }
   }
   dirty_ = false;
 }
@@ -157,6 +173,11 @@ void GameUi::drawInkBackground() {
 }
 
 void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
+  drawHomePet(data, now);
+  drawHomeStats(data);
+}
+
+void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
   Adafruit_ST7735& tft = display_->raw();
   int16_t petY = 38;
   if ((feedback_ == Feedback::MoodUp ||
@@ -166,6 +187,10 @@ void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
     petY -= phase < 175 ? phase / 25 : (350 - phase) / 25;
   }
   pet_.draw(tft, data.form, 44, petY, now);
+}
+
+void GameUi::drawHomeStats(const PetSaveData& data) {
+  Adafruit_ST7735& tft = display_->raw();
   chinese_.color(0xF7BE);
   chinese_.draw(5, 124, "心境");
   chinese_.draw(67, 124, "体力");
@@ -179,6 +204,21 @@ void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
   tft.print(data.energy);
   tft.setCursor(97, 141);
   tft.print(data.coins);
+}
+
+void GameUi::restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
+                                   int16_t height) {
+  Adafruit_ST7735& tft = display_->raw();
+  for (int16_t row = 0; row < height; ++row) {
+    const uint16_t* source =
+        kImmortalCaveHome + (y + row) * kImmortalCaveHomeWidth + x;
+    tft.drawRGBBitmap(x, y + row, source, width, 1);
+  }
+}
+
+void GameUi::restoreHomeDynamicRegions() {
+  // 宠物跳动和粒子只会进入这块区域，避免动画时重刷整屏。
+  restoreBackgroundRect(36, 28, 56, 50);
 }
 
 void GameUi::drawCare(const PetSaveData& data) {
