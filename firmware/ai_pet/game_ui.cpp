@@ -185,7 +185,7 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
     drawMenuFrame(state.data());
   } else if (fullRedraw) {
     drawInkBackground();
-    drawHeader(state.data());
+    drawHomeHeader(state.data());
     drawHome(state.data(), now);
   } else if (page_ == UiPage::Home) {
     if (feedbackExpired) {
@@ -224,8 +224,28 @@ void GameUi::drawHeader(const PetSaveData& data) {
   tft.setTextSize(1);
   tft.setCursor(4, 5);
   tft.printf("LV%u  XP%u", data.level, data.experience);
-  tft.setCursor(104, 5);
-  tft.print("USB");
+}
+
+void GameUi::drawHomeHeader(const PetSaveData& data) {
+  Adafruit_GFX& tft = target();
+  tft.fillRect(0, 0, 128, 19, kInkBlack);
+  tft.drawFastHLine(0, 18, 128, kDarkGold);
+
+  text().color(kWarmWhite);
+  text().draw(3, 13, "炼气");
+  tft.setTextColor(kBrightGold);
+  tft.setTextSize(1);
+  tft.setCursor(28, 4);
+  tft.printf("LV%u", data.level);
+
+  const uint8_t currentExperience = data.experience % 20;
+  drawProgressBar(51, 4, 44, currentExperience, 20, kBrightGold);
+  tft.setTextColor(kWarmWhite);
+  tft.setCursor(61, 11);
+  tft.printf("%u/20", currentExperience);
+
+  text().color(kMutedCyan);
+  text().draw(101, 13, "离线");
 }
 
 void GameUi::drawInkBackground() {
@@ -377,20 +397,71 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
 }
 
 void GameUi::drawHomeStats(const PetSaveData& data) {
+  drawHomeVitals(data);
+}
+
+void GameUi::drawHomeVitals(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
-  text().color(0xF7BE);
-  text().draw(5, 124, "心境");
-  text().draw(67, 124, "体力");
-  drawBar(5, 128, data.mood, 0xF9B2);
-  drawBar(67, 128, data.stamina, 0x5EAA);
-  text().draw(5, 148, "灵力");
-  text().draw(67, 148, "灵石");
-  tft.setTextColor(ST77XX_WHITE);
+  tft.fillRect(0, 111, 128, 49, kInkBlack);
+  tft.drawFastHLine(0, 111, 128, kDarkGold);
+  tft.drawPixel(16, 114, 0xF9B2);
+  tft.drawFastHLine(14, 115, 5, 0xF9B2);
+  text().color(kWarmWhite);
+  text().draw(21, 123, "心境");
+  tft.setTextColor(data.mood < 25 ? kCinnabar : kWarmWhite);
   tft.setTextSize(1);
-  tft.setCursor(35, 141);
-  tft.print(data.energy);
-  tft.setCursor(97, 141);
-  tft.print(data.coins);
+  tft.setCursor(47, 115);
+  tft.print(data.mood);
+  drawProgressBar(5, 126, 55, data.mood, 100,
+                  data.mood < 25 ? kCinnabar : 0xF9B2);
+
+  tft.drawPixel(77, 114, kCinnabar);
+  tft.drawFastVLine(77, 113, 4, kCinnabar);
+  text().color(kWarmWhite);
+  text().draw(83, 123, "体力");
+  tft.setTextColor(data.stamina < 25 ? kCinnabar : kWarmWhite);
+  tft.setCursor(109, 115);
+  tft.print(data.stamina);
+  drawProgressBar(67, 126, 56, data.stamina, 100,
+                  data.stamina < 25 ? kCinnabar : 0xF2A4);
+
+  drawResourceBadge(5, 136, 0x6E8D, "灵力", data.energy, 20);
+  drawResourceBadge(67, 136, kBrightGold, "灵石", data.coins);
+
+  tft.fillRect(0, 151, 128, 9, 0x0862);
+  tft.setTextSize(1);
+  tft.setTextColor(kMutedCyan);
+  tft.setCursor(1, 153);
+  tft.print("K1");
+  text().color(kMutedCyan);
+  text().draw(13, 160, "互");
+  tft.setCursor(33, 153);
+  tft.print("K2");
+  text().draw(45, 160, "养");
+  tft.setCursor(65, 153);
+  tft.print("K3");
+  text().draw(77, 160, "历");
+  tft.setCursor(97, 153);
+  tft.print("K4");
+  text().draw(109, 160, "态");
+}
+
+void GameUi::drawResourceBadge(int16_t x, int16_t y, uint16_t color,
+                               const char* label, uint16_t value,
+                               uint16_t maximum) {
+  Adafruit_GFX& tft = target();
+  tft.fillRoundRect(x, y, 56, 13, 3, kInkBlue);
+  tft.drawRoundRect(x, y, 56, 13, 3, color);
+  text().color(kWarmWhite);
+  text().draw(x + 3, y + 11, label);
+  tft.setTextColor(color);
+  tft.setTextSize(1);
+  tft.setCursor(x + 29, y + 3);
+  if (maximum) {
+    tft.printf("%u/%u", value, maximum);
+  } else {
+    tft.print(value);
+  }
 }
 
 void GameUi::restoreBackgroundRect(int16_t x, int16_t y, int16_t width,

@@ -24,6 +24,7 @@ class GameUi {
   };
 
   void drawHeader(const PetSaveData& data);
+  void drawHomeHeader(const PetSaveData& data);
   void drawInkBackground();
   void drawMenuFrame(const PetSaveData& data);
   void drawTitlePlaque(const char* title, uint16_t accent);
@@ -37,6 +38,10 @@ class GameUi {
   void drawHome(const PetSaveData& data, uint32_t now);
   void drawHomePet(const PetSaveData& data, uint32_t now);
   void drawHomeStats(const PetSaveData& data);
+  void drawHomeVitals(const PetSaveData& data);
+  void drawResourceBadge(int16_t x, int16_t y, uint16_t color,
+                         const char* label, uint16_t value,
+                         uint16_t maximum = 0);
   void restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
                              int16_t height);
   void drawCare(const PetSaveData& data);

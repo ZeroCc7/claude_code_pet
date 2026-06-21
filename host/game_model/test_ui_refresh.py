@@ -17,7 +17,7 @@ def test_animation_frames_do_not_redraw_the_full_background():
     assert """
   } else if (fullRedraw) {
     drawInkBackground();
-    drawHeader(state.data());
+    drawHomeHeader(state.data());
 """ in UI_SOURCE
 
 
@@ -83,3 +83,18 @@ def test_cloud_terrace_home_uses_larger_lower_pet_region():
     assert "constexpr int16_t kPetRegionWidth = 72;" in UI_SOURCE
     assert "constexpr int16_t kPetRegionHeight = 76;" in UI_SOURCE
     assert "GFXcanvas16 petCanvas_{72, 76};" in UI_HEADER
+
+
+def test_home_header_shows_level_current_xp_and_offline_state():
+    assert "drawHomeHeader(" in UI_SOURCE
+    assert "data.experience % 20" in UI_SOURCE
+    assert '"离线"' in UI_SOURCE
+    assert 'tft.print("USB")' not in UI_SOURCE
+
+
+def test_home_hud_uses_vital_bars_resource_badges_and_key_hints():
+    assert "drawHomeVitals(" in UI_SOURCE
+    assert "drawResourceBadge(" in UI_SOURCE
+    for label in ('tft.print("K1")', '"互"', 'tft.print("K2")', '"养"',
+                  'tft.print("K3")', '"历"', 'tft.print("K4")', '"态"'):
+        assert label in UI_SOURCE
