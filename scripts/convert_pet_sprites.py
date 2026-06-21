@@ -4,7 +4,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FRAME_SIZE = 48
+FRAME_SIZE = 62
 FORMS = {
     "egg": ROOT / "assets/processed/pets/egg",
     "rookie_a": ROOT / "assets/processed/pets/rookie_a",
@@ -24,7 +24,7 @@ def normalize_frame(path: Path) -> Image.Image:
     if bbox is None:
         raise ValueError(f"empty sprite frame: {path}")
     subject = source.crop(bbox)
-    scale = min(46 / subject.width, 46 / subject.height)
+    scale = min(60 / subject.width, 60 / subject.height)
     size = (
         max(1, round(subject.width * scale)),
         max(1, round(subject.height * scale)),
@@ -84,7 +84,8 @@ def convert() -> None:
                 for byte_x in range(0, FRAME_SIZE, 8):
                     value = 0
                     for bit in range(8):
-                        alpha_value = frame.getpixel((byte_x + bit, y))[3]
+                        x = byte_x + bit
+                        alpha_value = frame.getpixel((x, y))[3] if x < FRAME_SIZE else 0
                         if alpha_value >= 96:
                             value |= 0x80 >> bit
                     mask.append(value)

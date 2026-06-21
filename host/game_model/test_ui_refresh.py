@@ -74,3 +74,12 @@ def test_battle_page_has_four_action_tiles_and_result_notice():
         assert label in UI_SOURCE
     assert "startNotice(" in UI_SOURCE
     assert "drawNotice(" in UI_SOURCE
+
+
+def test_cloud_terrace_home_uses_larger_lower_pet_region():
+    assert '#include "assets/cloud_terrace_home.h"' in UI_SOURCE
+    assert "constexpr int16_t kPetRegionX = 28;" in UI_SOURCE
+    assert "constexpr int16_t kPetRegionY = 31;" in UI_SOURCE
+    assert "constexpr int16_t kPetRegionWidth = 72;" in UI_SOURCE
+    assert "constexpr int16_t kPetRegionHeight = 76;" in UI_SOURCE
+    assert "GFXcanvas16 petCanvas_{72, 76};" in UI_HEADER

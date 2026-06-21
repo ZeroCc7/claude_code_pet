@@ -1,13 +1,13 @@
 #include "game_ui.h"
 
-#include "assets/immortal_cave_home.h"
+#include "assets/cloud_terrace_home.h"
 
 namespace {
 
-constexpr int16_t kPetRegionX = 36;
-constexpr int16_t kPetRegionY = 28;
-constexpr int16_t kPetRegionWidth = 56;
-constexpr int16_t kPetRegionHeight = 50;
+constexpr int16_t kPetRegionX = 28;
+constexpr int16_t kPetRegionY = 31;
+constexpr int16_t kPetRegionWidth = 72;
+constexpr int16_t kPetRegionHeight = 76;
 constexpr uint16_t kInkBlack = 0x0861;
 constexpr uint16_t kInkBlue = 0x10C3;
 constexpr uint16_t kPanelBlue = 0x1924;
@@ -230,8 +230,8 @@ void GameUi::drawHeader(const PetSaveData& data) {
 
 void GameUi::drawInkBackground() {
   Adafruit_GFX& tft = target();
-  tft.drawRGBBitmap(0, 0, kImmortalCaveHome, kImmortalCaveHomeWidth,
-                    kImmortalCaveHomeHeight);
+  tft.drawRGBBitmap(0, 0, kCloudTerraceHome, kCloudTerraceHomeWidth,
+                    kCloudTerraceHomeHeight);
   tft.fillRect(0, 112, 128, 48, 0x0861);
   tft.drawFastHLine(0, 112, 128, 0x6B8D);
 }
@@ -357,20 +357,21 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
   for (int16_t row = 0; row < kPetRegionHeight; ++row) {
     for (int16_t column = 0; column < kPetRegionWidth; ++column) {
       frame[row * kPetRegionWidth + column] =
-          pgm_read_word(kImmortalCaveHome +
-                        (kPetRegionY + row) * kImmortalCaveHomeWidth +
+          pgm_read_word(kCloudTerraceHome +
+                        (kPetRegionY + row) * kCloudTerraceHomeWidth +
                         kPetRegionX + column);
     }
   }
 
-  int16_t petY = kPetRegionY + 1;
+  int16_t petY = kPetRegionY + 12;
   if ((feedback_ == Feedback::MoodUp ||
        feedback_ == Feedback::StaminaUp) &&
       now - feedbackStartedAt_ < 700) {
     const uint32_t phase = (now - feedbackStartedAt_) % 350;
     petY -= phase < 175 ? phase / 25 : (350 - phase) / 25;
   }
-  pet_.draw(petCanvas_, data.form, 4, petY - kPetRegionY, now);
+  const int16_t petX = data.form >= PetForm::FinalA1 ? 16 : 5;
+  pet_.draw(petCanvas_, data.form, petX, petY - kPetRegionY, now);
   tft.drawRGBBitmap(kPetRegionX, kPetRegionY, petCanvas_.getBuffer(),
                     kPetRegionWidth, kPetRegionHeight);
 }
@@ -397,7 +398,7 @@ void GameUi::restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
   Adafruit_ST7735& tft = display_->raw();
   for (int16_t row = 0; row < height; ++row) {
     const uint16_t* source =
-        kImmortalCaveHome + (y + row) * kImmortalCaveHomeWidth + x;
+        kCloudTerraceHome + (y + row) * kCloudTerraceHomeWidth + x;
     tft.drawRGBBitmap(x, y + row, source, width, 1);
   }
 }

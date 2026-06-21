@@ -51,7 +51,7 @@ class GameUi {
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
-  GFXcanvas16 petCanvas_{56, 50};
+  GFXcanvas16 petCanvas_{72, 76};
   GFXcanvas16 menuCanvas_{128, 160};
   ChineseText chinese_;
   ChineseText menuChinese_;
