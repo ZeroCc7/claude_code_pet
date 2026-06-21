@@ -5,8 +5,12 @@
 namespace {
 
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 2;
+constexpr uint16_t kSaveVersion = 3;
 constexpr uint8_t kNoActiveRegion = 0xFF;
+constexpr uint16_t kMaxEnergy = 20;
+constexpr uint16_t kPassiveRecoverySeconds = 300;
+constexpr uint32_t kMeditationCycleSeconds = 86400;
+constexpr uint8_t kMeditationsPerCycle = 3;
 
 }  // namespace
 
@@ -32,6 +36,7 @@ void GameState::load(const PetSaveData& data) {
   data_ = data;
   data_.mood = clampPercent(data_.mood);
   data_.stamina = clampPercent(data_.stamina);
+  data_.energy = min<uint16_t>(kMaxEnergy, data_.energy);
 }
 
 const PetSaveData& GameState::data() const {
@@ -159,10 +164,53 @@ void GameState::applyTask(uint32_t durationSeconds, bool success) {
     gainExperience(minutes * 2);
     data_.coins += minutes;
     data_.energy =
-        min<uint16_t>(999, data_.energy + max<uint16_t>(1, minutes / 2));
+        min<uint16_t>(kMaxEnergy,
+                      data_.energy + max<uint16_t>(1, minutes / 2));
   } else {
     gainExperience(max<uint16_t>(1, (minutes + 1) / 2));
   }
+}
+
+bool GameState::tickRuntime(uint32_t seconds) {
+  bool changed = false;
+  data_.meditationCycleSeconds += seconds;
+  while (data_.meditationCycleSeconds >= kMeditationCycleSeconds) {
+    data_.meditationCycleSeconds -= kMeditationCycleSeconds;
+    if (data_.meditationsUsed != 0) {
+      data_.meditationsUsed = 0;
+      changed = true;
+    }
+  }
+
+  if (data_.energy >= kMaxEnergy) {
+    data_.energyRecoverySeconds = 0;
+    return changed;
+  }
+
+  data_.energyRecoverySeconds += seconds;
+  while (data_.energyRecoverySeconds >= kPassiveRecoverySeconds &&
+         data_.energy < kMaxEnergy) {
+    data_.energyRecoverySeconds -= kPassiveRecoverySeconds;
+    data_.energy++;
+    changed = true;
+  }
+  if (data_.energy >= kMaxEnergy) {
+    data_.energyRecoverySeconds = 0;
+  }
+  return changed;
+}
+
+MeditationResult GameState::meditate() {
+  if (data_.energy >= kMaxEnergy) {
+    return MeditationResult::Full;
+  }
+  if (data_.meditationsUsed >= kMeditationsPerCycle) {
+    return MeditationResult::Exhausted;
+  }
+  data_.energy = min<uint16_t>(kMaxEnergy, data_.energy + 3);
+  data_.meditationsUsed++;
+  data_.tendencies[1]++;
+  return MeditationResult::Restored;
 }
 
 void GameState::updateEvolution() {

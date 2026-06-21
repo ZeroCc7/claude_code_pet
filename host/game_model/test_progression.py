@@ -119,3 +119,56 @@ def test_level_twelve_evolves_to_matching_final_form():
 
     assert state.level == 12
     assert state.form == PetForm.FINAL_B1
+
+
+def test_runtime_recovers_one_energy_every_five_minutes():
+    state = GameState(energy=10)
+
+    assert not state.tick_runtime(299)
+    assert state.energy == 10
+    assert state.tick_runtime(1)
+    assert state.energy == 11
+
+
+def test_passive_recovery_never_exceeds_twenty_or_banks_ticks():
+    state = GameState(energy=20)
+
+    assert not state.tick_runtime(900)
+    assert state.energy == 20
+    state.energy = 19
+    assert not state.tick_runtime(299)
+    assert state.tick_runtime(1)
+    assert state.energy == 20
+
+
+def test_meditation_restores_energy_and_consumes_one_use():
+    state = GameState(energy=12)
+
+    assert state.meditate() == "restored"
+    assert state.energy == 15
+    assert state.meditations_used == 1
+
+
+def test_full_energy_meditation_does_not_consume_use():
+    state = GameState(energy=20)
+
+    assert state.meditate() == "full"
+    assert state.meditations_used == 0
+
+
+def test_fourth_meditation_fails_until_runtime_cycle_resets():
+    state = GameState(energy=5, meditations_used=3)
+
+    assert state.meditate() == "exhausted"
+    state.tick_runtime(86400)
+    assert state.meditations_used == 0
+    state.energy = 10
+    assert state.meditate() == "restored"
+
+
+def test_task_rewards_respect_energy_cap():
+    state = GameState(energy=19)
+
+    state.apply_task(duration_seconds=600, success=True)
+
+    assert state.energy == 20

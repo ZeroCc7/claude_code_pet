@@ -11,6 +11,7 @@ class GameUi {
   void begin(DisplayDevice& display);
   void handle(InputAction action, GameState& state);
   void draw(const GameState& state, uint32_t now, bool force = false);
+  void notify(const char* message);
   UiPage page() const;
 
  private:

@@ -38,7 +38,16 @@ void GameApp::update(uint32_t now) {
 
   if (now - lastTickAt_ >= 1000) {
     const uint32_t seconds = (now - lastTickAt_) / 1000;
+    const uint16_t oldEnergy = state_.data().energy;
     state_.mutableData().playSeconds += seconds;
+    if (state_.tickRuntime(seconds)) {
+      requestSave();
+      if (state_.data().energy > oldEnergy &&
+          ui_.page() != UiPage::Battle) {
+        ui_.notify("灵力恢复");
+      }
+      ui_.draw(state_, now, true);
+    }
     lastTickAt_ += seconds * 1000;
   }
 

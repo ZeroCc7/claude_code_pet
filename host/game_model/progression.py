@@ -39,6 +39,9 @@ class GameState:
     battle_region: int = 0
     boss_hp: int = 0
     boss_max_hp: int = 0
+    energy_recovery_seconds: int = 0
+    meditation_cycle_seconds: int = 0
+    meditations_used: int = 0
 
     def interact(self) -> None:
         self.mood = min(100, self.mood + 5)
@@ -51,6 +54,37 @@ class GameState:
         self.stamina = min(100, self.stamina + 20)
         self.tendencies[3] += 1
         return True
+
+    def tick_runtime(self, seconds: int) -> bool:
+        changed = False
+        self.meditation_cycle_seconds += seconds
+        while self.meditation_cycle_seconds >= 86400:
+            self.meditation_cycle_seconds -= 86400
+            if self.meditations_used:
+                self.meditations_used = 0
+                changed = True
+
+        if self.energy >= 20:
+            self.energy_recovery_seconds = 0
+            return changed
+
+        self.energy_recovery_seconds += seconds
+        while self.energy_recovery_seconds >= 300 and self.energy < 20:
+            self.energy_recovery_seconds -= 300
+            self.energy += 1
+            changed = True
+        if self.energy >= 20:
+            self.energy_recovery_seconds = 0
+        return changed
+
+    def meditate(self) -> str:
+        if self.energy >= 20:
+            return "full"
+        if self.meditations_used >= 3:
+            return "exhausted"
+        self.energy = min(20, self.energy + 3)
+        self.meditations_used += 1
+        return "restored"
 
     def region_unlocked(self, region: int) -> bool:
         return region == 0 or bool(self.boss_defeated_mask & (1 << (region - 1)))
@@ -156,6 +190,6 @@ class GameState:
         if success:
             self.gain_experience(minutes * 2)
             self.coins += minutes
-            self.energy = min(999, self.energy + max(1, minutes // 2))
+            self.energy = min(20, self.energy + max(1, minutes // 2))
         else:
             self.gain_experience(max(1, (minutes + 1) // 2))

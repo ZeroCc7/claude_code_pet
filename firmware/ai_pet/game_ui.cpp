@@ -59,8 +59,10 @@ void GameUi::handle(InputAction action, GameState& state) {
   } else if (action == InputAction::Back && page_ != UiPage::Battle) {
     page_ = UiPage::Home;
   } else if (page_ == UiPage::Care) {
-    if (action == InputAction::Up || action == InputAction::Down) {
-      selection_ = 1 - selection_;
+    if (action == InputAction::Up) {
+      selection_ = selection_ == 0 ? 2 : selection_ - 1;
+    } else if (action == InputAction::Down) {
+      selection_ = (selection_ + 1) % 3;
     } else if (action == InputAction::Confirm) {
       if (selection_ == 0) {
         const uint16_t oldCoins = state.data().coins;
@@ -72,10 +74,22 @@ void GameUi::handle(InputAction action, GameState& state) {
         } else if (oldStamina >= 100) {
           startNotice("当前已满");
         }
-      } else {
+      } else if (selection_ == 1) {
         const uint8_t oldMood = state.data().mood;
         state.interact();
         startNotice(state.data().mood > oldMood ? "心境提升" : "当前已满");
+      } else {
+        switch (state.meditate()) {
+          case MeditationResult::Restored:
+            startNotice("灵力恢复");
+            break;
+          case MeditationResult::Full:
+            startNotice("灵力已满");
+            break;
+          case MeditationResult::Exhausted:
+            startNotice("今日已尽");
+            break;
+        }
       }
     }
   } else if (page_ == UiPage::Adventure) {
@@ -140,7 +154,7 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   }
   const bool fullRedraw = (dirty_ || force) && page_ == UiPage::Home;
   const bool menuRedraw = (dirty_ || force) && page_ != UiPage::Home;
-  const bool animate = page_ == UiPage::Home && now - lastAnimationAt_ >= 600;
+  const bool animate = page_ == UiPage::Home && now - lastAnimationAt_ >= 400;
   const bool feedbackActive =
       feedback_ != Feedback::None && now - feedbackStartedAt_ < 1200;
   const bool feedbackFrame =
@@ -197,6 +211,10 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
 
 UiPage GameUi::page() const {
   return page_;
+}
+
+void GameUi::notify(const char* message) {
+  startNotice(message);
 }
 
 void GameUi::drawHeader(const PetSaveData& data) {
@@ -345,14 +363,14 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
     }
   }
 
-  int16_t petY = 38;
+  int16_t petY = kPetRegionY + 1;
   if ((feedback_ == Feedback::MoodUp ||
        feedback_ == Feedback::StaminaUp) &&
       now - feedbackStartedAt_ < 700) {
     const uint32_t phase = (now - feedbackStartedAt_) % 350;
     petY -= phase < 175 ? phase / 25 : (350 - phase) / 25;
   }
-  pet_.draw(petCanvas_, data.form, 44 - kPetRegionX, petY - kPetRegionY, now);
+  pet_.draw(petCanvas_, data.form, 4, petY - kPetRegionY, now);
   tft.drawRGBBitmap(kPetRegionX, kPetRegionY, petCanvas_.getBuffer(),
                     kPetRegionWidth, kPetRegionHeight);
 }
@@ -388,29 +406,36 @@ void GameUi::drawCare(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
   drawTitlePlaque("洞府培养", kBrightGold);
 
-  drawPanel(8, 47, 112, 38, selection_ == 0);
+  drawPanel(8, 46, 112, 27, selection_ == 0);
   text().color(selection_ == 0 ? kBrightGold : kWarmWhite);
-  text().draw(17, 63, "喂食");
+  text().draw(17, 59, "喂食");
   text().color(kMutedCyan);
-  text().draw(67, 63, "十灵石");
+  text().draw(67, 59, "十灵石");
   text().color(kWarmWhite);
-  text().draw(17, 79, "体力 +20");
+  text().draw(17, 70, "体力 +20");
 
-  drawPanel(8, 89, 112, 38, selection_ == 1);
+  drawPanel(8, 76, 112, 27, selection_ == 1);
   text().color(selection_ == 1 ? kBrightGold : kWarmWhite);
-  text().draw(17, 105, "互动");
+  text().draw(17, 89, "互动");
   text().color(kWarmWhite);
-  text().draw(17, 121, "心境 +5");
+  text().draw(67, 89, "心境 +5");
 
+  drawPanel(8, 106, 112, 32, selection_ == 2);
+  text().color(selection_ == 2 ? kBrightGold : kWarmWhite);
+  text().draw(17, 120, "打坐");
   text().color(kMutedCyan);
-  text().draw(8, 140, "灵石");
-  text().draw(68, 140, "体力");
+  text().draw(67, 120, "灵力 +3");
+  text().color(kWarmWhite);
+  text().draw(17, 134, "当前");
   tft.setTextColor(kWarmWhite);
   tft.setTextSize(1);
-  tft.setCursor(38, 133);
-  tft.print(data.coins);
-  tft.setCursor(98, 133);
-  tft.print(data.stamina);
+  tft.setCursor(48, 127);
+  tft.print(data.energy);
+  text().color(kMutedCyan);
+  text().draw(67, 134, "余");
+  tft.setCursor(87, 127);
+  tft.print(data.meditationsUsed >= 3 ? 0 : 3 - data.meditationsUsed);
+  text().draw(99, 134, "次");
   drawFooterHints("K1确认", "K4返回");
 }
 

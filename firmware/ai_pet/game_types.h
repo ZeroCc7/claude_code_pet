@@ -20,6 +20,12 @@ enum class UiPage : uint8_t {
   Status,
 };
 
+enum class MeditationResult : uint8_t {
+  Restored,
+  Full,
+  Exhausted,
+};
+
 struct PetSaveData {
   uint32_t magic;
   uint16_t version;
@@ -41,5 +47,8 @@ struct PetSaveData {
   uint8_t bossMaxHp;
   uint8_t inBattle;
   uint32_t playSeconds;
+  uint16_t energyRecoverySeconds;
+  uint32_t meditationCycleSeconds;
+  uint8_t meditationsUsed;
   uint32_t crc32;
 };
