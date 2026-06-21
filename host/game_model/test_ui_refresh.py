@@ -98,3 +98,12 @@ def test_home_hud_uses_vital_bars_resource_badges_and_key_hints():
     for label in ('tft.print("K1")', '"互"', 'tft.print("K2")', '"养"',
                   'tft.print("K3")', '"历"', 'tft.print("K4")', '"态"'):
         assert label in UI_SOURCE
+
+
+def test_home_hud_uses_reference_art_icons_and_gold_panels():
+    assert '#include "assets/home_ui_icons.h"' in UI_SOURCE
+    assert "drawHomeIcon(" in UI_SOURCE
+    assert "drawGoldPanel(" in UI_SOURCE
+    for icon in ("kHomeIconLotus", "kHomeIconHeart",
+                 "kHomeIconEnergy", "kHomeIconCrystal"):
+        assert icon in UI_SOURCE

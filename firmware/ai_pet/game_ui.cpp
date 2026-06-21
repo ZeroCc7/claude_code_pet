@@ -1,6 +1,7 @@
 #include "game_ui.h"
 
 #include "assets/cloud_terrace_home.h"
+#include "assets/home_ui_icons.h"
 
 namespace {
 
@@ -229,7 +230,15 @@ void GameUi::drawHeader(const PetSaveData& data) {
 void GameUi::drawHomeHeader(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
   tft.fillRect(0, 0, 128, 19, kInkBlack);
-  tft.drawFastHLine(0, 18, 128, kDarkGold);
+  tft.drawRect(0, 0, 128, 19, kDarkGold);
+  tft.drawFastHLine(4, 2, 120, 0x5B26);
+  tft.drawFastHLine(4, 17, 120, kBrightGold);
+  tft.drawPixel(2, 2, kBrightGold);
+  tft.drawFastHLine(2, 3, 5, kDarkGold);
+  tft.drawFastVLine(3, 2, 5, kDarkGold);
+  tft.drawPixel(125, 2, kBrightGold);
+  tft.drawFastHLine(121, 3, 5, kDarkGold);
+  tft.drawFastVLine(124, 2, 5, kDarkGold);
 
   text().color(kWarmWhite);
   text().draw(3, 13, "炼气");
@@ -239,13 +248,24 @@ void GameUi::drawHomeHeader(const PetSaveData& data) {
   tft.printf("LV%u", data.level);
 
   const uint8_t currentExperience = data.experience % 20;
-  drawProgressBar(51, 4, 44, currentExperience, 20, kBrightGold);
+  tft.fillRect(51, 3, 47, 13, kInkBlue);
+  tft.drawFastHLine(55, 2, 39, kBrightGold);
+  tft.drawFastHLine(55, 16, 39, kDarkGold);
+  tft.drawFastVLine(50, 7, 5, kDarkGold);
+  tft.drawFastVLine(98, 7, 5, kDarkGold);
+  tft.fillTriangle(50, 9, 55, 4, 55, 14, kDarkGold);
+  tft.fillTriangle(99, 9, 94, 4, 94, 14, kDarkGold);
+  const int16_t xpFill = currentExperience * 36 / 20;
+  if (xpFill > 0) {
+    tft.fillRect(56, 5, xpFill, 4, kBrightGold);
+    tft.fillRect(56, 9, xpFill, 3, 0xDD45);
+  }
   tft.setTextColor(kWarmWhite);
-  tft.setCursor(61, 11);
+  tft.setCursor(69, 7);
   tft.printf("%u/20", currentExperience);
 
   text().color(kMutedCyan);
-  text().draw(101, 13, "离线");
+  text().draw(101, 14, "离线");
 }
 
 void GameUi::drawInkBackground() {
@@ -402,33 +422,51 @@ void GameUi::drawHomeStats(const PetSaveData& data) {
 
 void GameUi::drawHomeVitals(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
-  tft.fillRect(0, 111, 128, 49, kInkBlack);
-  tft.drawFastHLine(0, 111, 128, kDarkGold);
-  tft.drawPixel(16, 114, 0xF9B2);
-  tft.drawFastHLine(14, 115, 5, 0xF9B2);
+  tft.fillRect(0, 110, 128, 50, kInkBlack);
+  drawGoldPanel(0, 110, 64, 23);
+  drawGoldPanel(64, 110, 64, 23);
+  drawGoldPanel(0, 133, 64, 18);
+  drawGoldPanel(64, 133, 64, 18);
+
+  drawHomeIcon(2, 113, kHomeIconLotus);
   text().color(kWarmWhite);
-  text().draw(21, 123, "心境");
+  text().draw(17, 122, "心境");
   tft.setTextColor(data.mood < 25 ? kCinnabar : kWarmWhite);
   tft.setTextSize(1);
-  tft.setCursor(47, 115);
+  tft.setCursor(46, 114);
   tft.print(data.mood);
-  drawProgressBar(5, 126, 55, data.mood, 100,
+  drawProgressBar(17, 124, 43, data.mood, 100,
                   data.mood < 25 ? kCinnabar : 0xF9B2);
 
-  tft.drawPixel(77, 114, kCinnabar);
-  tft.drawFastVLine(77, 113, 4, kCinnabar);
+  drawHomeIcon(66, 113, kHomeIconHeart);
   text().color(kWarmWhite);
-  text().draw(83, 123, "体力");
+  text().draw(81, 122, "体力");
   tft.setTextColor(data.stamina < 25 ? kCinnabar : kWarmWhite);
-  tft.setCursor(109, 115);
+  tft.setCursor(110, 114);
   tft.print(data.stamina);
-  drawProgressBar(67, 126, 56, data.stamina, 100,
+  drawProgressBar(81, 124, 43, data.stamina, 100,
                   data.stamina < 25 ? kCinnabar : 0xF2A4);
 
-  drawResourceBadge(5, 136, 0x6E8D, "灵力", data.energy, 20);
-  drawResourceBadge(67, 136, kBrightGold, "灵石", data.coins);
+  drawHomeIcon(2, 135, kHomeIconEnergy);
+  text().color(kWarmWhite);
+  text().draw(17, 146, "灵力");
+  tft.setTextColor(0x7DFF);
+  tft.setCursor(43, 138);
+  tft.printf("%u/20", data.energy);
+
+  drawHomeIcon(66, 135, kHomeIconCrystal);
+  text().color(kWarmWhite);
+  text().draw(81, 146, "灵石");
+  tft.setTextColor(kBrightGold);
+  tft.setCursor(110, 138);
+  tft.print(data.coins);
 
   tft.fillRect(0, 151, 128, 9, 0x0862);
+  tft.drawFastHLine(0, 151, 128, kDarkGold);
+  tft.drawPixel(2, 153, kBrightGold);
+  tft.drawFastHLine(2, 154, 4, kDarkGold);
+  tft.drawPixel(125, 153, kBrightGold);
+  tft.drawFastHLine(122, 154, 4, kDarkGold);
   tft.setTextSize(1);
   tft.setTextColor(kMutedCyan);
   tft.setCursor(1, 153);
@@ -444,6 +482,23 @@ void GameUi::drawHomeVitals(const PetSaveData& data) {
   tft.setCursor(97, 153);
   tft.print("K4");
   text().draw(109, 160, "态");
+}
+
+void GameUi::drawGoldPanel(int16_t x, int16_t y, int16_t width,
+                           int16_t height) {
+  Adafruit_GFX& tft = target();
+  tft.fillRect(x + 1, y + 1, width - 2, height - 2, kInkBlue);
+  tft.drawRect(x, y, width, height, kDarkGold);
+  tft.drawRect(x + 2, y + 2, width - 4, height - 4, 0x4A85);
+  tft.drawPixel(x + 1, y + 1, kBrightGold);
+  tft.drawPixel(x + width - 2, y + 1, kBrightGold);
+  tft.drawPixel(x + 1, y + height - 2, kBrightGold);
+  tft.drawPixel(x + width - 2, y + height - 2, kBrightGold);
+}
+
+void GameUi::drawHomeIcon(int16_t x, int16_t y, const HomeUiIcon& icon) {
+  target().drawRGBBitmap(x, y, icon.pixels, icon.mask, kHomeIconWidth,
+                         kHomeIconHeight);
 }
 
 void GameUi::drawResourceBadge(int16_t x, int16_t y, uint16_t color,

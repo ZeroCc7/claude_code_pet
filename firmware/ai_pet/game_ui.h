@@ -5,6 +5,7 @@
 #include "game_state.h"
 #include "input_actions.h"
 #include "pet_renderer.h"
+#include "assets/home_ui_icons.h"
 
 class GameUi {
  public:
@@ -39,6 +40,8 @@ class GameUi {
   void drawHomePet(const PetSaveData& data, uint32_t now);
   void drawHomeStats(const PetSaveData& data);
   void drawHomeVitals(const PetSaveData& data);
+  void drawGoldPanel(int16_t x, int16_t y, int16_t width, int16_t height);
+  void drawHomeIcon(int16_t x, int16_t y, const HomeUiIcon& icon);
   void drawResourceBadge(int16_t x, int16_t y, uint16_t color,
                          const char* label, uint16_t value,
                          uint16_t maximum = 0);
