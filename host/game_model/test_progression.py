@@ -68,6 +68,22 @@ def test_exploration_tick_consumes_energy_and_advances_region():
     assert state.coins == 31
 
 
+def test_exploration_grants_experience_by_region():
+    rewards = []
+    for region in range(3):
+        state = GameState(
+            energy=10,
+            boss_defeated_mask=(1 << region) - 1,
+        )
+        assert state.start_exploration(region)
+
+        state.tick_exploration(seed=0)
+
+        rewards.append(state.experience)
+
+    assert rewards == [1, 2, 3]
+
+
 def test_locked_region_cannot_start_until_previous_boss_is_defeated():
     state = GameState(energy=10)
 
@@ -101,14 +117,55 @@ def test_boss_victory_unlocks_next_region():
     assert not state.in_battle
 
 
-def test_level_five_evolves_to_a_rookie_branch():
-    state = GameState(level=4, experience=79)
+def test_level_three_evolves_to_a_rookie_branch():
+    state = GameState(level=2, experience=39)
     state.tendencies = [8, 2, 1, 0]
 
     state.gain_experience(1)
 
-    assert state.level == 5
+    assert state.level == 3
     assert state.form == PetForm.ROOKIE_A
+
+
+def test_defeated_boss_can_be_rechallenged_with_halved_rewards():
+    state = GameState(
+        level=10,
+        experience=180,
+        stamina=100,
+        region_progress=[100, 0, 0],
+    )
+    rewards = []
+
+    for _ in range(3):
+        assert state.start_boss(0)
+        before_xp = state.experience
+        before_coins = state.coins
+        state.boss_hp = 1
+        state.battle_action("attack")
+        rewards.append(
+            (state.experience - before_xp, state.coins - before_coins)
+        )
+
+    assert rewards == [(20, 20), (10, 10), (5, 5)]
+    assert state.boss_wins == [3, 0, 0]
+
+
+def test_repeated_boss_reward_never_falls_below_one():
+    state = GameState(
+        stamina=100,
+        region_progress=[100, 0, 0],
+        boss_defeated_mask=0b001,
+        boss_wins=[20, 0, 0],
+    )
+
+    assert state.start_boss(0)
+    before_xp = state.experience
+    before_coins = state.coins
+    state.boss_hp = 1
+    state.battle_action("attack")
+
+    assert state.experience - before_xp == 1
+    assert state.coins - before_coins == 1
 
 
 def test_level_twelve_evolves_to_matching_final_form():
@@ -172,3 +229,31 @@ def test_task_rewards_respect_energy_cap():
     state.apply_task(duration_seconds=600, success=True)
 
     assert state.energy == 20
+
+
+def test_completed_ai_task_is_rewarded_only_once():
+    state = GameState()
+
+    assert state.apply_ai_task("codex", "task-123", 300, True)
+    first_reward = (state.experience, state.coins, state.energy)
+    assert not state.apply_ai_task("codex", "task-123", 300, True)
+
+    assert (state.experience, state.coins, state.energy) == first_reward
+
+
+def test_task_identity_includes_source():
+    state = GameState()
+
+    assert state.apply_ai_task("codex", "same-id", 60, True)
+    assert state.apply_ai_task("claude_code", "same-id", 60, True)
+
+    assert state.experience == 4
+
+
+def test_recent_task_ring_replaces_oldest_after_sixteen_entries():
+    state = GameState()
+    for index in range(17):
+        assert state.apply_ai_task("codex", f"task-{index}", 60, True)
+
+    assert state.apply_ai_task("codex", "task-0", 60, True)
+    assert not state.apply_ai_task("codex", "task-16", 60, True)

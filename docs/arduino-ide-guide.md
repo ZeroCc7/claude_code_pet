@@ -57,6 +57,17 @@ U8g2_for_Adafruit_GFX
 
 ```text
 G:\code\claude_code_pet\firmware\ai_pet\ai_pet.ino
+
+## AI 工具联动
+
+烧录游戏固件后，可运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File G:\code\claude_code_pet\scripts\install-ai-hooks.ps1 -Port COM7
+```
+
+详细说明见 `docs/ai-hooks-guide.md`。
 ```
 
 Arduino IDE 会把同目录的 `.h`、`.cpp` 文件显示为顶部标签。

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "display_device.h"
+#include "ai_event_protocol.h"
 #include "chinese_text.h"
 #include "game_state.h"
 #include "input_actions.h"
@@ -13,6 +14,12 @@ class GameUi {
   void handle(InputAction action, GameState& state);
   void draw(const GameState& state, uint32_t now, bool force = false);
   void notify(const char* message);
+  void showAiStatus(const char* source, AiWorkState state,
+                    const char* taskId, uint32_t now);
+  void showAiResult(const char* source, bool success,
+                    uint16_t experienceGain, uint16_t coinGain,
+                    bool evolved, uint32_t now);
+  void showEvolution(PetForm form, uint32_t now);
   UiPage page() const;
 
  private:
@@ -51,6 +58,7 @@ class GameUi {
   void drawAdventure(const PetSaveData& data);
   void drawBattle(const PetSaveData& data);
   void drawStatus(const PetSaveData& data);
+  void drawCultivation(const PetSaveData& data, uint32_t now);
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
   void startFeedback(Feedback feedback);
   void drawFeedback(uint32_t now);
@@ -74,4 +82,14 @@ class GameUi {
   uint32_t lastFeedbackFrameAt_ = 0;
   char notice_[24] = {};
   uint32_t noticeStartedAt_ = 0;
+  AiWorkState aiState_ = AiWorkState::Idle;
+  char aiSource_[16] = {};
+  char aiTaskId_[64] = {};
+  uint32_t aiTaskStartedAt_ = 0;
+  uint32_t aiLastEventAt_ = 0;
+  bool aiResultActive_ = false;
+  bool aiResultSuccess_ = false;
+  uint16_t aiExperienceGain_ = 0;
+  uint16_t aiCoinGain_ = 0;
+  bool aiEvolved_ = false;
 };

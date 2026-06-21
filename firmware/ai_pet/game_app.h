@@ -1,6 +1,7 @@
 #pragma once
 
 #include "button_scanner.h"
+#include "ai_event_protocol.h"
 #include "display_device.h"
 #include "game_state.h"
 #include "game_ui.h"
@@ -15,6 +16,9 @@ class GameApp {
   void processInput(uint32_t now);
   void processSerial();
   void printStatus();
+  void processAiEvent(const AiEvent& event);
+  void printAck(const AiEvent& event, const char* status,
+                uint16_t experience = 0, uint16_t coins = 0);
   void requestSave();
 
   DisplayDevice display_;
@@ -23,6 +27,7 @@ class GameApp {
   SaveStore saves_;
   GameUi ui_;
   String serialCommand_;
+  bool serialOverflow_ = false;
   uint32_t lastTickAt_ = 0;
   uint32_t lastSaveAt_ = 0;
   uint32_t lastExplorationAt_ = 0;

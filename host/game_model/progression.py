@@ -33,6 +33,7 @@ class GameState:
     active_region: int | None = None
     region_progress: list[int] = field(default_factory=lambda: [0, 0, 0])
     boss_defeated_mask: int = 0
+    boss_wins: list[int] = field(default_factory=lambda: [0, 0, 0])
     tendencies: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     form: PetForm = PetForm.EGG
     in_battle: bool = False
@@ -42,6 +43,8 @@ class GameState:
     energy_recovery_seconds: int = 0
     meditation_cycle_seconds: int = 0
     meditations_used: int = 0
+    recent_task_hashes: list[int] = field(default_factory=lambda: [0] * 16)
+    recent_task_index: int = 0
 
     def interact(self) -> None:
         self.mood = min(100, self.mood + 5)
@@ -108,6 +111,7 @@ class GameState:
         region = self.active_region
         self.region_progress[region] = min(100, self.region_progress[region] + gain)
         self.coins += 1
+        self.gain_experience(region + 1)
         self.tendencies[0 if region == 0 else 2] += 1
         if self.region_progress[region] == 100 or self.energy == 0:
             self.active_region = None
@@ -116,7 +120,6 @@ class GameState:
         if (
             region not in (0, 1, 2)
             or self.region_progress[region] < 100
-            or self.boss_defeated_mask & (1 << region)
         ):
             return False
         self.in_battle = True
@@ -150,9 +153,18 @@ class GameState:
 
         self.boss_hp = max(0, self.boss_hp - damage)
         if self.boss_hp == 0:
+            repeat_count = self.boss_wins[self.battle_region]
+            divisor_shift = min(repeat_count, 15)
+            experience_reward = max(
+                1, (20 + self.battle_region * 10) >> divisor_shift
+            )
+            coin_reward = max(
+                1, (20 + self.battle_region * 15) >> divisor_shift
+            )
             self.boss_defeated_mask |= 1 << self.battle_region
-            self.coins += 20 + self.battle_region * 15
-            self.gain_experience(20 + self.battle_region * 10)
+            self.boss_wins[self.battle_region] += 1
+            self.coins += coin_reward
+            self.gain_experience(experience_reward)
             self.in_battle = False
             return
 
@@ -180,7 +192,7 @@ class GameState:
                     if self.tendencies[2] >= self.tendencies[3]
                     else PetForm.FINAL_B2
                 )
-        elif self.level >= 5 and self.form == PetForm.EGG:
+        elif self.level >= 3 and self.form == PetForm.EGG:
             agile = self.tendencies[0] + self.tendencies[1]
             steady = self.tendencies[2] + self.tendencies[3]
             self.form = PetForm.ROOKIE_A if agile >= steady else PetForm.ROOKIE_B
@@ -193,3 +205,26 @@ class GameState:
             self.energy = min(20, self.energy + max(1, minutes // 2))
         else:
             self.gain_experience(max(1, (minutes + 1) // 2))
+
+    @staticmethod
+    def task_hash(source: str, task_id: str) -> int:
+        value = 0x811C9DC5
+        for byte in f"{source}:{task_id}".encode("utf-8"):
+            value ^= byte
+            value = (value * 0x01000193) & 0xFFFFFFFF
+        return value or 1
+
+    def apply_ai_task(
+        self, source: str, task_id: str, duration_seconds: int, success: bool
+    ) -> bool:
+        if not success:
+            return False
+        digest = self.task_hash(source, task_id)
+        if digest in self.recent_task_hashes:
+            return False
+        self.apply_task(duration_seconds, True)
+        self.recent_task_hashes[self.recent_task_index] = digest
+        self.recent_task_index = (self.recent_task_index + 1) % len(
+            self.recent_task_hashes
+        )
+        return True

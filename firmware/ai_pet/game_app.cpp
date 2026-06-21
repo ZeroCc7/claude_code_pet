@@ -53,9 +53,14 @@ void GameApp::update(uint32_t now) {
 
   if (now - lastExplorationAt_ >= 60000) {
     lastExplorationAt_ += 60000;
+    const PetForm oldForm = state_.data().form;
     if (state_.tickExploration(state_.data().playSeconds)) {
       requestSave();
-      ui_.draw(state_, now, true);
+      if (state_.data().form != oldForm) {
+        ui_.showEvolution(state_.data().form, now);
+      } else {
+        ui_.draw(state_, now, true);
+      }
     }
   }
 
@@ -79,7 +84,11 @@ void GameApp::processInput(uint32_t now) {
     if (action == InputAction::None) {
       continue;
     }
+    const PetForm oldForm = state_.data().form;
     ui_.handle(action, state_);
+    if (state_.data().form != oldForm) {
+      ui_.showEvolution(state_.data().form, now);
+    }
     requestSave();
   }
 }
@@ -92,14 +101,70 @@ void GameApp::processSerial() {
     }
     if (next == '\n') {
       serialCommand_.trim();
-      if (serialCommand_ == "STATUS") {
+      if (serialOverflow_) {
+        Serial.println("{\"type\":\"ack\",\"status\":\"error\",\"error\":\"too_long\"}");
+      } else if (serialCommand_ == "STATUS") {
         printStatus();
+      } else if (serialCommand_.startsWith("{")) {
+        AiEvent event{};
+        const char* error = nullptr;
+        if (AiEventProtocol::parse(serialCommand_, event, error)) {
+          processAiEvent(event);
+        } else {
+          Serial.printf(
+              "{\"type\":\"ack\",\"status\":\"error\",\"error\":\"%s\"}\n",
+              error);
+        }
       }
       serialCommand_ = "";
-    } else if (serialCommand_.length() < 64) {
+      serialOverflow_ = false;
+    } else if (serialCommand_.length() <
+               AiEventProtocol::kMaximumMessageBytes) {
       serialCommand_ += next;
+    } else {
+      serialOverflow_ = true;
     }
   }
+}
+
+void GameApp::processAiEvent(const AiEvent& event) {
+  if (event.kind == AiEventKind::Status) {
+    ui_.showAiStatus(event.source, event.state, event.taskId, millis());
+    printAck(event, "accepted");
+    return;
+  }
+
+  if (!event.success) {
+    ui_.showAiResult(event.source, false, 0, 0, false, millis());
+    printAck(event, "accepted");
+    return;
+  }
+
+  if (state_.hasProcessedTask(event.source, event.taskId)) {
+    printAck(event, "duplicate");
+    return;
+  }
+
+  const uint16_t oldExperience = state_.data().experience;
+  const uint16_t oldCoins = state_.data().coins;
+  const PetForm oldForm = state_.data().form;
+  state_.applyAiTask(event.source, event.taskId, event.durationSeconds, true);
+  const uint16_t experienceGain =
+      state_.data().experience - oldExperience;
+  const uint16_t coinGain = state_.data().coins - oldCoins;
+  const bool evolved = state_.data().form != oldForm;
+  ui_.showAiResult(event.source, true, experienceGain, coinGain, evolved,
+                   millis());
+  requestSave();
+  printAck(event, "accepted", experienceGain, coinGain);
+}
+
+void GameApp::printAck(const AiEvent& event, const char* status,
+                       uint16_t experience, uint16_t coins) {
+  Serial.printf(
+      "{\"type\":\"ack\",\"task_id\":\"%s\",\"status\":\"%s\","
+      "\"experience\":%u,\"coins\":%u}\n",
+      event.taskId, status, experience, coins);
 }
 
 void GameApp::printStatus() {

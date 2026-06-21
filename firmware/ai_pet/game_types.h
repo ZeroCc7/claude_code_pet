@@ -18,6 +18,7 @@ enum class UiPage : uint8_t {
   Adventure,
   Battle,
   Status,
+  Cultivation,
 };
 
 enum class MeditationResult : uint8_t {
@@ -41,6 +42,7 @@ struct PetSaveData {
   uint16_t tendencies[4];
   uint8_t regionProgress[3];
   uint8_t bossDefeatedMask;
+  uint8_t bossWins[3];
   uint8_t activeRegion;
   uint8_t battleRegion;
   uint8_t bossHp;
@@ -50,5 +52,7 @@ struct PetSaveData {
   uint16_t energyRecoverySeconds;
   uint32_t meditationCycleSeconds;
   uint8_t meditationsUsed;
+  uint32_t recentTaskHashes[16];
+  uint8_t recentTaskIndex;
   uint32_t crc32;
 };

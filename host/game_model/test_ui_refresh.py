@@ -107,3 +107,37 @@ def test_home_hud_uses_reference_art_icons_and_gold_panels():
     for icon in ("kHomeIconLotus", "kHomeIconHeart",
                  "kHomeIconEnergy", "kHomeIconCrystal"):
         assert icon in UI_SOURCE
+
+
+def test_ai_work_uses_a_dedicated_cultivation_page():
+    assert "UiPage::Cultivation" in UI_SOURCE
+    assert "drawCultivation(" in UI_SOURCE
+    assert "showAiStatus(" in UI_HEADER
+    assert "showAiResult(" in UI_HEADER
+
+
+def test_cultivation_page_supports_all_hook_states_and_timeout():
+    for state in (
+        "AiWorkState::Submitted",
+        "AiWorkState::Thinking",
+        "AiWorkState::Tool",
+        "AiWorkState::Editing",
+        "AiWorkState::Waiting",
+        "AiWorkState::Blocked",
+        "AiWorkState::Idle",
+    ):
+        assert state in UI_SOURCE
+    assert "600000" in UI_SOURCE
+
+
+def test_ai_result_can_show_rewards_and_evolution():
+    assert "aiExperienceGain_" in UI_HEADER
+    assert "aiCoinGain_" in UI_HEADER
+    assert "aiEvolved_" in UI_HEADER
+
+
+def test_local_progression_can_open_evolution_feedback():
+    assert "showEvolution(" in UI_HEADER
+    assert "ui_.showEvolution(" in (
+        Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_app.cpp"
+    ).read_text(encoding="utf-8")

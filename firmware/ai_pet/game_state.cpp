@@ -5,7 +5,7 @@
 namespace {
 
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 3;
+constexpr uint16_t kSaveVersion = 4;
 constexpr uint8_t kNoActiveRegion = 0xFF;
 constexpr uint16_t kMaxEnergy = 20;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
@@ -87,6 +87,7 @@ bool GameState::tickExploration(uint32_t seed) {
   data_.regionProgress[region] =
       min<uint8_t>(100, data_.regionProgress[region] + gain);
   data_.coins++;
+  gainExperience(region + 1);
   data_.tendencies[region == 0 ? 0 : 2]++;
 
   if (data_.regionProgress[region] == 100 || data_.energy == 0) {
@@ -96,8 +97,7 @@ bool GameState::tickExploration(uint32_t seed) {
 }
 
 bool GameState::startBoss(uint8_t region) {
-  if (region >= 3 || data_.regionProgress[region] < 100 ||
-      (data_.bossDefeatedMask & (1U << region))) {
+  if (region >= 3 || data_.regionProgress[region] < 100) {
     return false;
   }
   data_.inBattle = 1;
@@ -135,9 +135,16 @@ bool GameState::battleAction(uint8_t action) {
 
   data_.bossHp = damage >= data_.bossHp ? 0 : data_.bossHp - damage;
   if (data_.bossHp == 0) {
+    const uint8_t repeatCount = data_.bossWins[data_.battleRegion];
+    const uint8_t shift = min<uint8_t>(repeatCount, 15);
+    const uint16_t experienceReward =
+        max<uint16_t>(1, (20 + data_.battleRegion * 10) >> shift);
+    const uint16_t coinReward =
+        max<uint16_t>(1, (20 + data_.battleRegion * 15) >> shift);
     data_.bossDefeatedMask |= 1U << data_.battleRegion;
-    data_.coins += 20 + data_.battleRegion * 15;
-    gainExperience(20 + data_.battleRegion * 10);
+    data_.bossWins[data_.battleRegion]++;
+    data_.coins += coinReward;
+    gainExperience(experienceReward);
     data_.inBattle = 0;
     return true;
   }
@@ -169,6 +176,42 @@ void GameState::applyTask(uint32_t durationSeconds, bool success) {
   } else {
     gainExperience(max<uint16_t>(1, (minutes + 1) / 2));
   }
+}
+
+uint32_t GameState::taskHash(const char* source, const char* taskId) {
+  uint32_t value = 0x811C9DC5U;
+  const char* parts[] = {source, ":", taskId};
+  for (const char* part : parts) {
+    while (*part) {
+      value ^= static_cast<uint8_t>(*part++);
+      value *= 0x01000193U;
+    }
+  }
+  return value == 0 ? 1 : value;
+}
+
+bool GameState::hasProcessedTask(const char* source,
+                                 const char* taskId) const {
+  const uint32_t digest = taskHash(source, taskId);
+  for (uint32_t stored : data_.recentTaskHashes) {
+    if (stored == digest) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool GameState::applyAiTask(const char* source, const char* taskId,
+                            uint32_t durationSeconds, bool success) {
+  if (!success || hasProcessedTask(source, taskId)) {
+    return false;
+  }
+  applyTask(durationSeconds, true);
+  data_.recentTaskHashes[data_.recentTaskIndex] = taskHash(source, taskId);
+  data_.recentTaskIndex =
+      (data_.recentTaskIndex + 1) %
+      (sizeof(data_.recentTaskHashes) / sizeof(data_.recentTaskHashes[0]));
+  return true;
 }
 
 bool GameState::tickRuntime(uint32_t seconds) {
@@ -225,7 +268,7 @@ void GameState::updateEvolution() {
                        ? PetForm::FinalB1
                        : PetForm::FinalB2;
     }
-  } else if (data_.level >= 5 && data_.form == PetForm::Egg) {
+  } else if (data_.level >= 3 && data_.form == PetForm::Egg) {
     const uint16_t agile = data_.tendencies[0] + data_.tendencies[1];
     const uint16_t steady = data_.tendencies[2] + data_.tendencies[3];
     data_.form = agile >= steady ? PetForm::RookieA : PetForm::RookieB;

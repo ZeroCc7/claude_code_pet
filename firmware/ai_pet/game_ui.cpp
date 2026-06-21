@@ -3,6 +3,8 @@
 #include "assets/cloud_terrace_home.h"
 #include "assets/home_ui_icons.h"
 
+#include <cstring>
+
 namespace {
 
 constexpr int16_t kPetRegionX = 28;
@@ -99,8 +101,7 @@ void GameUi::handle(InputAction action, GameState& state) {
     } else if (action == InputAction::Down) {
       selection_ = (selection_ + 1) % 3;
     } else if (action == InputAction::Confirm) {
-      if (state.data().regionProgress[selection_] >= 100 &&
-          !(state.data().bossDefeatedMask & (1U << selection_))) {
+      if (state.data().regionProgress[selection_] >= 100) {
         if (state.startBoss(selection_)) {
           page_ = UiPage::Battle;
           startNotice("首领现身");
@@ -153,9 +154,25 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (!display_) {
     return;
   }
+  if (page_ == UiPage::Cultivation &&
+      now - aiLastEventAt_ >= 600000) {
+    page_ = UiPage::Home;
+    aiResultActive_ = false;
+    dirty_ = true;
+  }
+  if (page_ == UiPage::Cultivation && aiResultActive_ &&
+      now - aiLastEventAt_ >= 2500) {
+    page_ = UiPage::Home;
+    aiResultActive_ = false;
+    dirty_ = true;
+  }
+
   const bool fullRedraw = (dirty_ || force) && page_ == UiPage::Home;
   const bool menuRedraw = (dirty_ || force) && page_ != UiPage::Home;
-  const bool animate = page_ == UiPage::Home && now - lastAnimationAt_ >= 400;
+  const bool animate =
+      ((page_ == UiPage::Home && now - lastAnimationAt_ >= 400) ||
+       (page_ == UiPage::Cultivation &&
+        now - lastAnimationAt_ >= 300));
   const bool feedbackActive =
       feedback_ != Feedback::None && now - feedbackStartedAt_ < 1200;
   const bool feedbackFrame =
@@ -170,7 +187,8 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   }
   const bool menuNoticeRefresh = noticeExpired && page_ != UiPage::Home;
   const bool redrawMenu =
-      menuRedraw || menuNoticeRefresh;
+      menuRedraw || menuNoticeRefresh ||
+      (animate && page_ == UiPage::Cultivation);
   if (!fullRedraw && !redrawMenu && !animate && !feedbackFrame &&
       !feedbackExpired) {
     return;
@@ -216,6 +234,52 @@ UiPage GameUi::page() const {
 
 void GameUi::notify(const char* message) {
   startNotice(message);
+}
+
+void GameUi::showAiStatus(const char* source, AiWorkState state,
+                          const char* taskId, uint32_t now) {
+  if (strncmp(aiTaskId_, taskId, sizeof(aiTaskId_)) != 0) {
+    strncpy(aiTaskId_, taskId, sizeof(aiTaskId_) - 1);
+    aiTaskId_[sizeof(aiTaskId_) - 1] = '\0';
+    aiTaskStartedAt_ = now;
+  }
+  strncpy(aiSource_, source, sizeof(aiSource_) - 1);
+  aiSource_[sizeof(aiSource_) - 1] = '\0';
+  aiState_ = state;
+  aiLastEventAt_ = now;
+  aiResultActive_ = false;
+  page_ = state == AiWorkState::Idle ? UiPage::Home
+                                     : UiPage::Cultivation;
+  dirty_ = true;
+}
+
+void GameUi::showAiResult(const char* source, bool success,
+                          uint16_t experienceGain, uint16_t coinGain,
+                          bool evolved, uint32_t now) {
+  strncpy(aiSource_, source, sizeof(aiSource_) - 1);
+  aiSource_[sizeof(aiSource_) - 1] = '\0';
+  aiResultActive_ = true;
+  aiResultSuccess_ = success;
+  aiExperienceGain_ = experienceGain;
+  aiCoinGain_ = coinGain;
+  aiEvolved_ = evolved;
+  aiLastEventAt_ = now;
+  page_ = UiPage::Cultivation;
+  dirty_ = true;
+}
+
+void GameUi::showEvolution(PetForm form, uint32_t now) {
+  (void)form;
+  strncpy(aiSource_, "EVOLUTION", sizeof(aiSource_) - 1);
+  aiSource_[sizeof(aiSource_) - 1] = '\0';
+  aiResultActive_ = true;
+  aiResultSuccess_ = true;
+  aiExperienceGain_ = 0;
+  aiCoinGain_ = 0;
+  aiEvolved_ = true;
+  aiLastEventAt_ = now;
+  page_ = UiPage::Cultivation;
+  dirty_ = true;
 }
 
 void GameUi::drawHeader(const PetSaveData& data) {
@@ -304,6 +368,9 @@ void GameUi::drawMenuFrame(const PetSaveData& data) {
     case UiPage::Battle:
       drawBattle(data);
       break;
+    case UiPage::Cultivation:
+      drawCultivation(data, millis());
+      break;
     case UiPage::Home:
       break;
   }
@@ -315,6 +382,83 @@ void GameUi::drawMenuFrame(const PetSaveData& data) {
 
   Adafruit_ST7735& tft = display_->raw();
   tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer(), 128, 160);
+}
+
+void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
+  Adafruit_GFX& tft = target();
+  drawTitlePlaque(aiResultActive_ ? "修炼结算" : "仙途修炼",
+                  aiResultSuccess_ || !aiResultActive_ ? kBrightGold
+                                                      : kCinnabar);
+  drawPanel(9, 47, 110, 87, false);
+
+  tft.setTextSize(1);
+  tft.setTextColor(kMutedCyan);
+  tft.setCursor(15, 53);
+  tft.print(aiSource_);
+  tft.setTextColor(kWarmWhite);
+  tft.setCursor(87, 53);
+  tft.printf("LV%u", data.level);
+
+  if (aiResultActive_) {
+    text().color(aiResultSuccess_ ? kBrightGold : kCinnabar);
+    text().draw(34, 76,
+                aiResultSuccess_ ? "修炼完成" : "修炼受阻");
+    if (aiResultSuccess_) {
+      if (aiEvolved_) {
+        const char* forms[] = {"混沌灵卵", "凌霄麒麟", "镇岳麒麟",
+                               "太虚剑仙", "九转丹仙", "不灭武仙",
+                               "万灵仙尊"};
+        text().color(0x7DFF);
+        text().draw(34, 91, "灵光进化");
+        text().color(kWarmWhite);
+        const char* form = forms[static_cast<unsigned>(data.form)];
+        const int16_t formWidth = utf8GlyphCount(form) * 12;
+        text().draw(max<int16_t>(12, (128 - formWidth) / 2),
+                    114, form);
+      } else {
+        tft.setTextColor(kWarmWhite);
+        tft.setCursor(25, 88);
+        tft.printf("EXP +%u", aiExperienceGain_);
+        tft.setCursor(25, 101);
+        tft.printf("STONE +%u", aiCoinGain_);
+      }
+    }
+  } else {
+    const char* label = "修炼暂歇";
+    switch (aiState_) {
+      case AiWorkState::Submitted: label = "接引任务"; break;
+      case AiWorkState::Thinking: label = "推演中"; break;
+      case AiWorkState::Tool: label = "施法中"; break;
+      case AiWorkState::Editing: label = "炼器中"; break;
+      case AiWorkState::Waiting: label = "等待指令"; break;
+      case AiWorkState::Blocked: label = "修炼受阻"; break;
+      case AiWorkState::Idle: label = "修炼暂歇"; break;
+    }
+    text().color(aiState_ == AiWorkState::Blocked ? kCinnabar
+                                                  : kBrightGold);
+    const int16_t labelWidth = utf8GlyphCount(label) * 12;
+    text().draw(max<int16_t>(15, (128 - labelWidth) / 2), 76, label);
+
+    const uint32_t elapsedSeconds =
+        aiTaskStartedAt_ == 0 ? 0 : (now - aiTaskStartedAt_) / 1000;
+    tft.setTextColor(kWarmWhite);
+    tft.setCursor(41, 88);
+    tft.printf("%02lu:%02lu",
+               static_cast<unsigned long>(elapsedSeconds / 60),
+               static_cast<unsigned long>(elapsedSeconds % 60));
+
+    const int16_t centerX = 64;
+    const int16_t centerY = 112;
+    const uint8_t phase = (now / 300) % 8;
+    for (uint8_t i = 0; i < 8; ++i) {
+      const uint16_t color =
+          i == phase ? kBrightGold : kDarkGold;
+      const int16_t dx[] = {0, 9, 13, 9, 0, -9, -13, -9};
+      const int16_t dy[] = {-13, -9, 0, 9, 13, 9, 0, -9};
+      tft.fillCircle(centerX + dx[i], centerY + dy[i], 2, color);
+    }
+  }
+  drawFooterHints("AI修炼联动", "K4返回");
 }
 
 void GameUi::drawTitlePlaque(const char* title, uint16_t accent) {
@@ -651,8 +795,8 @@ void GameUi::drawStatus(const PetSaveData& data) {
   text().color(kMutedCyan);
   text().draw(13, 79, "境界");
   text().color(kBrightGold);
-  if (data.level < 5) {
-    text().draw(43, 79, "五级初醒");
+  if (data.level < 3) {
+    text().draw(43, 79, "三级初醒");
   } else if (data.level < 12) {
     text().draw(43, 79, "十二级化形");
   } else {
