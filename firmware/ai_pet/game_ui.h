@@ -25,6 +25,14 @@ class GameUi {
   void drawHeader(const PetSaveData& data);
   void drawInkBackground();
   void drawMenuFrame(const PetSaveData& data);
+  void drawTitlePlaque(const char* title, uint16_t accent);
+  void drawPanel(int16_t x, int16_t y, int16_t width, int16_t height,
+                 bool selected);
+  void drawFooterHints(const char* left, const char* right);
+  void drawProgressBar(int16_t x, int16_t y, int16_t width, uint16_t value,
+                       uint16_t maximum, uint16_t color);
+  void startNotice(const char* message);
+  void drawNotice();
   void drawHome(const PetSaveData& data, uint32_t now);
   void drawHomePet(const PetSaveData& data, uint32_t now);
   void drawHomeStats(const PetSaveData& data);
@@ -55,4 +63,6 @@ class GameUi {
   Feedback feedback_ = Feedback::None;
   uint32_t feedbackStartedAt_ = 0;
   uint32_t lastFeedbackFrameAt_ = 0;
+  char notice_[24] = {};
+  uint32_t noticeStartedAt_ = 0;
 };
