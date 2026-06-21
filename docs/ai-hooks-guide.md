@@ -43,6 +43,29 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 ## 手动测试
 
+推荐使用 Python 控制器：
+
+```powershell
+cd $env:USERPROFILE\.ai-pet-hooks
+py -3 .\ai_pet_hook.py submitted
+py -3 .\ai_pet_hook.py thinking
+py -3 .\ai_pet_hook.py tool
+py -3 .\ai_pet_hook.py editing
+py -3 .\ai_pet_hook.py waiting
+py -3 .\ai_pet_hook.py blocked
+py -3 .\ai_pet_hook.py complete
+py -3 .\ai_pet_hook.py idle
+```
+
+默认来源是 `codex`，任务会话名是 `manual`。也可以指定：
+
+```powershell
+py -3 .\ai_pet_hook.py thinking --source claude_code `
+  --session demo-1 --port COM7
+```
+
+`complete` 会发放成功奖励；`failure` 和 `cancelled` 不发奖励。
+
 ```powershell
 $payload = '{"type":"status","source":"codex","task_id":"manual-1","state":"thinking","timestamp":1}'
 & "$env:USERPROFILE\.ai-pet-hooks\send-ai-pet-event.ps1" `
