@@ -14,9 +14,10 @@ class GameApp {
 
  private:
   void processInput(uint32_t now);
-  void processSerial();
+  void processSerial(uint32_t now);
   void printStatus();
-  void processAiEvent(const AiEvent& event);
+  void processPreviewCommand(const String& command, uint32_t now);
+  void processAiEvent(const AiEvent& event, uint32_t now);
   void printAck(const AiEvent& event, const char* status,
                 uint16_t experience = 0, uint16_t coins = 0);
   void requestSave();
@@ -32,4 +33,5 @@ class GameApp {
   uint32_t lastSaveAt_ = 0;
   uint32_t lastExplorationAt_ = 0;
   bool savePending_ = false;
+  bool fsReady_ = false;
 };

@@ -18,10 +18,10 @@ void GameApp::begin() {
   display_.begin();
   buttons_.begin();
 
-  const bool fsReady = saves_.begin();
-  const bool loaded = fsReady && saves_.load(state_);
-  Serial.printf("GAME fs=%d save=%s\n", fsReady, loaded ? "loaded" : "new");
-  if (fsReady && !loaded) {
+  fsReady_ = saves_.begin();
+  const bool loaded = fsReady_ && saves_.load(state_);
+  Serial.printf("GAME fs=%d save=%s\n", fsReady_, loaded ? "loaded" : "new");
+  if (fsReady_ && !loaded) {
     saves_.save(state_);
   }
 
@@ -32,7 +32,7 @@ void GameApp::begin() {
 }
 
 void GameApp::update(uint32_t now) {
-  processSerial();
+  processSerial(now);
   buttons_.update(now);
   processInput(now);
 
@@ -93,7 +93,7 @@ void GameApp::processInput(uint32_t now) {
   }
 }
 
-void GameApp::processSerial() {
+void GameApp::processSerial(uint32_t now) {
   while (Serial.available()) {
     const char next = static_cast<char>(Serial.read());
     if (next == '\r') {
@@ -105,11 +105,13 @@ void GameApp::processSerial() {
         Serial.println("{\"type\":\"ack\",\"status\":\"error\",\"error\":\"too_long\"}");
       } else if (serialCommand_ == "STATUS") {
         printStatus();
+      } else if (serialCommand_.startsWith("PREVIEW ")) {
+        processPreviewCommand(serialCommand_, now);
       } else if (serialCommand_.startsWith("{")) {
         AiEvent event{};
         const char* error = nullptr;
         if (AiEventProtocol::parse(serialCommand_, event, error)) {
-          processAiEvent(event);
+          processAiEvent(event, now);
         } else {
           Serial.printf(
               "{\"type\":\"ack\",\"status\":\"error\",\"error\":\"%s\"}\n",
@@ -127,15 +129,35 @@ void GameApp::processSerial() {
   }
 }
 
-void GameApp::processAiEvent(const AiEvent& event) {
+void GameApp::processPreviewCommand(const String& command, uint32_t now) {
+  if (command == "PREVIEW OFF") {
+    ui_.clearPreviewForm();
+    ui_.draw(state_, now, true);
+    Serial.println("PREVIEW off");
+    return;
+  }
+
+  const String value = command.substring(8);
+  if (value.length() != 1 || value[0] < '0' || value[0] > '6') {
+    Serial.println("PREVIEW error");
+    return;
+  }
+
+  const uint8_t form = value[0] - '0';
+  ui_.setPreviewForm(static_cast<PetForm>(form));
+  ui_.draw(state_, now, true);
+  Serial.printf("PREVIEW form=%u\n", form);
+}
+
+void GameApp::processAiEvent(const AiEvent& event, uint32_t now) {
   if (event.kind == AiEventKind::Status) {
-    ui_.showAiStatus(event.source, event.state, event.taskId, millis());
+    ui_.showAiStatus(event.source, event.state, event.taskId, now);
     printAck(event, "accepted");
     return;
   }
 
   if (!event.success) {
-    ui_.showAiResult(event.source, false, 0, 0, false, millis());
+    ui_.showAiResult(event.source, false, 0, 0, false, now);
     printAck(event, "accepted");
     return;
   }
@@ -154,7 +176,7 @@ void GameApp::processAiEvent(const AiEvent& event) {
   const uint16_t coinGain = state_.data().coins - oldCoins;
   const bool evolved = state_.data().form != oldForm;
   ui_.showAiResult(event.source, true, experienceGain, coinGain, evolved,
-                   millis());
+                   now);
   requestSave();
   printAck(event, "accepted", experienceGain, coinGain);
 }
@@ -170,10 +192,15 @@ void GameApp::printAck(const AiEvent& event, const char* status,
 void GameApp::printStatus() {
   const PetSaveData& data = state_.data();
   Serial.printf(
-      "STATUS level=%u form=%u xp=%u mood=%u stamina=%u coins=%u "
+      "STATUS level=%u form=%u preview=%u preview_form=%u "
+      "xp=%u mood=%u stamina=%u coins=%u "
       "energy=%u page=%u\n",
       data.level,
       static_cast<unsigned>(data.form),
+      ui_.previewEnabled(),
+      static_cast<unsigned>(ui_.previewEnabled()
+                                ? ui_.previewForm()
+                                : data.form),
       data.experience,
       data.mood,
       data.stamina,
@@ -183,5 +210,8 @@ void GameApp::printStatus() {
 }
 
 void GameApp::requestSave() {
+  if (!fsReady_) {
+    return;
+  }
   savePending_ = true;
 }

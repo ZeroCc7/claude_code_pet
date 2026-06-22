@@ -1,6 +1,7 @@
 #include "game_ui.h"
 
 #include "assets/cloud_terrace_home.h"
+#include "assets/home_button_icons.h"
 #include "assets/home_ui_icons.h"
 
 #include <cstring>
@@ -8,9 +9,9 @@
 namespace {
 
 constexpr int16_t kPetRegionX = 28;
-constexpr int16_t kPetRegionY = 31;
+constexpr int16_t kPetRegionY = 14;
 constexpr int16_t kPetRegionWidth = 72;
-constexpr int16_t kPetRegionHeight = 76;
+constexpr int16_t kPetRegionHeight = 100;
 constexpr uint16_t kInkBlack = 0x0861;
 constexpr uint16_t kInkBlue = 0x10C3;
 constexpr uint16_t kPanelBlue = 0x1924;
@@ -20,6 +21,7 @@ constexpr uint16_t kBrightGold = 0xFEC8;
 constexpr uint16_t kWarmWhite = 0xEF5D;
 constexpr uint16_t kMutedCyan = 0x7CEF;
 constexpr uint16_t kCinnabar = 0xD9E4;
+constexpr uint32_t kPetEffectDurationMs = 500;
 
 uint8_t utf8GlyphCount(const char* value) {
   uint8_t count = 0;
@@ -163,14 +165,28 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (page_ == UiPage::Cultivation && aiResultActive_ &&
       now - aiLastEventAt_ >= 2500) {
     page_ = UiPage::Home;
+    if (aiResultSuccess_) {
+      startPetEffect(
+          aiEvolved_ ? PetEffect::Evolution : PetEffect::AiComplete, now);
+    }
     aiResultActive_ = false;
     dirty_ = true;
+  }
+  if (petEffect_ != PetEffect::None &&
+      now - petEffectStartedAt_ >= kPetEffectDurationMs) {
+    petEffect_ = PetEffect::None;
+    if (page_ == UiPage::Home) {
+      dirty_ = true;
+    }
   }
 
   const bool fullRedraw = (dirty_ || force) && page_ == UiPage::Home;
   const bool menuRedraw = (dirty_ || force) && page_ != UiPage::Home;
+  const uint32_t homeAnimationInterval =
+      petEffect_ == PetEffect::None ? 400 : 100;
   const bool animate =
-      ((page_ == UiPage::Home && now - lastAnimationAt_ >= 400) ||
+      ((page_ == UiPage::Home &&
+        now - lastAnimationAt_ >= homeAnimationInterval) ||
        (page_ == UiPage::Cultivation &&
         now - lastAnimationAt_ >= 300));
   const bool feedbackActive =
@@ -203,12 +219,10 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (redrawMenu) {
     drawMenuFrame(state.data());
   } else if (fullRedraw) {
-    drawInkBackground();
-    drawHomeHeader(state.data());
-    drawHome(state.data(), now);
+    drawHomeFrame(state.data(), now);
   } else if (page_ == UiPage::Home) {
     if (feedbackExpired) {
-      restoreBackgroundRect(14, 84, 100, 24);
+      restoreBackgroundRect(14, 52, 100, 24);
     }
     drawHomePet(state.data(), now);
   }
@@ -265,6 +279,9 @@ void GameUi::showAiResult(const char* source, bool success,
   aiEvolved_ = evolved;
   aiLastEventAt_ = now;
   page_ = UiPage::Cultivation;
+  if (success) {
+    startPetEffect(evolved ? PetEffect::Evolution : PetEffect::AiComplete, now);
+  }
   dirty_ = true;
 }
 
@@ -279,7 +296,29 @@ void GameUi::showEvolution(PetForm form, uint32_t now) {
   aiEvolved_ = true;
   aiLastEventAt_ = now;
   page_ = UiPage::Cultivation;
+  startPetEffect(PetEffect::Evolution, now);
   dirty_ = true;
+}
+
+void GameUi::setPreviewForm(PetForm form) {
+  previewEnabled_ = true;
+  previewForm_ = form;
+  page_ = UiPage::Home;
+  dirty_ = true;
+}
+
+void GameUi::clearPreviewForm() {
+  previewEnabled_ = false;
+  page_ = UiPage::Home;
+  dirty_ = true;
+}
+
+bool GameUi::previewEnabled() const {
+  return previewEnabled_;
+}
+
+PetForm GameUi::previewForm() const {
+  return previewForm_;
 }
 
 void GameUi::drawHeader(const PetSaveData& data) {
@@ -293,51 +332,84 @@ void GameUi::drawHeader(const PetSaveData& data) {
 
 void GameUi::drawHomeHeader(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
-  tft.fillRect(0, 0, 128, 19, kInkBlack);
-  tft.drawRect(0, 0, 128, 19, kDarkGold);
-  tft.drawFastHLine(4, 2, 120, 0x5B26);
-  tft.drawFastHLine(4, 17, 120, kBrightGold);
-  tft.drawPixel(2, 2, kBrightGold);
-  tft.drawFastHLine(2, 3, 5, kDarkGold);
-  tft.drawFastVLine(3, 2, 5, kDarkGold);
-  tft.drawPixel(125, 2, kBrightGold);
-  tft.drawFastHLine(121, 3, 5, kDarkGold);
-  tft.drawFastVLine(124, 2, 5, kDarkGold);
+  tft.fillRect(0, 0, 128, 14, kInkBlack);
+  tft.drawRect(0, 0, 128, 14, kDarkGold);
 
+  // Left column: realm + level (compact)
   text().color(kWarmWhite);
-  text().draw(3, 13, "炼气");
+  text().draw(3, 11, "炼气");
   tft.setTextColor(kBrightGold);
   tft.setTextSize(1);
-  tft.setCursor(28, 4);
-  tft.printf("LV%u", data.level);
+  tft.setCursor(28, 3);
+  tft.printf("Lv%u", data.level);
 
+  // Middle column: XP bar (compact diamond frame)
   const uint8_t currentExperience = data.experience % 20;
-  tft.fillRect(51, 3, 47, 13, kInkBlue);
-  tft.drawFastHLine(55, 2, 39, kBrightGold);
-  tft.drawFastHLine(55, 16, 39, kDarkGold);
-  tft.drawFastVLine(50, 7, 5, kDarkGold);
-  tft.drawFastVLine(98, 7, 5, kDarkGold);
-  tft.fillTriangle(50, 9, 55, 4, 55, 14, kDarkGold);
-  tft.fillTriangle(99, 9, 94, 4, 94, 14, kDarkGold);
-  const int16_t xpFill = currentExperience * 36 / 20;
+  tft.fillRect(52, 1, 42, 11, kInkBlue);
+  tft.drawFastHLine(55, 0, 36, kBrightGold);
+  tft.drawFastHLine(55, 12, 36, kDarkGold);
+  tft.drawFastVLine(51, 4, 5, kDarkGold);
+  tft.drawFastVLine(94, 4, 5, kDarkGold);
+  tft.fillTriangle(51, 6, 55, 2, 55, 10, kDarkGold);
+  tft.fillTriangle(95, 6, 91, 2, 91, 10, kDarkGold);
+  const int16_t xpFill = currentExperience * 34 / 20;
   if (xpFill > 0) {
-    tft.fillRect(56, 5, xpFill, 4, kBrightGold);
-    tft.fillRect(56, 9, xpFill, 3, 0xDD45);
+    tft.fillRect(56, 3, xpFill, 3, kBrightGold);
+    tft.fillRect(56, 6, xpFill, 3, 0xDD45);
   }
   tft.setTextColor(kWarmWhite);
-  tft.setCursor(69, 7);
+  tft.setCursor(66, 4);
   tft.printf("%u/20", currentExperience);
 
-  text().color(kMutedCyan);
-  text().draw(101, 14, "离线");
+  // Right column: status icon (replace text with icon)
+  if (aiState_ == AiWorkState::Idle) {
+    // Offline/sleeping icon: small crescent moon
+    tft.drawPixel(108, 2, kMutedCyan);
+    tft.drawPixel(109, 3, kMutedCyan);
+    tft.drawPixel(110, 4, kMutedCyan);
+    tft.drawPixel(110, 5, kMutedCyan);
+    tft.drawPixel(110, 6, kMutedCyan);
+    tft.drawPixel(109, 7, kMutedCyan);
+    tft.drawPixel(108, 8, kMutedCyan);
+    tft.drawPixel(113, 2, kMutedCyan);
+    tft.drawPixel(114, 3, kMutedCyan);
+    tft.drawPixel(115, 4, kMutedCyan);
+    tft.drawPixel(114, 5, kMutedCyan);
+    tft.drawPixel(113, 6, kMutedCyan);
+  } else {
+    // Online/active icon: small lightning bolt
+    tft.drawFastVLine(111, 1, 5, kBrightGold);
+    tft.drawFastHLine(109, 6, 4, kBrightGold);
+    tft.drawFastVLine(110, 7, 5, kBrightGold);
+    tft.drawPixel(112, 5, kBrightGold);
+    tft.drawPixel(109, 7, kBrightGold);
+  }
 }
 
-void GameUi::drawInkBackground() {
+void GameUi::drawInkBackground(int16_t fillStartY) {
   Adafruit_GFX& tft = target();
   tft.drawRGBBitmap(0, 0, kCloudTerraceHome, kCloudTerraceHomeWidth,
                     kCloudTerraceHomeHeight);
-  tft.fillRect(0, 112, 128, 48, 0x0861);
-  tft.drawFastHLine(0, 112, 128, 0x6B8D);
+  tft.fillRect(0, fillStartY, 128, 160 - fillStartY, 0x0861);
+  tft.drawFastHLine(0, fillStartY, 128, 0x6B8D);
+}
+
+void GameUi::drawHomeFrame(const PetSaveData& data, uint32_t now) {
+  uint16_t* frame = menuCanvas_.getBuffer();
+  if (!frame) {
+    return;
+  }
+
+  renderTarget_ = &menuCanvas_;
+  renderText_ = &menuChinese_;
+  drawInkBackground(128);
+  drawHomeHeader(data);
+  drawHome(data, now);
+  renderTarget_ = nullptr;
+  renderText_ = nullptr;
+
+  Adafruit_ST7735& tft = display_->raw();
+  tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer(), 128, 160);
 }
 
 void GameUi::drawMenuFrame(const PetSaveData& data) {
@@ -349,8 +421,8 @@ void GameUi::drawMenuFrame(const PetSaveData& data) {
   renderTarget_ = &menuCanvas_;
   renderText_ = &menuChinese_;
   drawInkBackground();
-  target().fillRect(0, 18, 128, 142, kInkBlack);
-  for (int16_t y = 20; y < 142; y += 12) {
+  target().fillRect(0, 16, 128, 144, kInkBlack);
+  for (int16_t y = 18; y < 142; y += 12) {
     target().drawPixel(3, y, kInkBlue);
     target().drawPixel(124, y + 5, kInkBlue);
   }
@@ -520,11 +592,12 @@ void GameUi::startNotice(const char* message) {
 
 void GameUi::drawNotice() {
   Adafruit_GFX& tft = target();
-  tft.fillRoundRect(20, 116, 88, 24, 4, kInkBlue);
-  tft.drawRoundRect(20, 116, 88, 24, 4, kBrightGold);
+  const int16_t noticeY = (160 - 24) / 2;
+  tft.fillRoundRect(20, noticeY, 88, 24, 4, kInkBlue);
+  tft.drawRoundRect(20, noticeY, 88, 24, 4, kBrightGold);
   text().color(kBrightGold);
   const int16_t width = utf8GlyphCount(notice_) * 12;
-  text().draw(max<int16_t>(24, (128 - width) / 2), 133, notice_);
+  text().draw(max<int16_t>(24, (128 - width) / 2), noticeY + 17, notice_);
 }
 
 void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
@@ -533,7 +606,7 @@ void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
 }
 
 void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
-  Adafruit_ST7735& tft = display_->raw();
+  Adafruit_GFX& tft = target();
   uint16_t* frame = petCanvas_.getBuffer();
   if (!frame) {
     return;
@@ -547,15 +620,23 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
     }
   }
 
-  int16_t petY = kPetRegionY + 12;
+  int16_t petY = kPetRegionY + 33;
   if ((feedback_ == Feedback::MoodUp ||
        feedback_ == Feedback::StaminaUp) &&
       now - feedbackStartedAt_ < 700) {
     const uint32_t phase = (now - feedbackStartedAt_) % 350;
-    petY -= phase < 175 ? phase / 25 : (350 - phase) / 25;
+    petY -= phase < 175 ? phase / 50 : (350 - phase) / 50;
   }
-  const int16_t petX = data.form >= PetForm::FinalA1 ? 16 : 5;
-  pet_.draw(petCanvas_, data.form, petX, petY - kPetRegionY, now);
+  const PetForm form = displayForm(data.form);
+  const bool finalForm = form >= PetForm::FinalA1;
+  const int16_t petX = finalForm ? 4 : 5;
+  if (finalForm) {
+    petY = kPetRegionY + 18;
+  }
+  const uint32_t effectElapsed =
+      petEffect_ == PetEffect::None ? 0 : now - petEffectStartedAt_;
+  pet_.draw(petCanvas_, form, petX, petY - kPetRegionY, now, petEffect_,
+            effectElapsed);
   tft.drawRGBBitmap(kPetRegionX, kPetRegionY, petCanvas_.getBuffer(),
                     kPetRegionWidth, kPetRegionHeight);
 }
@@ -566,66 +647,50 @@ void GameUi::drawHomeStats(const PetSaveData& data) {
 
 void GameUi::drawHomeVitals(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
-  tft.fillRect(0, 110, 128, 50, kInkBlack);
-  drawGoldPanel(0, 110, 64, 23);
-  drawGoldPanel(64, 110, 64, 23);
-  drawGoldPanel(0, 133, 64, 18);
-  drawGoldPanel(64, 133, 64, 18);
 
-  drawHomeIcon(2, 113, kHomeIconLotus);
-  text().color(kWarmWhite);
-  text().draw(17, 122, "心境");
-  tft.setTextColor(data.mood < 25 ? kCinnabar : kWarmWhite);
+  // ── 单行属性条 (y=114, 14px) - 4个14×14美术图标+数值 ──
+  tft.fillRect(0, 114, 128, 14, kInkBlack);
+  tft.drawFastHLine(0, 114, 128, kDarkGold);
+  tft.drawFastHLine(0, 127, 128, kDarkGold);
+
   tft.setTextSize(1);
-  tft.setCursor(46, 114);
+
+  // 心境 - 莲花图标 (列0, x=0)
+  drawHomeIcon(1, 114, kHomeIconLotus);
+  tft.setTextColor(data.mood < 25 ? kCinnabar : kWarmWhite);
+  tft.setCursor(16, 118);
   tft.print(data.mood);
-  drawProgressBar(17, 124, 43, data.mood, 100,
-                  data.mood < 25 ? kCinnabar : 0xF9B2);
 
-  drawHomeIcon(66, 113, kHomeIconHeart);
-  text().color(kWarmWhite);
-  text().draw(81, 122, "体力");
+  // 体力 - 心形图标 (列1, x=32)
+  drawHomeIcon(33, 114, kHomeIconHeart);
   tft.setTextColor(data.stamina < 25 ? kCinnabar : kWarmWhite);
-  tft.setCursor(110, 114);
+  tft.setCursor(48, 118);
   tft.print(data.stamina);
-  drawProgressBar(81, 124, 43, data.stamina, 100,
-                  data.stamina < 25 ? kCinnabar : 0xF2A4);
 
-  drawHomeIcon(2, 135, kHomeIconEnergy);
-  text().color(kWarmWhite);
-  text().draw(17, 146, "灵力");
+  // 灵力 - 闪电图标 (列2, x=64)
+  drawHomeIcon(65, 114, kHomeIconEnergy);
   tft.setTextColor(0x7DFF);
-  tft.setCursor(43, 138);
-  tft.printf("%u/20", data.energy);
+  tft.setCursor(80, 118);
+  tft.print(data.energy);
 
-  drawHomeIcon(66, 135, kHomeIconCrystal);
-  text().color(kWarmWhite);
-  text().draw(81, 146, "灵石");
+  // 灵石 - 水晶图标 (列3, x=96)
+  drawHomeIcon(97, 114, kHomeIconCrystal);
   tft.setTextColor(kBrightGold);
-  tft.setCursor(110, 138);
+  tft.setCursor(112, 118);
   tft.print(data.coins);
 
-  tft.fillRect(0, 151, 128, 9, 0x0862);
-  tft.drawFastHLine(0, 151, 128, kDarkGold);
-  tft.drawPixel(2, 153, kBrightGold);
-  tft.drawFastHLine(2, 154, 4, kDarkGold);
-  tft.drawPixel(125, 153, kBrightGold);
-  tft.drawFastHLine(122, 154, 4, kDarkGold);
-  tft.setTextSize(1);
-  tft.setTextColor(kMutedCyan);
-  tft.setCursor(1, 153);
-  tft.print("K1");
-  text().color(kMutedCyan);
-  text().draw(13, 160, "互");
-  tft.setCursor(33, 153);
-  tft.print("K2");
-  text().draw(45, 160, "养");
-  tft.setCursor(65, 153);
-  tft.print("K3");
-  text().draw(77, 160, "历");
-  tft.setCursor(97, 153);
-  tft.print("K4");
-  text().draw(109, 160, "态");
+  // ── 底部按钮区 (y=130, 30px, icons only) ──
+  tft.fillRect(0, 130, 128, 30, 0x0862);
+  tft.drawFastHLine(0, 130, 128, kDarkGold);
+
+  tft.drawFastVLine(32, 133, 24, 0x4A85);
+  tft.drawFastVLine(64, 133, 24, 0x4A85);
+  tft.drawFastVLine(96, 133, 24, 0x4A85);
+
+  drawButtonIcon(9, 138, kHomeButtonInteract);
+  drawButtonIcon(41, 138, kHomeButtonCare);
+  drawButtonIcon(73, 138, kHomeButtonAdventure);
+  drawButtonIcon(105, 138, kHomeButtonStatus);
 }
 
 void GameUi::drawGoldPanel(int16_t x, int16_t y, int16_t width,
@@ -633,7 +698,13 @@ void GameUi::drawGoldPanel(int16_t x, int16_t y, int16_t width,
   Adafruit_GFX& tft = target();
   tft.fillRect(x + 1, y + 1, width - 2, height - 2, kInkBlue);
   tft.drawRect(x, y, width, height, kDarkGold);
-  tft.drawRect(x + 2, y + 2, width - 4, height - 4, 0x4A85);
+
+  if (height >= 20) {
+    tft.drawRect(x + 2, y + 2, width - 4, height - 4, 0x4A85);
+  } else {
+    tft.drawFastHLine(x + 2, y + 2, width - 4, 0x4A85);
+  }
+
   tft.drawPixel(x + 1, y + 1, kBrightGold);
   tft.drawPixel(x + width - 2, y + 1, kBrightGold);
   tft.drawPixel(x + 1, y + height - 2, kBrightGold);
@@ -643,6 +714,13 @@ void GameUi::drawGoldPanel(int16_t x, int16_t y, int16_t width,
 void GameUi::drawHomeIcon(int16_t x, int16_t y, const HomeUiIcon& icon) {
   target().drawRGBBitmap(x, y, icon.pixels, icon.mask, kHomeIconWidth,
                          kHomeIconHeight);
+}
+
+void GameUi::drawButtonIcon(int16_t x, int16_t y,
+                            const HomeButtonIcon& icon) {
+  Adafruit_GFX& tft = target();
+  tft.drawRGBBitmap(x, y, icon.pixels, icon.mask,
+                    kHomeButtonIconWidth, kHomeButtonIconHeight);
 }
 
 void GameUi::drawResourceBadge(int16_t x, int16_t y, uint16_t color,
@@ -791,7 +869,8 @@ void GameUi::drawStatus(const PetSaveData& data) {
   text().color(kMutedCyan);
   text().draw(13, 62, "形态");
   text().color(kWarmWhite);
-  text().draw(43, 62, forms[static_cast<unsigned>(data.form)]);
+  text().draw(43, 62,
+              forms[static_cast<unsigned>(displayForm(data.form))]);
   text().color(kMutedCyan);
   text().draw(13, 79, "境界");
   text().color(kBrightGold);
@@ -845,6 +924,18 @@ void GameUi::drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color) {
 void GameUi::startFeedback(Feedback feedback) {
   feedback_ = feedback;
   feedbackStartedAt_ = millis();
+  if (feedback == Feedback::MoodUp || feedback == Feedback::StaminaUp) {
+    startPetEffect(PetEffect::Interaction, millis());
+  }
+  dirty_ = true;
+}
+
+void GameUi::startPetEffect(PetEffect effect, uint32_t now) {
+  if (page_ == UiPage::Cultivation) {
+    return;
+  }
+  petEffect_ = effect;
+  petEffectStartedAt_ = now;
   dirty_ = true;
 }
 
@@ -855,7 +946,7 @@ void GameUi::drawFeedback(uint32_t now) {
 
   if (feedback_ == Feedback::MoodUp || feedback_ == Feedback::StaminaUp) {
     const int16_t centerX = 64;
-    const int16_t centerY = 43 - rise;
+    const int16_t centerY = 40 - rise;
     for (uint8_t i = 0; i < 6; ++i) {
       const int16_t x = centerX - 24 + i * 9;
       const int16_t y = centerY + ((i * 7 + elapsed / 100) % 13);
@@ -865,21 +956,21 @@ void GameUi::drawFeedback(uint32_t now) {
     }
   }
 
-  tft.fillRoundRect(14, 84, 100, 24, 4, 0x18C3);
-  tft.drawRoundRect(14, 84, 100, 24, 4, 0xD5EA);
+  tft.fillRoundRect(14, 52, 100, 24, 4, 0x18C3);
+  tft.drawRoundRect(14, 52, 100, 24, 4, 0xD5EA);
   chinese_.color(feedback_ == Feedback::NoCoins ? 0xFB08 : 0xFFE0);
   switch (feedback_) {
     case Feedback::MoodUp:
-      chinese_.draw(34, 101, "心境提升");
+      chinese_.draw(34, 69, "心境提升");
       break;
     case Feedback::StaminaUp:
-      chinese_.draw(34, 101, "体力恢复");
+      chinese_.draw(34, 69, "体力恢复");
       break;
     case Feedback::NoCoins:
-      chinese_.draw(34, 101, "灵石不足");
+      chinese_.draw(34, 69, "灵石不足");
       break;
     case Feedback::AlreadyFull:
-      chinese_.draw(34, 101, "当前已满");
+      chinese_.draw(34, 69, "当前已满");
       break;
     case Feedback::None:
       break;
@@ -892,4 +983,8 @@ Adafruit_GFX& GameUi::target() {
 
 ChineseText& GameUi::text() {
   return renderText_ ? *renderText_ : chinese_;
+}
+
+PetForm GameUi::displayForm(PetForm savedForm) const {
+  return previewEnabled_ ? previewForm_ : savedForm;
 }

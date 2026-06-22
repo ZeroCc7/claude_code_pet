@@ -1,61 +1,70 @@
 #include "pet_renderer.h"
 
-#include <Adafruit_ST7735.h>
-
+#include "assets/pet_effects.h"
 #include "assets/pet_sprites.h"
 
 void PetRenderer::draw(Adafruit_GFX& tft, PetForm form, int16_t x, int16_t y,
-                       uint32_t now) {
+                       uint32_t now, PetEffect effect,
+                       uint32_t effectElapsed) {
   const PetSpriteFrame* frames = nullptr;
+  uint8_t width = kPetSpriteWidth;
+  uint8_t height = kPetSpriteHeight;
   if (form == PetForm::Egg) {
     frames = kPet_egg_frames;
   } else if (form == PetForm::RookieA) {
     frames = kPet_rookie_a_frames;
   } else if (form == PetForm::RookieB) {
     frames = kPet_rookie_b_frames;
+  } else if (form == PetForm::FinalA1) {
+    frames = kPet_final_a1_frames;
+    width = kFinalPetSpriteWidth;
+    height = kFinalPetSpriteHeight;
+  } else if (form == PetForm::FinalA2) {
+    frames = kPet_final_a2_frames;
+    width = kFinalPetSpriteWidth;
+    height = kFinalPetSpriteHeight;
+  } else if (form == PetForm::FinalB1) {
+    frames = kPet_final_b1_frames;
+    width = kFinalPetSpriteWidth;
+    height = kFinalPetSpriteHeight;
+  } else if (form == PetForm::FinalB2) {
+    frames = kPet_final_b2_frames;
+    width = kFinalPetSpriteWidth;
+    height = kFinalPetSpriteHeight;
   }
-  if (frames) {
-    const PetSpriteFrame& frame =
-        frames[(now / 400) % kPetSpriteFrameCount];
-    tft.drawRGBBitmap(x, y, frame.pixels, frame.mask, kPetSpriteWidth,
-                      kPetSpriteHeight);
+  if (!frames) {
     return;
   }
 
-  const uint16_t body = bodyColor(form);
-  const int16_t bob = ((now / 600) % 2) ? 1 : 0;
-  y += bob;
-
-  if (form >= PetForm::FinalA1) {
-    tft.fillCircle(x + 20, y + 8, 6, 0xF5CC);
-    tft.fillTriangle(x + 14, y + 6, x + 16, y, x + 19, y + 7, 0x6D2B);
-    tft.fillTriangle(x + 21, y + 7, x + 25, y, x + 27, y + 7, 0x6D2B);
-    tft.fillRect(x + 14, y + 14, 13, 18, body);
-    tft.fillTriangle(x + 14, y + 20, x + 6, y + 34, x + 16, y + 30, body);
-    tft.fillTriangle(x + 27, y + 20, x + 34, y + 34, x + 25, y + 30, body);
-    tft.drawCircle(x + 20, y + 21, 14, 0xFFE0);
-    tft.drawPixel(x + 18, y + 8, ST77XX_BLACK);
-    tft.drawPixel(x + 22, y + 8, ST77XX_BLACK);
-    return;
+  if (effect != PetEffect::None && form >= PetForm::FinalA1) {
+    drawEffect(tft, form, x, y, effectElapsed);
   }
+  const PetSpriteFrame& frame =
+      frames[(now / 400) % kPetSpriteFrameCount];
+  tft.drawRGBBitmap(x, y, frame.pixels, frame.mask, width, height);
 }
 
-uint16_t PetRenderer::bodyColor(PetForm form) const {
+void PetRenderer::drawEffect(Adafruit_GFX& tft, PetForm form, int16_t x,
+                             int16_t y, uint32_t effectElapsed) {
+  const PetEffectFrame* frames = nullptr;
   switch (form) {
-    case PetForm::Egg:
-      return ST77XX_CYAN;
-    case PetForm::RookieA:
-      return ST77XX_GREEN;
-    case PetForm::RookieB:
-      return ST77XX_MAGENTA;
     case PetForm::FinalA1:
-      return ST77XX_YELLOW;
+      frames = kPetEffect_final_a1_frames;
+      break;
     case PetForm::FinalA2:
-      return ST77XX_BLUE;
+      frames = kPetEffect_final_a2_frames;
+      break;
     case PetForm::FinalB1:
-      return ST77XX_RED;
+      frames = kPetEffect_final_b1_frames;
+      break;
     case PetForm::FinalB2:
-      return ST77XX_WHITE;
+      frames = kPetEffect_final_b2_frames;
+      break;
+    default:
+      return;
   }
-  return ST77XX_CYAN;
+  const PetEffectFrame& frame =
+      frames[(effectElapsed / 100) % kPetEffectFrameCount];
+  tft.drawRGBBitmap(x, y, frame.pixels, frame.mask, kPetEffectWidth,
+                    kPetEffectHeight);
 }

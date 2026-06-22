@@ -6,6 +6,50 @@
 
 ![首页 UI](assets/raw/ui/reference/home_hud_reference.png)
 
+## 快速开始
+
+需要：一块 RP2040-Zero、一块 1.8 寸 ST7735S 屏（带 K1–K4 按键）、USB-C 数据线、Windows + PowerShell。
+
+```powershell
+# 1. 安装工具链 + Python 依赖（仅首次）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap-arduino.ps1
+py -3 -m pip install -r .\host\requirements-dev.txt
+
+# 2. 编译并烧录固件（按实际 COM 口替换）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\compile-firmware.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\upload-firmware.ps1 -Port COM7
+
+# 3. 跑 Python 测试确认规则一致
+py -3 -m pytest .\host\game_model .\host\hooks .\host\diagnostics -q
+
+# 4.（可选）把 AI Hook 装进 Codex / Claude Code / OpenCode
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-ai-hooks.ps1 -Port COM7
+```
+
+烧录后屏幕会显示首页。串口发送 `STATUS` 可查看宠物状态。接线见下方[接线表](#接线)。
+
+## 架构概览
+
+```text
+AI 工具（Codex / Claude Code / OpenCode）
+        │  事件钩子 → host/hooks/ai_pet_hook.py
+        ▼  JSON over USB Serial (115200, ≤384B)
+┌─────────────────────────────────────────────┐
+│ 固件 firmware/ai_pet/（RP2040-Zero, C++）       │
+│   GameApp ── GameState（规则 + 存档）            │
+│           ├─ AiEventProtocol（解析串口 JSON）     │
+│           ├─ SaveStore（LittleFS A/B 双槽 + CRC） │
+│           ├─ GameUi（六页面渲染）                  │
+│           └─ DisplayDevice（ST7735S + 背光）       │
+└─────────────────────────────────────────────┘
+        ▲  规则镜像
+host/game_model/（Python 参考实现 + pytest）
+```
+
+**核心设计**：固件的 `game_state.cpp` 与 Python 的 `host/game_model/progression.py` 是同一套游戏规则的两种实现——改规则时两边都要改并保持测试通过。AI 任务成功后按耗时给宠物结算经验、灵石和灵力。
+
+> 面向 AI 助手的开发指南见 [AGENTS.md](AGENTS.md)，包含文件职责、代码规范、关键不变量和常见任务流程。
+
 ## 功能
 
 - 中国古风修仙主题和中文 UI。
@@ -357,6 +401,29 @@ STATUS
 
 ```text
 STATUS level=3 form=1 xp=48 mood=100 stamina=100 coins=69 energy=20 page=0
+```
+
+### 不修改存档地预览宠物形态
+
+在串口监视器中发送：
+
+```text
+PREVIEW 0
+PREVIEW 1
+PREVIEW 2
+PREVIEW 3
+PREVIEW 4
+PREVIEW 5
+PREVIEW 6
+PREVIEW OFF
+```
+
+`PREVIEW 0～6` 只临时改变首页和状态页的显示形态，不修改等级、经验、倾向和 Flash 存档。`PREVIEW OFF` 恢复真实形态，设备重启也会自动退出预览。
+
+启用预览后，`STATUS` 会同时报告真实形态和预览形态：
+
+```text
+STATUS level=15 form=3 preview=1 preview_form=1 ...
 ```
 
 ## 项目结构

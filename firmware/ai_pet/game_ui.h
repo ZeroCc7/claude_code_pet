@@ -7,6 +7,7 @@
 #include "input_actions.h"
 #include "pet_renderer.h"
 #include "assets/home_ui_icons.h"
+#include "assets/home_button_icons.h"
 
 class GameUi {
  public:
@@ -20,6 +21,10 @@ class GameUi {
                     uint16_t experienceGain, uint16_t coinGain,
                     bool evolved, uint32_t now);
   void showEvolution(PetForm form, uint32_t now);
+  void setPreviewForm(PetForm form);
+  void clearPreviewForm();
+  bool previewEnabled() const;
+  PetForm previewForm() const;
   UiPage page() const;
 
  private:
@@ -33,7 +38,8 @@ class GameUi {
 
   void drawHeader(const PetSaveData& data);
   void drawHomeHeader(const PetSaveData& data);
-  void drawInkBackground();
+  void drawInkBackground(int16_t fillStartY = 112);
+  void drawHomeFrame(const PetSaveData& data, uint32_t now);
   void drawMenuFrame(const PetSaveData& data);
   void drawTitlePlaque(const char* title, uint16_t accent);
   void drawPanel(int16_t x, int16_t y, int16_t width, int16_t height,
@@ -49,6 +55,8 @@ class GameUi {
   void drawHomeVitals(const PetSaveData& data);
   void drawGoldPanel(int16_t x, int16_t y, int16_t width, int16_t height);
   void drawHomeIcon(int16_t x, int16_t y, const HomeUiIcon& icon);
+  void drawButtonIcon(int16_t x, int16_t y,
+                      const HomeButtonIcon& icon);
   void drawResourceBadge(int16_t x, int16_t y, uint16_t color,
                          const char* label, uint16_t value,
                          uint16_t maximum = 0);
@@ -60,14 +68,16 @@ class GameUi {
   void drawStatus(const PetSaveData& data);
   void drawCultivation(const PetSaveData& data, uint32_t now);
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
+  void startPetEffect(PetEffect effect, uint32_t now);
   void startFeedback(Feedback feedback);
   void drawFeedback(uint32_t now);
   Adafruit_GFX& target();
   ChineseText& text();
+  PetForm displayForm(PetForm savedForm) const;
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
-  GFXcanvas16 petCanvas_{72, 76};
+  GFXcanvas16 petCanvas_{72, 100};
   GFXcanvas16 menuCanvas_{128, 160};
   ChineseText chinese_;
   ChineseText menuChinese_;
@@ -80,6 +90,8 @@ class GameUi {
   Feedback feedback_ = Feedback::None;
   uint32_t feedbackStartedAt_ = 0;
   uint32_t lastFeedbackFrameAt_ = 0;
+  PetEffect petEffect_ = PetEffect::None;
+  uint32_t petEffectStartedAt_ = 0;
   char notice_[24] = {};
   uint32_t noticeStartedAt_ = 0;
   AiWorkState aiState_ = AiWorkState::Idle;
@@ -92,4 +104,6 @@ class GameUi {
   uint16_t aiExperienceGain_ = 0;
   uint16_t aiCoinGain_ = 0;
   bool aiEvolved_ = false;
+  bool previewEnabled_ = false;
+  PetForm previewForm_ = PetForm::Egg;
 };

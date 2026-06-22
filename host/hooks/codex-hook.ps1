@@ -1,6 +1,10 @@
 param(
-    [ValidateSet("submitted", "thinking", "tool", "editing",
-                 "waiting", "blocked", "idle", "complete")]
+    [ValidateSet(
+        "UserPromptSubmit", "PreToolUse", "PermissionRequest",
+        "PostToolUse", "Stop",
+        "submitted", "thinking", "tool", "editing",
+        "waiting", "blocked", "idle", "complete"
+    )]
     [string]$Event = "complete",
     [string]$Session = "",
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -25,6 +29,15 @@ if ($payloadText) {
     $payload = $payloadText | ConvertFrom-Json
 }
 if (-not $Session) {
+    $Session = $payload.session_id
+}
+if (-not $Session) {
+    $Session = $payload.thread_id
+}
+if (-not $Session) {
+    $Session = $payload.turn_id
+}
+if (-not $Session) {
     $Session = $payload.'turn-id'
 }
 if (-not $Session) {
@@ -46,10 +59,32 @@ if (-not $pythonCommand) {
 
 $stateScript = Join-Path $root "hook_state.py"
 $sender = Join-Path $root "send-ai-pet-event.ps1"
-if ($Event -eq "submitted") {
+$mappedEvent = switch ($Event) {
+    "UserPromptSubmit" { "submitted" }
+    "PreToolUse" {
+        $toolName = $payload.tool_name
+        if (-not $toolName) {
+            $toolName = $payload.'tool-name'
+        }
+        if (-not $toolName) {
+            $toolName = $payload.toolName
+        }
+        if ($toolName -match "^(apply_patch|Edit|Write)$") {
+            "editing"
+        } else {
+            "tool"
+        }
+    }
+    "PermissionRequest" { "waiting" }
+    "PostToolUse" { "thinking" }
+    "Stop" { "complete" }
+    default { $Event }
+}
+
+if ($mappedEvent -eq "submitted") {
     $json = & $pythonCommand @pythonPrefix $stateScript begin `
         --source codex --session $Session
-} elseif ($Event -eq "complete") {
+} elseif ($mappedEvent -eq "complete") {
     $eventText = "$($payload.type) $($payload.status) $($payload.outcome) $payloadText"
     $result = if ($eventText -match "error|fail|abort|cancel") {
         "failure"
@@ -60,9 +95,12 @@ if ($Event -eq "submitted") {
         --session $Session --result $result
 } else {
     $json = & $pythonCommand @pythonPrefix $stateScript status --source codex `
-        --session $Session --state $Event
+        --session $Session --state $mappedEvent
 }
 if ($json) {
     & $sender -Payload $json | Out-Null
+}
+if ($Event -eq "Stop") {
+    Write-Output "{}"
 }
 exit 0

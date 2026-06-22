@@ -9,15 +9,28 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\install-ai-hooks.ps1 -Port COM7
 ```
 
+只安装 Codex 生命周期 Hook：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\install-ai-hooks.ps1 -Target Codex -Port COM5
+```
+
 安装器执行：
 
 - 将公共脚本复制到 `%USERPROFILE%\.ai-pet-hooks\`。
 - 设置用户环境变量 `AI_PET_PORT`。
-- 备份并增量修改 `~/.claude/settings.json`。
-- 在现有 CursorLight Codex 通知脚本末尾追加宠物完成事件，不覆盖灯效逻辑。
+- Codex 模式增量写入 `~/.codex/hooks.json`，不修改现有 `notify`。
+- 默认模式备份并增量修改 `~/.claude/settings.json`。
 - 仅在检测到 OpenCode 时安装全局插件。
 
-修改后重启对应 AI 工具。
+修改后重启对应 AI 工具。Codex 非托管命令 Hook 必须先信任。使用支持
+Hooks 信任管理的 Codex CLI 版本，并在 CLI 中使用 `/hooks` 检查和信任
+新增命令。若 `/hooks` 不在命令列表中，先升级 Codex CLI；旧版本即使显示
+`codex_hooks` 功能标记，也可能跳过未信任的 `hooks.json` 命令。
+
+Windows 安装项同时写入官方支持的 `commandWindows` 字段。`Stop` Hook
+会向标准输出返回空 JSON 对象，符合 Codex 对成功退出 Hook 的输出契约。
 
 ## 状态映射
 
@@ -32,7 +45,13 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 | 成功结束 | 修炼完成并结算 |
 | 会话结束 | 返回首页 |
 
-当前 Codex 桌面版若只提供结束通知，则只能可靠触发“修炼完成”。项目已保留其他状态入口，后续 Codex 暴露更多生命周期 Hook 时可直接映射。
+Codex 使用以下生命周期映射：
+
+- `UserPromptSubmit`：接引任务。
+- `PreToolUse`：施法中；`apply_patch`、`Edit`、`Write` 映射为炼器中。
+- `PermissionRequest`：等待指令。
+- `PostToolUse`：推演中。
+- `Stop`：修炼完成并结算。
 
 ## 奖励
 
