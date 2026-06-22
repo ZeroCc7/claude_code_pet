@@ -1,7 +1,16 @@
 from hook_state import HookState
 from ai_pet_hook import build_payload, choose_port, send_payload
 from pathlib import Path
+import json
+import subprocess
 from tempfile import TemporaryDirectory
+
+
+ROOT = Path(__file__).parents[2]
+CODEX_HOOK_SOURCE = (ROOT / "host" / "hooks" / "codex-hook.ps1").read_text(
+    encoding="utf-8"
+)
+INSTALLER = ROOT / "scripts" / "install-ai-hooks.ps1"
 
 
 def test_begin_creates_stable_task_id_and_submitted_event():
@@ -98,3 +107,88 @@ def test_manual_tool_ignores_boot_lines_and_returns_json_ack():
 
     assert device.written.endswith(b"\n")
     assert ack["status"] == "accepted"
+
+
+def test_codex_hook_maps_lifecycle_events_and_editing_tools():
+    for event in (
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PermissionRequest",
+        "PostToolUse",
+        "Stop",
+    ):
+        assert event in CODEX_HOOK_SOURCE
+    assert "apply_patch|Edit|Write" in CODEX_HOOK_SOURCE
+    assert '"submitted"' in CODEX_HOOK_SOURCE
+    assert '"editing"' in CODEX_HOOK_SOURCE
+    assert '"tool"' in CODEX_HOOK_SOURCE
+    assert '"waiting"' in CODEX_HOOK_SOURCE
+    assert '"thinking"' in CODEX_HOOK_SOURCE
+    assert '"complete"' in CODEX_HOOK_SOURCE
+
+
+def test_codex_only_installer_preserves_notify_and_is_idempotent():
+    with TemporaryDirectory() as folder:
+        profile = Path(folder)
+        codex_home = profile / ".codex"
+        codex_home.mkdir()
+        config = codex_home / "config.toml"
+        original_config = 'notify = ["existing-notifier", "turn-ended"]\n'
+        config.write_text(original_config, encoding="utf-8")
+        hooks_path = codex_home / "hooks.json"
+        hooks_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "existing-command",
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        command = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(INSTALLER),
+            "-Target",
+            "Codex",
+            "-Port",
+            "COM99",
+            "-UserProfileRoot",
+            str(profile),
+            "-SkipUserEnvironment",
+        ]
+
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
+
+        assert config.read_text(encoding="utf-8") == original_config
+        installed = json.loads(hooks_path.read_text(encoding="utf-8-sig"))
+        assert installed["hooks"]["SessionStart"][0]["hooks"][0][
+            "command"
+        ] == "existing-command"
+        for event in (
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PermissionRequest",
+            "PostToolUse",
+            "Stop",
+        ):
+            pet_entries = [
+                entry
+                for entry in installed["hooks"][event]
+                if ".ai-pet-hooks" in json.dumps(entry)
+            ]
+            assert len(pet_entries) == 1

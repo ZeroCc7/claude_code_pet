@@ -7,6 +7,12 @@ UI_SOURCE = (
 UI_HEADER = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_ui.h"
 ).read_text(encoding="utf-8")
+APP_SOURCE = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_app.cpp"
+).read_text(encoding="utf-8")
+APP_HEADER = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_app.h"
+).read_text(encoding="utf-8")
 
 
 def test_animation_frames_do_not_redraw_the_full_background():
@@ -114,6 +120,14 @@ def test_ai_work_uses_a_dedicated_cultivation_page():
     assert "drawCultivation(" in UI_SOURCE
     assert "showAiStatus(" in UI_HEADER
     assert "showAiResult(" in UI_HEADER
+
+
+def test_ai_event_uses_update_timestamp_to_avoid_immediate_timeout():
+    assert "void processSerial(uint32_t now);" in APP_HEADER
+    assert "void processAiEvent(const AiEvent& event, uint32_t now);" in APP_HEADER
+    assert "processSerial(now);" in APP_SOURCE
+    assert "processAiEvent(event, now);" in APP_SOURCE
+    assert "showAiStatus(event.source, event.state, event.taskId, now);" in APP_SOURCE
 
 
 def test_cultivation_page_supports_all_hook_states_and_timeout():

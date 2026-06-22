@@ -32,7 +32,7 @@ void GameApp::begin() {
 }
 
 void GameApp::update(uint32_t now) {
-  processSerial();
+  processSerial(now);
   buttons_.update(now);
   processInput(now);
 
@@ -93,7 +93,7 @@ void GameApp::processInput(uint32_t now) {
   }
 }
 
-void GameApp::processSerial() {
+void GameApp::processSerial(uint32_t now) {
   while (Serial.available()) {
     const char next = static_cast<char>(Serial.read());
     if (next == '\r') {
@@ -109,7 +109,7 @@ void GameApp::processSerial() {
         AiEvent event{};
         const char* error = nullptr;
         if (AiEventProtocol::parse(serialCommand_, event, error)) {
-          processAiEvent(event);
+          processAiEvent(event, now);
         } else {
           Serial.printf(
               "{\"type\":\"ack\",\"status\":\"error\",\"error\":\"%s\"}\n",
@@ -127,15 +127,15 @@ void GameApp::processSerial() {
   }
 }
 
-void GameApp::processAiEvent(const AiEvent& event) {
+void GameApp::processAiEvent(const AiEvent& event, uint32_t now) {
   if (event.kind == AiEventKind::Status) {
-    ui_.showAiStatus(event.source, event.state, event.taskId, millis());
+    ui_.showAiStatus(event.source, event.state, event.taskId, now);
     printAck(event, "accepted");
     return;
   }
 
   if (!event.success) {
-    ui_.showAiResult(event.source, false, 0, 0, false, millis());
+    ui_.showAiResult(event.source, false, 0, 0, false, now);
     printAck(event, "accepted");
     return;
   }
@@ -154,7 +154,7 @@ void GameApp::processAiEvent(const AiEvent& event) {
   const uint16_t coinGain = state_.data().coins - oldCoins;
   const bool evolved = state_.data().form != oldForm;
   ui_.showAiResult(event.source, true, experienceGain, coinGain, evolved,
-                   millis());
+                   now);
   requestSave();
   printAck(event, "accepted", experienceGain, coinGain);
 }
