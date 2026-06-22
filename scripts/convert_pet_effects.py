@@ -4,21 +4,15 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FRAME_SIZE = 62
-FINAL_FRAME_SIZE = (64, 82)
-FINAL_SUBJECT_SIZE = (62, 80)
+FRAME_SIZE = (64, 82)
+SUBJECT_SIZE = (62, 80)
 FORMS = {
-    "egg": ROOT / "assets/processed/pets/egg",
-    "rookie_a": ROOT / "assets/processed/pets/rookie_a",
-    "rookie_b": ROOT / "assets/processed/pets/rookie_b",
-}
-FINAL_FORMS = {
     "final_a1": ROOT / "assets/processed/pets/final_a1",
     "final_a2": ROOT / "assets/processed/pets/final_a2",
     "final_b1": ROOT / "assets/processed/pets/final_b1",
     "final_b2": ROOT / "assets/processed/pets/final_b2",
 }
-OUTPUT = ROOT / "firmware/ai_pet/assets/pet_sprites.h"
+OUTPUT = ROOT / "firmware/ai_pet/assets/pet_effects.h"
 
 
 def rgb565(red: int, green: int, blue: int) -> int:
@@ -30,40 +24,17 @@ def normalize_frame(path: Path) -> Image.Image:
     alpha = source.getchannel("A")
     bbox = alpha.getbbox()
     if bbox is None:
-        raise ValueError(f"empty sprite frame: {path}")
+        raise ValueError(f"empty effect frame: {path}")
     subject = source.crop(bbox)
-    scale = min(60 / subject.width, 60 / subject.height)
+    scale = min(SUBJECT_SIZE[0] / subject.width, SUBJECT_SIZE[1] / subject.height)
     size = (
         max(1, round(subject.width * scale)),
         max(1, round(subject.height * scale)),
     )
     subject = subject.resize(size, Image.Resampling.NEAREST)
-    frame = Image.new("RGBA", (FRAME_SIZE, FRAME_SIZE), (0, 0, 0, 0))
-    x = (FRAME_SIZE - size[0]) // 2
-    y = FRAME_SIZE - size[1] - 1
-    frame.alpha_composite(subject, (x, y))
-    return frame
-
-
-def normalize_final_frame(path: Path) -> Image.Image:
-    source = Image.open(path).convert("RGBA")
-    alpha = source.getchannel("A")
-    bbox = alpha.getbbox()
-    if bbox is None:
-        raise ValueError(f"empty sprite frame: {path}")
-    subject = source.crop(bbox)
-    scale = min(
-        FINAL_SUBJECT_SIZE[0] / subject.width,
-        FINAL_SUBJECT_SIZE[1] / subject.height,
-    )
-    size = (
-        max(1, round(subject.width * scale)),
-        max(1, round(subject.height * scale)),
-    )
-    subject = subject.resize(size, Image.Resampling.NEAREST)
-    frame = Image.new("RGBA", FINAL_FRAME_SIZE, (0, 0, 0, 0))
-    x = (FINAL_FRAME_SIZE[0] - size[0]) // 2
-    y = FINAL_FRAME_SIZE[1] - size[1]
+    frame = Image.new("RGBA", FRAME_SIZE, (0, 0, 0, 0))
+    x = (FRAME_SIZE[0] - size[0]) // 2
+    y = (FRAME_SIZE[1] - size[1]) // 2
     frame.alpha_composite(subject, (x, y))
     return frame
 
@@ -79,8 +50,7 @@ def encode_frame(frame: Image.Image) -> tuple[list[int], list[int]]:
             value = 0
             for bit in range(8):
                 x = byte_x + bit
-                alpha_value = frame.getpixel((x, y))[3] if x < frame.width else 0
-                if alpha_value >= 96:
+                if frame.getpixel((x, y))[3] >= 96:
                     value |= 0x80 >> bit
             mask.append(value)
     return pixels, mask
@@ -104,20 +74,18 @@ def convert() -> None:
         "",
         "#include <Arduino.h>",
         "",
-        f"constexpr uint8_t kPetSpriteWidth = {FRAME_SIZE};",
-        f"constexpr uint8_t kPetSpriteHeight = {FRAME_SIZE};",
-        "constexpr uint8_t kPetSpriteFrameCount = 4;",
-        f"constexpr uint8_t kFinalPetSpriteWidth = {FINAL_FRAME_SIZE[0]};",
-        f"constexpr uint8_t kFinalPetSpriteHeight = {FINAL_FRAME_SIZE[1]};",
+        f"constexpr uint8_t kPetEffectWidth = {FRAME_SIZE[0]};",
+        f"constexpr uint8_t kPetEffectHeight = {FRAME_SIZE[1]};",
+        "constexpr uint8_t kPetEffectFrameCount = 4;",
         "",
-        "struct PetSpriteFrame {",
+        "struct PetEffectFrame {",
         "  const uint16_t* pixels;",
         "  const uint8_t* mask;",
         "};",
         "",
     ]
     frame_names: dict[str, list[tuple[str, str]]] = {}
-    preview_root = ROOT / "assets/processed/pets/firmware_preview"
+    preview_root = ROOT / "assets/processed/pets/firmware_preview/effects"
     preview_root.mkdir(parents=True, exist_ok=True)
 
     for form, directory in FORMS.items():
@@ -125,31 +93,17 @@ def convert() -> None:
         form_preview = preview_root / form
         form_preview.mkdir(parents=True, exist_ok=True)
         for frame_index in range(4):
-            frame = normalize_frame(directory / f"idle-{frame_index + 1}.png")
+            frame = normalize_frame(directory / f"effect-{frame_index + 1}.png")
             frame.save(form_preview / f"frame-{frame_index + 1}.png")
             pixels, mask = encode_frame(frame)
-            pixel_name = f"kPet_{form}_{frame_index}_pixels"
-            mask_name = f"kPet_{form}_{frame_index}_mask"
-            write_array(lines, "uint16_t", pixel_name, pixels)
-            write_array(lines, "uint8_t", mask_name, mask)
-            frame_names[form].append((pixel_name, mask_name))
-
-    for form, directory in FINAL_FORMS.items():
-        frame_names[form] = []
-        form_preview = preview_root / form
-        form_preview.mkdir(parents=True, exist_ok=True)
-        for frame_index in range(4):
-            frame = normalize_final_frame(directory / f"idle-{frame_index + 1}.png")
-            frame.save(form_preview / f"frame-{frame_index + 1}.png")
-            pixels, mask = encode_frame(frame)
-            pixel_name = f"kPet_{form}_{frame_index}_pixels"
-            mask_name = f"kPet_{form}_{frame_index}_mask"
+            pixel_name = f"kPetEffect_{form}_{frame_index}_pixels"
+            mask_name = f"kPetEffect_{form}_{frame_index}_mask"
             write_array(lines, "uint16_t", pixel_name, pixels)
             write_array(lines, "uint8_t", mask_name, mask)
             frame_names[form].append((pixel_name, mask_name))
 
     for form, frames in frame_names.items():
-        lines.append(f"const PetSpriteFrame kPet_{form}_frames[] = {{")
+        lines.append(f"const PetEffectFrame kPetEffect_{form}_frames[] = {{")
         for pixels, mask in frames:
             lines.append(f"  {{{pixels}, {mask}}},")
         lines.append("};")
