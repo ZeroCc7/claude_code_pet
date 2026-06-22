@@ -165,6 +165,10 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (page_ == UiPage::Cultivation && aiResultActive_ &&
       now - aiLastEventAt_ >= 2500) {
     page_ = UiPage::Home;
+    if (aiResultSuccess_) {
+      startPetEffect(
+          aiEvolved_ ? PetEffect::Evolution : PetEffect::AiComplete, now);
+    }
     aiResultActive_ = false;
     dirty_ = true;
   }
@@ -276,10 +280,10 @@ void GameUi::showAiResult(const char* source, bool success,
   aiCoinGain_ = coinGain;
   aiEvolved_ = evolved;
   aiLastEventAt_ = now;
+  page_ = UiPage::Cultivation;
   if (success) {
     startPetEffect(evolved ? PetEffect::Evolution : PetEffect::AiComplete, now);
   }
-  page_ = UiPage::Cultivation;
   dirty_ = true;
 }
 
@@ -293,8 +297,8 @@ void GameUi::showEvolution(PetForm form, uint32_t now) {
   aiCoinGain_ = 0;
   aiEvolved_ = true;
   aiLastEventAt_ = now;
-  startPetEffect(PetEffect::Evolution, now);
   page_ = UiPage::Cultivation;
+  startPetEffect(PetEffect::Evolution, now);
   dirty_ = true;
 }
 
@@ -911,6 +915,9 @@ void GameUi::startFeedback(Feedback feedback) {
 }
 
 void GameUi::startPetEffect(PetEffect effect, uint32_t now) {
+  if (page_ == UiPage::Cultivation) {
+    return;
+  }
   petEffect_ = effect;
   petEffectStartedAt_ = now;
   dirty_ = true;
