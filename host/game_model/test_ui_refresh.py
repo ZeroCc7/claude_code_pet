@@ -34,8 +34,8 @@ def test_animation_frames_do_not_redraw_the_full_background():
     )
     assert """
   } else if (fullRedraw) {
-    drawInkBackground(128);
-    drawHomeHeader(state.data());
+    drawHomeFrame(state.data(), now);
+  } else if (page_ == UiPage::Home) {
 """ in UI_SOURCE
 
 
@@ -142,6 +142,21 @@ def test_operation_pages_are_composited_before_one_display_write():
     assert "GFXcanvas16 menuCanvas_" in UI_HEADER
     assert "drawMenuFrame(state.data());" in UI_SOURCE
     assert "tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer()" in UI_SOURCE
+
+
+def test_home_page_transitions_are_composited_before_one_display_write():
+    assert "void drawHomeFrame(const PetSaveData& data, uint32_t now);" in UI_HEADER
+    assert "drawHomeFrame(state.data(), now);" in UI_SOURCE
+    home_frame_source = source_between(
+        UI_SOURCE,
+        "void GameUi::drawHomeFrame",
+        "void GameUi::drawMenuFrame",
+    )
+    assert "renderTarget_ = &menuCanvas_;" in home_frame_source
+    assert "drawInkBackground(128);" in home_frame_source
+    assert "drawHomeHeader(data);" in home_frame_source
+    assert "drawHome(data, now);" in home_frame_source
+    assert "tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer(), 128, 160);" in home_frame_source
 
 
 def test_selection_changes_use_menu_frame_instead_of_direct_full_redraw():

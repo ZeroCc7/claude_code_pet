@@ -219,9 +219,7 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (redrawMenu) {
     drawMenuFrame(state.data());
   } else if (fullRedraw) {
-    drawInkBackground(128);
-    drawHomeHeader(state.data());
-    drawHome(state.data(), now);
+    drawHomeFrame(state.data(), now);
   } else if (page_ == UiPage::Home) {
     if (feedbackExpired) {
       restoreBackgroundRect(14, 52, 100, 24);
@@ -394,6 +392,24 @@ void GameUi::drawInkBackground(int16_t fillStartY) {
                     kCloudTerraceHomeHeight);
   tft.fillRect(0, fillStartY, 128, 160 - fillStartY, 0x0861);
   tft.drawFastHLine(0, fillStartY, 128, 0x6B8D);
+}
+
+void GameUi::drawHomeFrame(const PetSaveData& data, uint32_t now) {
+  uint16_t* frame = menuCanvas_.getBuffer();
+  if (!frame) {
+    return;
+  }
+
+  renderTarget_ = &menuCanvas_;
+  renderText_ = &menuChinese_;
+  drawInkBackground(128);
+  drawHomeHeader(data);
+  drawHome(data, now);
+  renderTarget_ = nullptr;
+  renderText_ = nullptr;
+
+  Adafruit_ST7735& tft = display_->raw();
+  tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer(), 128, 160);
 }
 
 void GameUi::drawMenuFrame(const PetSaveData& data) {
@@ -590,7 +606,7 @@ void GameUi::drawHome(const PetSaveData& data, uint32_t now) {
 }
 
 void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
-  Adafruit_ST7735& tft = display_->raw();
+  Adafruit_GFX& tft = target();
   uint16_t* frame = petCanvas_.getBuffer();
   if (!frame) {
     return;
