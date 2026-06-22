@@ -403,6 +403,29 @@ STATUS
 STATUS level=3 form=1 xp=48 mood=100 stamina=100 coins=69 energy=20 page=0
 ```
 
+### 不修改存档地预览宠物形态
+
+在串口监视器中发送：
+
+```text
+PREVIEW 0
+PREVIEW 1
+PREVIEW 2
+PREVIEW 3
+PREVIEW 4
+PREVIEW 5
+PREVIEW 6
+PREVIEW OFF
+```
+
+`PREVIEW 0～6` 只临时改变首页和状态页的显示形态，不修改等级、经验、倾向和 Flash 存档。`PREVIEW OFF` 恢复真实形态，设备重启也会自动退出预览。
+
+启用预览后，`STATUS` 会同时报告真实形态和预览形态：
+
+```text
+STATUS level=15 form=3 preview=1 preview_form=1 ...
+```
+
 ## 项目结构
 
 ```text

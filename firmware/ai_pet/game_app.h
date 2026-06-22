@@ -16,6 +16,7 @@ class GameApp {
   void processInput(uint32_t now);
   void processSerial(uint32_t now);
   void printStatus();
+  void processPreviewCommand(const String& command, uint32_t now);
   void processAiEvent(const AiEvent& event, uint32_t now);
   void printAck(const AiEvent& event, const char* status,
                 uint16_t experience = 0, uint16_t coins = 0);

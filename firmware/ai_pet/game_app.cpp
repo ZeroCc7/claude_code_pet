@@ -105,6 +105,8 @@ void GameApp::processSerial(uint32_t now) {
         Serial.println("{\"type\":\"ack\",\"status\":\"error\",\"error\":\"too_long\"}");
       } else if (serialCommand_ == "STATUS") {
         printStatus();
+      } else if (serialCommand_.startsWith("PREVIEW ")) {
+        processPreviewCommand(serialCommand_, now);
       } else if (serialCommand_.startsWith("{")) {
         AiEvent event{};
         const char* error = nullptr;
@@ -125,6 +127,26 @@ void GameApp::processSerial(uint32_t now) {
       serialOverflow_ = true;
     }
   }
+}
+
+void GameApp::processPreviewCommand(const String& command, uint32_t now) {
+  if (command == "PREVIEW OFF") {
+    ui_.clearPreviewForm();
+    ui_.draw(state_, now, true);
+    Serial.println("PREVIEW off");
+    return;
+  }
+
+  const String value = command.substring(8);
+  if (value.length() != 1 || value[0] < '0' || value[0] > '6') {
+    Serial.println("PREVIEW error");
+    return;
+  }
+
+  const uint8_t form = value[0] - '0';
+  ui_.setPreviewForm(static_cast<PetForm>(form));
+  ui_.draw(state_, now, true);
+  Serial.printf("PREVIEW form=%u\n", form);
 }
 
 void GameApp::processAiEvent(const AiEvent& event, uint32_t now) {
@@ -170,10 +192,15 @@ void GameApp::printAck(const AiEvent& event, const char* status,
 void GameApp::printStatus() {
   const PetSaveData& data = state_.data();
   Serial.printf(
-      "STATUS level=%u form=%u xp=%u mood=%u stamina=%u coins=%u "
+      "STATUS level=%u form=%u preview=%u preview_form=%u "
+      "xp=%u mood=%u stamina=%u coins=%u "
       "energy=%u page=%u\n",
       data.level,
       static_cast<unsigned>(data.form),
+      ui_.previewEnabled(),
+      static_cast<unsigned>(ui_.previewEnabled()
+                                ? ui_.previewForm()
+                                : data.form),
       data.experience,
       data.mood,
       data.stamina,

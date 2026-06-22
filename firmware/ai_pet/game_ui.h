@@ -21,6 +21,10 @@ class GameUi {
                     uint16_t experienceGain, uint16_t coinGain,
                     bool evolved, uint32_t now);
   void showEvolution(PetForm form, uint32_t now);
+  void setPreviewForm(PetForm form);
+  void clearPreviewForm();
+  bool previewEnabled() const;
+  PetForm previewForm() const;
   UiPage page() const;
 
  private:
@@ -67,6 +71,7 @@ class GameUi {
   void drawFeedback(uint32_t now);
   Adafruit_GFX& target();
   ChineseText& text();
+  PetForm displayForm(PetForm savedForm) const;
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
@@ -95,4 +100,6 @@ class GameUi {
   uint16_t aiExperienceGain_ = 0;
   uint16_t aiCoinGain_ = 0;
   bool aiEvolved_ = false;
+  bool previewEnabled_ = false;
+  PetForm previewForm_ = PetForm::Egg;
 };

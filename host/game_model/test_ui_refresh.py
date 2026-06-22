@@ -172,3 +172,40 @@ def test_local_progression_can_open_evolution_feedback():
     assert "ui_.showEvolution(" in (
         Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_app.cpp"
     ).read_text(encoding="utf-8")
+
+
+def test_pet_form_preview_is_ui_only_and_shared_by_home_and_status():
+    for method in (
+        "setPreviewForm(PetForm form)",
+        "clearPreviewForm()",
+        "previewEnabled() const",
+        "previewForm() const",
+        "displayForm(PetForm savedForm) const",
+    ):
+        assert method in UI_HEADER
+    assert "displayForm(data.form)" in UI_SOURCE
+    assert "previewEnabled_" in UI_HEADER
+    assert "previewForm_" in UI_HEADER
+
+
+def test_serial_preview_command_supports_all_forms_and_off():
+    assert "processPreviewCommand(" in APP_HEADER
+    assert 'serialCommand_.startsWith("PREVIEW ")' in APP_SOURCE
+    assert 'command == "PREVIEW OFF"' in APP_SOURCE
+    assert 'Serial.println("PREVIEW error")' in APP_SOURCE
+    assert "ui_.setPreviewForm(" in APP_SOURCE
+    assert "ui_.clearPreviewForm();" in APP_SOURCE
+
+
+def test_preview_command_does_not_mutate_or_save_game_state():
+    start = APP_SOURCE.index("void GameApp::processPreviewCommand")
+    end = APP_SOURCE.index("void GameApp::processAiEvent", start)
+    preview_source = APP_SOURCE[start:end]
+    assert "mutableData" not in preview_source
+    assert "requestSave" not in preview_source
+
+
+def test_status_reports_saved_and_preview_forms_separately():
+    assert '"STATUS level=%u form=%u preview=%u preview_form=%u "' in APP_SOURCE
+    assert "ui_.previewEnabled()" in APP_SOURCE
+    assert "ui_.previewForm()" in APP_SOURCE

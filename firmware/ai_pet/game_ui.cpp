@@ -283,6 +283,27 @@ void GameUi::showEvolution(PetForm form, uint32_t now) {
   dirty_ = true;
 }
 
+void GameUi::setPreviewForm(PetForm form) {
+  previewEnabled_ = true;
+  previewForm_ = form;
+  page_ = UiPage::Home;
+  dirty_ = true;
+}
+
+void GameUi::clearPreviewForm() {
+  previewEnabled_ = false;
+  page_ = UiPage::Home;
+  dirty_ = true;
+}
+
+bool GameUi::previewEnabled() const {
+  return previewEnabled_;
+}
+
+PetForm GameUi::previewForm() const {
+  return previewForm_;
+}
+
 void GameUi::drawHeader(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
   tft.fillRect(0, 0, 128, 18, 0x18E3);
@@ -571,8 +592,9 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
     const uint32_t phase = (now - feedbackStartedAt_) % 350;
     petY -= phase < 175 ? phase / 50 : (350 - phase) / 50;
   }
-  const int16_t petX = data.form >= PetForm::FinalA1 ? 16 : 5;
-  pet_.draw(petCanvas_, data.form, petX, petY - kPetRegionY, now);
+  const PetForm form = displayForm(data.form);
+  const int16_t petX = form >= PetForm::FinalA1 ? 16 : 5;
+  pet_.draw(petCanvas_, form, petX, petY - kPetRegionY, now);
   tft.drawRGBBitmap(kPetRegionX, kPetRegionY, petCanvas_.getBuffer(),
                     kPetRegionWidth, kPetRegionHeight);
 }
@@ -805,7 +827,8 @@ void GameUi::drawStatus(const PetSaveData& data) {
   text().color(kMutedCyan);
   text().draw(13, 62, "形态");
   text().color(kWarmWhite);
-  text().draw(43, 62, forms[static_cast<unsigned>(data.form)]);
+  text().draw(43, 62,
+              forms[static_cast<unsigned>(displayForm(data.form))]);
   text().color(kMutedCyan);
   text().draw(13, 79, "境界");
   text().color(kBrightGold);
@@ -906,4 +929,8 @@ Adafruit_GFX& GameUi::target() {
 
 ChineseText& GameUi::text() {
   return renderText_ ? *renderText_ : chinese_;
+}
+
+PetForm GameUi::displayForm(PetForm savedForm) const {
+  return previewEnabled_ ? previewForm_ : savedForm;
 }
