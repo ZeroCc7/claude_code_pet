@@ -13,6 +13,12 @@ APP_SOURCE = (
 APP_HEADER = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_app.h"
 ).read_text(encoding="utf-8")
+PET_RENDERER = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "pet_renderer.cpp"
+).read_text(encoding="utf-8")
+PET_RENDERER_HEADER = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "pet_renderer.h"
+).read_text(encoding="utf-8")
 
 
 def test_animation_frames_do_not_redraw_the_full_background():
@@ -36,6 +42,37 @@ def test_pet_frame_is_composited_offscreen_before_one_display_write():
     assert "petCanvas_.getBuffer()" in UI_SOURCE
     assert "tft.drawRGBBitmap(kPetRegionX, kPetRegionY" in UI_SOURCE
     assert "pet_.draw(petCanvas_" in UI_SOURCE
+
+
+def test_final_forms_use_generated_body_sprite_arrays():
+    assert '#include "assets/pet_effects.h"' in PET_RENDERER
+    for name in (
+        "kPet_final_a1_frames",
+        "kPet_final_a2_frames",
+        "kPet_final_b1_frames",
+        "kPet_final_b2_frames",
+    ):
+        assert name in PET_RENDERER
+
+
+def test_final_form_effects_are_a_separate_renderer_layer():
+    assert "enum class PetEffect" in PET_RENDERER_HEADER
+    assert "PetEffect effect" in PET_RENDERER_HEADER
+    assert "drawEffect(" in PET_RENDERER
+    assert "kPetEffectFrameCount" in PET_RENDERER
+
+
+def test_success_feedback_ai_completion_and_evolution_start_pet_effects():
+    assert "startPetEffect(" in UI_HEADER
+    assert "startPetEffect(PetEffect::Interaction" in UI_SOURCE
+    assert "startPetEffect(PetEffect::AiComplete" in UI_SOURCE
+    assert "startPetEffect(PetEffect::Evolution" in UI_SOURCE
+
+
+def test_pet_effect_frames_keep_using_the_offscreen_pet_canvas():
+    assert "pet_.draw(petCanvas_, form" in UI_SOURCE
+    assert "petEffect_" in UI_SOURCE
+    assert "tft.drawRGBBitmap(kPetRegionX, kPetRegionY" in UI_SOURCE
 
 
 def test_operation_pages_are_composited_before_one_display_write():
