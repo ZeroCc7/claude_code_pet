@@ -67,6 +67,7 @@ class GameUi {
   void drawStatus(const PetSaveData& data);
   void drawCultivation(const PetSaveData& data, uint32_t now);
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
+  void startPetEffect(PetEffect effect, uint32_t now);
   void startFeedback(Feedback feedback);
   void drawFeedback(uint32_t now);
   Adafruit_GFX& target();
@@ -88,6 +89,8 @@ class GameUi {
   Feedback feedback_ = Feedback::None;
   uint32_t feedbackStartedAt_ = 0;
   uint32_t lastFeedbackFrameAt_ = 0;
+  PetEffect petEffect_ = PetEffect::None;
+  uint32_t petEffectStartedAt_ = 0;
   char notice_[24] = {};
   uint32_t noticeStartedAt_ = 0;
   AiWorkState aiState_ = AiWorkState::Idle;

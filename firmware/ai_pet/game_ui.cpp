@@ -21,6 +21,7 @@ constexpr uint16_t kBrightGold = 0xFEC8;
 constexpr uint16_t kWarmWhite = 0xEF5D;
 constexpr uint16_t kMutedCyan = 0x7CEF;
 constexpr uint16_t kCinnabar = 0xD9E4;
+constexpr uint32_t kPetEffectDurationMs = 500;
 
 uint8_t utf8GlyphCount(const char* value) {
   uint8_t count = 0;
@@ -167,11 +168,21 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
     aiResultActive_ = false;
     dirty_ = true;
   }
+  if (petEffect_ != PetEffect::None &&
+      now - petEffectStartedAt_ >= kPetEffectDurationMs) {
+    petEffect_ = PetEffect::None;
+    if (page_ == UiPage::Home) {
+      dirty_ = true;
+    }
+  }
 
   const bool fullRedraw = (dirty_ || force) && page_ == UiPage::Home;
   const bool menuRedraw = (dirty_ || force) && page_ != UiPage::Home;
+  const uint32_t homeAnimationInterval =
+      petEffect_ == PetEffect::None ? 400 : 100;
   const bool animate =
-      ((page_ == UiPage::Home && now - lastAnimationAt_ >= 400) ||
+      ((page_ == UiPage::Home &&
+        now - lastAnimationAt_ >= homeAnimationInterval) ||
        (page_ == UiPage::Cultivation &&
         now - lastAnimationAt_ >= 300));
   const bool feedbackActive =
@@ -265,6 +276,9 @@ void GameUi::showAiResult(const char* source, bool success,
   aiCoinGain_ = coinGain;
   aiEvolved_ = evolved;
   aiLastEventAt_ = now;
+  if (success) {
+    startPetEffect(evolved ? PetEffect::Evolution : PetEffect::AiComplete, now);
+  }
   page_ = UiPage::Cultivation;
   dirty_ = true;
 }
@@ -279,6 +293,7 @@ void GameUi::showEvolution(PetForm form, uint32_t now) {
   aiCoinGain_ = 0;
   aiEvolved_ = true;
   aiLastEventAt_ = now;
+  startPetEffect(PetEffect::Evolution, now);
   page_ = UiPage::Cultivation;
   dirty_ = true;
 }
@@ -593,8 +608,15 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
     petY -= phase < 175 ? phase / 50 : (350 - phase) / 50;
   }
   const PetForm form = displayForm(data.form);
-  const int16_t petX = form >= PetForm::FinalA1 ? 16 : 5;
-  pet_.draw(petCanvas_, form, petX, petY - kPetRegionY, now);
+  const bool finalForm = form >= PetForm::FinalA1;
+  const int16_t petX = finalForm ? 4 : 5;
+  if (finalForm) {
+    petY = kPetRegionY + 18;
+  }
+  const uint32_t effectElapsed =
+      petEffect_ == PetEffect::None ? 0 : now - petEffectStartedAt_;
+  pet_.draw(petCanvas_, form, petX, petY - kPetRegionY, now, petEffect_,
+            effectElapsed);
   tft.drawRGBBitmap(kPetRegionX, kPetRegionY, petCanvas_.getBuffer(),
                     kPetRegionWidth, kPetRegionHeight);
 }
@@ -882,6 +904,15 @@ void GameUi::drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color) {
 void GameUi::startFeedback(Feedback feedback) {
   feedback_ = feedback;
   feedbackStartedAt_ = millis();
+  if (feedback == Feedback::MoodUp || feedback == Feedback::StaminaUp) {
+    startPetEffect(PetEffect::Interaction, millis());
+  }
+  dirty_ = true;
+}
+
+void GameUi::startPetEffect(PetEffect effect, uint32_t now) {
+  petEffect_ = effect;
+  petEffectStartedAt_ = now;
   dirty_ = true;
 }
 

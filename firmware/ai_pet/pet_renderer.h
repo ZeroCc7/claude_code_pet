@@ -4,11 +4,20 @@
 
 #include "game_types.h"
 
+enum class PetEffect : uint8_t {
+  None,
+  Interaction,
+  AiComplete,
+  Evolution,
+};
+
 class PetRenderer {
  public:
   void draw(Adafruit_GFX& target, PetForm form, int16_t x, int16_t y,
-            uint32_t now);
+            uint32_t now, PetEffect effect = PetEffect::None,
+            uint32_t effectElapsed = 0);
 
  private:
-  uint16_t bodyColor(PetForm form) const;
+  void drawEffect(Adafruit_GFX& target, PetForm form, int16_t x, int16_t y,
+                  uint32_t effectElapsed);
 };
