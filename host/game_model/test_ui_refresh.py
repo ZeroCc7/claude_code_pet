@@ -98,6 +98,40 @@ def test_success_feedback_ai_completion_and_evolution_start_pet_effects():
     assert "startPetEffect(PetEffect::Evolution, now);" in evolution_source
 
 
+def test_ai_pet_effects_start_when_cultivation_result_returns_home():
+    draw_source = source_between(
+        UI_SOURCE,
+        "void GameUi::draw",
+        "UiPage GameUi::page",
+    )
+    delayed_return_source = source_between(
+        draw_source,
+        "if (page_ == UiPage::Cultivation && aiResultActive_ &&",
+        "if (petEffect_ != PetEffect::None",
+    )
+    evolution_source = source_between(
+        UI_SOURCE,
+        "void GameUi::showEvolution",
+        "void GameUi::setPreviewForm",
+    )
+
+    assert "if (aiResultSuccess_)" in delayed_return_source
+    assert "startPetEffect(" in delayed_return_source
+    effect_call_start = delayed_return_source.index("startPetEffect(")
+    effect_call_end = delayed_return_source.index(");", effect_call_start)
+    effect_call = delayed_return_source[effect_call_start:effect_call_end]
+    assert "aiEvolved_" in effect_call
+    assert "PetEffect::Evolution" in effect_call
+    assert "PetEffect::AiComplete" in effect_call
+    assert "now" in effect_call
+    assert delayed_return_source.index("startPetEffect(") < delayed_return_source.index(
+        "aiResultActive_ = false;"
+    )
+    assert "aiResultActive_ = true;" in evolution_source
+    assert "aiLastEventAt_ = now;" in evolution_source
+    assert "page_ = UiPage::Cultivation;" in evolution_source
+
+
 def test_pet_effect_frames_keep_using_the_offscreen_pet_canvas():
     assert "pet_.draw(petCanvas_, form" in UI_SOURCE
     assert "petEffect_" in UI_SOURCE
