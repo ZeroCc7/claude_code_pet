@@ -127,6 +127,14 @@ def test_codex_hook_maps_lifecycle_events_and_editing_tools():
     assert '"complete"' in CODEX_HOOK_SOURCE
 
 
+def test_codex_hook_follows_official_windows_and_stop_contract():
+    assert "$payload.session_id" in CODEX_HOOK_SOURCE
+    assert "$payload.turn_id" in CODEX_HOOK_SOURCE
+    assert "$payload.tool_name" in CODEX_HOOK_SOURCE
+    assert 'if ($Event -eq "Stop")' in CODEX_HOOK_SOURCE
+    assert "Write-Output \"{}\"" in CODEX_HOOK_SOURCE
+
+
 def test_codex_only_installer_preserves_notify_and_is_idempotent():
     with TemporaryDirectory() as folder:
         profile = Path(folder)
@@ -175,6 +183,7 @@ def test_codex_only_installer_preserves_notify_and_is_idempotent():
         subprocess.run(command, check=True, capture_output=True, text=True)
 
         assert config.read_text(encoding="utf-8") == original_config
+        assert not hooks_path.read_bytes().startswith(b"\xef\xbb\xbf")
         installed = json.loads(hooks_path.read_text(encoding="utf-8-sig"))
         assert installed["hooks"]["SessionStart"][0]["hooks"][0][
             "command"
@@ -192,3 +201,5 @@ def test_codex_only_installer_preserves_notify_and_is_idempotent():
                 if ".ai-pet-hooks" in json.dumps(entry)
             ]
             assert len(pet_entries) == 1
+            handler = pet_entries[0]["hooks"][0]
+            assert handler["commandWindows"] == handler["command"]

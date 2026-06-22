@@ -28,16 +28,17 @@ function Add-CodexHook($Hooks, [string]$Name, [string]$Command) {
             [pscustomobject]@{
                 type = "command"
                 command = $Command
+                commandWindows = $Command
                 timeout = 5
             }
         )
     }
     if ($Hooks.PSObject.Properties.Name -contains $Name) {
-        $existing = @($Hooks.$Name)
-        $serialized = $existing | ConvertTo-Json -Depth 10
-        if ($serialized -notmatch [regex]::Escape(".ai-pet-hooks")) {
-            $Hooks.$Name = @($existing + $entry)
+        $existing = @($Hooks.$Name) | Where-Object {
+            ($_ | ConvertTo-Json -Depth 10) -notmatch
+                [regex]::Escape(".ai-pet-hooks")
         }
+        $Hooks.$Name = @($existing + $entry)
     } else {
         $Hooks | Add-Member -NotePropertyName $Name `
             -NotePropertyValue @($entry)
@@ -71,8 +72,13 @@ if ($Target -in @("All", "Codex")) {
             "`"$codexScript`" -Event $event"
         Add-CodexHook $codexHooks.hooks $event $command
     }
-    $codexHooks | ConvertTo-Json -Depth 20 |
-        Set-Content -LiteralPath $codexHooksPath -Encoding UTF8
+    $codexHooksJson = $codexHooks | ConvertTo-Json -Depth 20
+    $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText(
+        $codexHooksPath,
+        $codexHooksJson + [Environment]::NewLine,
+        $utf8NoBom
+    )
     Write-Host "Codex lifecycle hooks installed."
 }
 

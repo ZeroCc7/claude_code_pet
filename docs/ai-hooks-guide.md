@@ -24,8 +24,13 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - 默认模式备份并增量修改 `~/.claude/settings.json`。
 - 仅在检测到 OpenCode 时安装全局插件。
 
-修改后重启对应 AI 工具。Codex 首次加载新 Hook 后，使用 `/hooks`
-检查并信任新增命令。
+修改后重启对应 AI 工具。Codex 非托管命令 Hook 必须先信任。使用支持
+Hooks 信任管理的 Codex CLI 版本，并在 CLI 中使用 `/hooks` 检查和信任
+新增命令。若 `/hooks` 不在命令列表中，先升级 Codex CLI；旧版本即使显示
+`codex_hooks` 功能标记，也可能跳过未信任的 `hooks.json` 命令。
+
+Windows 安装项同时写入官方支持的 `commandWindows` 字段。`Stop` Hook
+会向标准输出返回空 JSON 对象，符合 Codex 对成功退出 Hook 的输出契约。
 
 ## 状态映射
 

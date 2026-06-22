@@ -100,4 +100,7 @@ if ($mappedEvent -eq "submitted") {
 if ($json) {
     & $sender -Payload $json | Out-Null
 }
+if ($Event -eq "Stop") {
+    Write-Output "{}"
+}
 exit 0
