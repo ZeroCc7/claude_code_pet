@@ -21,18 +21,10 @@ PET_RENDERER_HEADER = (
 ).read_text(encoding="utf-8")
 
 
-def function_source(source: str, signature: str) -> str:
-    start = source.index(signature)
-    body_start = source.index("{", start)
-    depth = 0
-    for index in range(body_start, len(source)):
-        if source[index] == "{":
-            depth += 1
-        elif source[index] == "}":
-            depth -= 1
-            if depth == 0:
-                return source[start:index + 1]
-    raise ValueError(f"unterminated function: {signature}")
+def source_between(source: str, start_signature: str, end_signature: str) -> str:
+    start = source.index(start_signature)
+    end = source.index(end_signature, start)
+    return source[start:end]
 
 
 def test_animation_frames_do_not_redraw_the_full_background():
@@ -77,13 +69,33 @@ def test_final_form_effects_are_a_separate_renderer_layer():
 
 
 def test_success_feedback_ai_completion_and_evolution_start_pet_effects():
-    feedback_source = function_source(UI_SOURCE, "void GameUi::startFeedback")
-    ai_result_source = function_source(UI_SOURCE, "void GameUi::showAiResult")
-    evolution_source = function_source(UI_SOURCE, "void GameUi::showEvolution")
+    feedback_source = source_between(
+        UI_SOURCE,
+        "void GameUi::startFeedback",
+        "void GameUi::drawFeedback",
+    )
+    ai_result_source = source_between(
+        UI_SOURCE,
+        "void GameUi::showAiResult",
+        "void GameUi::showEvolution",
+    )
+    evolution_source = source_between(
+        UI_SOURCE,
+        "void GameUi::showEvolution",
+        "void GameUi::setPreviewForm",
+    )
     assert "startPetEffect(" in UI_HEADER
-    assert "startPetEffect(PetEffect::Interaction" in feedback_source
-    assert "startPetEffect(PetEffect::AiComplete" in ai_result_source
-    assert "startPetEffect(PetEffect::Evolution" in evolution_source
+    assert """
+  if (feedback == Feedback::MoodUp || feedback == Feedback::StaminaUp) {
+    startPetEffect(PetEffect::Interaction, millis());
+  }
+""" in feedback_source
+    assert """
+  if (success) {
+    startPetEffect(evolved ? PetEffect::Evolution : PetEffect::AiComplete, now);
+  }
+""" in ai_result_source
+    assert "startPetEffect(PetEffect::Evolution, now);" in evolution_source
 
 
 def test_pet_effect_frames_keep_using_the_offscreen_pet_canvas():
