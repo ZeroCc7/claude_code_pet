@@ -21,6 +21,20 @@ PET_RENDERER_HEADER = (
 ).read_text(encoding="utf-8")
 
 
+def function_source(source: str, signature: str) -> str:
+    start = source.index(signature)
+    body_start = source.index("{", start)
+    depth = 0
+    for index in range(body_start, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:index + 1]
+    raise ValueError(f"unterminated function: {signature}")
+
+
 def test_animation_frames_do_not_redraw_the_full_background():
     assert (
         "const bool fullRedraw = (dirty_ || force) && page_ == UiPage::Home;"
@@ -45,7 +59,6 @@ def test_pet_frame_is_composited_offscreen_before_one_display_write():
 
 
 def test_final_forms_use_generated_body_sprite_arrays():
-    assert '#include "assets/pet_effects.h"' in PET_RENDERER
     for name in (
         "kPet_final_a1_frames",
         "kPet_final_a2_frames",
@@ -56,6 +69,7 @@ def test_final_forms_use_generated_body_sprite_arrays():
 
 
 def test_final_form_effects_are_a_separate_renderer_layer():
+    assert '#include "assets/pet_effects.h"' in PET_RENDERER
     assert "enum class PetEffect" in PET_RENDERER_HEADER
     assert "PetEffect effect" in PET_RENDERER_HEADER
     assert "drawEffect(" in PET_RENDERER
@@ -63,10 +77,13 @@ def test_final_form_effects_are_a_separate_renderer_layer():
 
 
 def test_success_feedback_ai_completion_and_evolution_start_pet_effects():
+    feedback_source = function_source(UI_SOURCE, "void GameUi::startFeedback")
+    ai_result_source = function_source(UI_SOURCE, "void GameUi::showAiResult")
+    evolution_source = function_source(UI_SOURCE, "void GameUi::showEvolution")
     assert "startPetEffect(" in UI_HEADER
-    assert "startPetEffect(PetEffect::Interaction" in UI_SOURCE
-    assert "startPetEffect(PetEffect::AiComplete" in UI_SOURCE
-    assert "startPetEffect(PetEffect::Evolution" in UI_SOURCE
+    assert "startPetEffect(PetEffect::Interaction" in feedback_source
+    assert "startPetEffect(PetEffect::AiComplete" in ai_result_source
+    assert "startPetEffect(PetEffect::Evolution" in evolution_source
 
 
 def test_pet_effect_frames_keep_using_the_offscreen_pet_canvas():
