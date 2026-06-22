@@ -19,13 +19,26 @@ def rgb565(red: int, green: int, blue: int) -> int:
     return ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | (blue >> 3)
 
 
-def normalize_frame(path: Path) -> Image.Image:
+def union_bbox(paths: list[Path]) -> tuple[int, int, int, int]:
+    boxes = []
+    for path in paths:
+        bbox = Image.open(path).convert("RGBA").getchannel("A").getbbox()
+        if bbox is None:
+            raise ValueError(f"empty effect frame: {path}")
+        boxes.append(bbox)
+    return (
+        min(box[0] for box in boxes),
+        min(box[1] for box in boxes),
+        max(box[2] for box in boxes),
+        max(box[3] for box in boxes),
+    )
+
+
+def normalize_frame(
+    path: Path, crop_box: tuple[int, int, int, int]
+) -> Image.Image:
     source = Image.open(path).convert("RGBA")
-    alpha = source.getchannel("A")
-    bbox = alpha.getbbox()
-    if bbox is None:
-        raise ValueError(f"empty effect frame: {path}")
-    subject = source.crop(bbox)
+    subject = source.crop(crop_box)
     scale = min(SUBJECT_SIZE[0] / subject.width, SUBJECT_SIZE[1] / subject.height)
     size = (
         max(1, round(subject.width * scale)),
@@ -40,10 +53,7 @@ def normalize_frame(path: Path) -> Image.Image:
 
 
 def encode_frame(frame: Image.Image) -> tuple[list[int], list[int]]:
-    pixels = [
-        rgb565(red, green, blue)
-        for red, green, blue, _ in frame.get_flattened_data()
-    ]
+    pixels = [rgb565(red, green, blue) for red, green, blue, _ in frame.getdata()]
     mask: list[int] = []
     for y in range(frame.height):
         for byte_x in range(0, frame.width, 8):
@@ -92,8 +102,10 @@ def convert() -> None:
         frame_names[form] = []
         form_preview = preview_root / form
         form_preview.mkdir(parents=True, exist_ok=True)
-        for frame_index in range(4):
-            frame = normalize_frame(directory / f"effect-{frame_index + 1}.png")
+        paths = [directory / f"effect-{index}.png" for index in range(1, 5)]
+        crop_box = union_bbox(paths)
+        for frame_index, path in enumerate(paths):
+            frame = normalize_frame(path, crop_box)
             frame.save(form_preview / f"frame-{frame_index + 1}.png")
             pixels, mask = encode_frame(frame)
             pixel_name = f"kPetEffect_{form}_{frame_index}_pixels"
