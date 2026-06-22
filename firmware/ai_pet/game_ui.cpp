@@ -1,6 +1,7 @@
 #include "game_ui.h"
 
 #include "assets/cloud_terrace_home.h"
+#include "assets/home_button_icons.h"
 #include "assets/home_ui_icons.h"
 
 #include <cstring>
@@ -563,7 +564,7 @@ void GameUi::drawHomePet(const PetSaveData& data, uint32_t now) {
     }
   }
 
-  int16_t petY = kPetRegionY + 19;
+  int16_t petY = kPetRegionY + 33;
   if ((feedback_ == Feedback::MoodUp ||
        feedback_ == Feedback::StaminaUp) &&
       now - feedbackStartedAt_ < 700) {
@@ -622,35 +623,10 @@ void GameUi::drawHomeVitals(const PetSaveData& data) {
   tft.drawFastVLine(64, 133, 24, 0x4A85);
   tft.drawFastVLine(96, 133, 24, 0x4A85);
 
-  const int16_t k1cx = 16,  k1cy = 145;
-  const int16_t k2cx = 48,  k2cy = 145;
-  const int16_t k3cx = 80,  k3cy = 145;
-  const int16_t k4cx = 112, k4cy = 145;
-
-  // K1: Interact — 4-pointed star (gold)
-  tft.drawFastVLine(k1cx, k1cy - 4, 9, kBrightGold);
-  tft.drawFastHLine(k1cx - 4, k1cy, 9, kBrightGold);
-  tft.drawPixel(k1cx - 3, k1cy - 3, kDarkGold);
-  tft.drawPixel(k1cx + 3, k1cy - 3, kDarkGold);
-  tft.drawPixel(k1cx - 3, k1cy + 3, kDarkGold);
-  tft.drawPixel(k1cx + 3, k1cy + 3, kDarkGold);
-
-  // K2: Care — leaf shape (green)
-  tft.fillCircle(k2cx - 1, k2cy - 1, 3, 0x2E86);
-  tft.fillCircle(k2cx + 1, k2cy + 1, 3, 0x4F48);
-  tft.drawFastHLine(k2cx - 1, k2cy, 3, 0x1A44);
-  tft.drawPixel(k2cx + 3, k2cy - 3, 0x2E86);
-
-  // K3: Adventure — upward triangle (cyan)
-  for (int16_t i = 0; i < 5; ++i) {
-    tft.drawFastHLine(k3cx - i, k3cy - 4 + i, i * 2 + 1, kMutedCyan);
-  }
-  tft.drawFastHLine(k3cx - 4, k3cy + 1, 9, kDarkGold);
-
-  // K4: Status — info circle (warm white)
-  tft.drawCircle(k4cx, k4cy, 4, kWarmWhite);
-  tft.drawPixel(k4cx, k4cy - 2, kWarmWhite);
-  tft.drawFastVLine(k4cx, k4cy, 3, kWarmWhite);
+  drawButtonIcon(9, 138, kHomeButtonInteract);
+  drawButtonIcon(41, 138, kHomeButtonCare);
+  drawButtonIcon(73, 138, kHomeButtonAdventure);
+  drawButtonIcon(105, 138, kHomeButtonStatus);
 }
 
 void GameUi::drawGoldPanel(int16_t x, int16_t y, int16_t width,
@@ -674,6 +650,13 @@ void GameUi::drawGoldPanel(int16_t x, int16_t y, int16_t width,
 void GameUi::drawHomeIcon(int16_t x, int16_t y, const HomeUiIcon& icon) {
   target().drawRGBBitmap(x, y, icon.pixels, icon.mask, kHomeIconWidth,
                          kHomeIconHeight);
+}
+
+void GameUi::drawButtonIcon(int16_t x, int16_t y,
+                            const HomeButtonIcon& icon) {
+  Adafruit_GFX& tft = target();
+  tft.drawRGBBitmap(x, y, icon.pixels, icon.mask,
+                    kHomeButtonIconWidth, kHomeButtonIconHeight);
 }
 
 void GameUi::drawResourceBadge(int16_t x, int16_t y, uint16_t color,

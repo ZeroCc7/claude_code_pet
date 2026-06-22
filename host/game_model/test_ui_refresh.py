@@ -22,7 +22,7 @@ def test_animation_frames_do_not_redraw_the_full_background():
     )
     assert """
   } else if (fullRedraw) {
-    drawInkBackground();
+    drawInkBackground(128);
     drawHomeHeader(state.data());
 """ in UI_SOURCE
 
@@ -85,25 +85,30 @@ def test_battle_page_has_four_action_tiles_and_result_notice():
 def test_cloud_terrace_home_uses_larger_lower_pet_region():
     assert '#include "assets/cloud_terrace_home.h"' in UI_SOURCE
     assert "constexpr int16_t kPetRegionX = 28;" in UI_SOURCE
-    assert "constexpr int16_t kPetRegionY = 31;" in UI_SOURCE
+    assert "constexpr int16_t kPetRegionY = 14;" in UI_SOURCE
     assert "constexpr int16_t kPetRegionWidth = 72;" in UI_SOURCE
-    assert "constexpr int16_t kPetRegionHeight = 76;" in UI_SOURCE
-    assert "GFXcanvas16 petCanvas_{72, 76};" in UI_HEADER
+    assert "constexpr int16_t kPetRegionHeight = 100;" in UI_SOURCE
+    assert "GFXcanvas16 petCanvas_{72, 100};" in UI_HEADER
 
 
-def test_home_header_shows_level_current_xp_and_offline_state():
+def test_home_pet_is_lowered_fourteen_pixels_above_vitals():
+    assert "int16_t petY = kPetRegionY + 33;" in UI_SOURCE
+    assert "tft.fillRect(0, 114, 128, 14, kInkBlack);" in UI_SOURCE
+
+
+def test_home_header_shows_level_current_xp_and_connection_icon():
     assert "drawHomeHeader(" in UI_SOURCE
     assert "data.experience % 20" in UI_SOURCE
-    assert '"离线"' in UI_SOURCE
+    assert "aiState_ == AiWorkState::Idle" in UI_SOURCE
+    assert "Offline/sleeping icon" in UI_SOURCE
+    assert "Online/active icon" in UI_SOURCE
     assert 'tft.print("USB")' not in UI_SOURCE
 
 
-def test_home_hud_uses_vital_bars_resource_badges_and_key_hints():
+def test_home_hud_uses_vital_icons_and_four_button_columns():
     assert "drawHomeVitals(" in UI_SOURCE
-    assert "drawResourceBadge(" in UI_SOURCE
-    for label in ('tft.print("K1")', '"互"', 'tft.print("K2")', '"养"',
-                  'tft.print("K3")', '"历"', 'tft.print("K4")', '"态"'):
-        assert label in UI_SOURCE
+    for x in (32, 64, 96):
+        assert f"tft.drawFastVLine({x}, 133, 24, 0x4A85);" in UI_SOURCE
 
 
 def test_home_hud_uses_reference_art_icons_and_gold_panels():
@@ -112,6 +117,18 @@ def test_home_hud_uses_reference_art_icons_and_gold_panels():
     assert "drawGoldPanel(" in UI_SOURCE
     for icon in ("kHomeIconLotus", "kHomeIconHeart",
                  "kHomeIconEnergy", "kHomeIconCrystal"):
+        assert icon in UI_SOURCE
+
+
+def test_home_button_row_uses_four_generated_art_icons():
+    assert '#include "assets/home_button_icons.h"' in UI_SOURCE
+    assert "drawButtonIcon(" in UI_SOURCE
+    for icon in (
+        "kHomeButtonInteract",
+        "kHomeButtonCare",
+        "kHomeButtonAdventure",
+        "kHomeButtonStatus",
+    ):
         assert icon in UI_SOURCE
 
 
