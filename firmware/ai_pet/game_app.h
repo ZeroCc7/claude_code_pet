@@ -32,4 +32,5 @@ class GameApp {
   uint32_t lastSaveAt_ = 0;
   uint32_t lastExplorationAt_ = 0;
   bool savePending_ = false;
+  bool fsReady_ = false;
 };

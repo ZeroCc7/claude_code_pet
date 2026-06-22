@@ -33,7 +33,7 @@ class GameUi {
 
   void drawHeader(const PetSaveData& data);
   void drawHomeHeader(const PetSaveData& data);
-  void drawInkBackground();
+  void drawInkBackground(int16_t fillStartY = 112);
   void drawMenuFrame(const PetSaveData& data);
   void drawTitlePlaque(const char* title, uint16_t accent);
   void drawPanel(int16_t x, int16_t y, int16_t width, int16_t height,
@@ -67,7 +67,7 @@ class GameUi {
 
   DisplayDevice* display_ = nullptr;
   PetRenderer pet_;
-  GFXcanvas16 petCanvas_{72, 76};
+  GFXcanvas16 petCanvas_{72, 100};
   GFXcanvas16 menuCanvas_{128, 160};
   ChineseText chinese_;
   ChineseText menuChinese_;

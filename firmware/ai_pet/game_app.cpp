@@ -18,10 +18,10 @@ void GameApp::begin() {
   display_.begin();
   buttons_.begin();
 
-  const bool fsReady = saves_.begin();
-  const bool loaded = fsReady && saves_.load(state_);
-  Serial.printf("GAME fs=%d save=%s\n", fsReady, loaded ? "loaded" : "new");
-  if (fsReady && !loaded) {
+  fsReady_ = saves_.begin();
+  const bool loaded = fsReady_ && saves_.load(state_);
+  Serial.printf("GAME fs=%d save=%s\n", fsReady_, loaded ? "loaded" : "new");
+  if (fsReady_ && !loaded) {
     saves_.save(state_);
   }
 
@@ -183,5 +183,8 @@ void GameApp::printStatus() {
 }
 
 void GameApp::requestSave() {
+  if (!fsReady_) {
+    return;
+  }
   savePending_ = true;
 }
