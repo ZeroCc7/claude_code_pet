@@ -187,7 +187,7 @@ py -3 .\ai_pet_hook.py complete  --session smoke-test
 ## 6. 关键不变量（修改前必读）
 
 1. **Flash 布局固定**：必须选 `2MB (Sketch: 1792KB, FS: 256KB)`。选 `2MB (no FS)` 会导致 `SaveStore` 失败、存档丢失。
-2. **`PetSaveData` 是存档磁盘格式**：`game_types.h` 中的结构体字段顺序/类型即存档二进制布局。`save_store.cpp` 用 `kSaveMagic=0x50455431`、`kSaveVersion`（当前 4）、`size`、`sequence`、`crc32` 做校验。改结构必须 bump `kSaveVersion` 并写迁移逻辑（参考 `SaveStore::readSlot` 的迁移分支）。
+2. **`PetSaveData` 是存档磁盘格式**：`game_types.h` 中的结构体字段顺序/类型即存档二进制布局。`save_store.cpp` 用 `kSaveMagic=0x50455431`、`kSaveVersion`（当前 4）、`size`、`sequence`、`crc32` 做校验。改结构必须 bump `kSaveVersion`。通常需要写迁移逻辑；V1.1 已明确放弃 V1.0 存档兼容，旧存档应直接失效并初始化新角色。
 3. **A/B 双槽**：`SaveStore` 轮流写入 A/B 两个文件，CRC 校验通过才视为有效，写入失败不覆盖最后有效存档。
 4. **AI 协议上限 384 字节**：`AiEventProtocol::kMaximumMessageBytes=384`（`host/game_model/ai_protocol.py:32` 同步）。超长会被拒绝。
 5. **任务去重**：`PetSaveData.recentTaskHashes[16]`（16 槽环形缓冲）记录最近任务哈希。同一 `source+taskId` 的成功事件只结算一次，重复返回 `duplicate`。固件 `applyAiTask()` 与 Python `hook_state.complete()` 都依赖此语义。
@@ -204,7 +204,7 @@ py -3 .\ai_pet_hook.py complete  --session smoke-test
 1. 在 `game_types.h` 的 `enum class UiPage` 增加枚举值。
 2. 在 `game_ui.h/cpp` 实现 `drawXxx(const PetSaveData&)`，并在 `draw()` 按 `page_` 分发。
 3. 在 `input_actions.h` 或 `game_app.cpp` 的 `processInput` 里接入按键导航。
-4. 若有持久状态，加入 `PetSaveData`（注意 bump `kSaveVersion` + 迁移）。
+4. 若有持久状态，加入 `PetSaveData`（注意 bump `kSaveVersion`，是否迁移按当前版本设计执行）。
 5. 在 `host/game_model/` 加对应 Python 镜像与测试（若涉及规则）。
 
 ### 调整游戏数值规则
@@ -212,7 +212,7 @@ py -3 .\ai_pet_hook.py complete  --session smoke-test
 1. 同时改 `firmware/ai_pet/game_state.cpp` 和 `host/game_model/progression.py`。
 2. 更新/新增 `host/game_model/test_progression.py` 用例。
 3. 跑 pytest，再编译固件确认。
-4. 若影响存档结构，bump `kSaveVersion` 并写迁移。
+4. 若影响存档结构，bump `kSaveVersion`，是否迁移按当前版本设计执行。
 
 ### 新增一种 AI 工作状态
 
@@ -233,7 +233,7 @@ py -3 .\ai_pet_hook.py complete  --session smoke-test
 - [ ] `py -3 -m pytest .\host\game_model .\host\hooks .\host\diagnostics -q` 全绿。
 - [ ] `scripts\compile-firmware.ps1` 成功，Flash/RAM 未超限。
 - [ ] 若改了规则，固件与 Python 两处数值一致。
-- [ ] 若改了存档结构，`kSaveVersion` 已 bump 且有迁移。
+- [ ] 若改了存档结构，`kSaveVersion` 已 bump，旧存档处理符合当前版本设计。
 - [ ] 若改了引脚，`board_config.h`、README 接线表、`docs/hardware-bringup.md` 三处同步。
 - [ ] 若改了协议，固件 `.h` 与 Python `ai_protocol.py` 两处常量一致。
 - [ ] 不要提交 `build/`、`tools/`、`__pycache__/`（已在 `.gitignore`）。
@@ -245,3 +245,25 @@ py -3 .\ai_pet_hook.py complete  --session smoke-test
 - 背光：GP7，HIGH/PWM 增亮。
 - RP2040-Zero：2MB Flash，USB Type-C。
 - 已通过验收：屏幕、按键、背光 PWM、LittleFS 读写校验、AI Hook ACK/奖励/防重复、LV3 进化。
+
+## 10. 当前开发任务：V1.1 青云山道
+
+设计文档：`docs/superpowers/specs/2026-06-23-v1.1-qingyun-adventure-design.md`
+
+开发目标：
+
+1. 首页改为 K1 功德簿、K2 背包、K3 历练、K4 状态。
+2. 删除喂食、互动、打坐和培养入口，保留心境字段供后续扩展。
+3. 重做青云山道：自动前进、双选事件、场景化显示和灵力逐步消耗。
+4. 增加青云妖狼：固定进度或信物解锁，全自动战斗，每回合消耗 1 点灵力。
+5. 让等级、形态和四类成长倾向参与自动战斗，并保留少量暴击、闪避随机性。
+6. 增加固定五种物品的轻量背包：灵草、回春丹、攻击符、护身符、青云信物。
+7. 增加功德簿，持久保存最近 10 条成功 AI 任务，每页显示 2 条。
+8. 升级存档版本，不迁移 V1.0 存档，首次启动 V1.1 时从头修炼。
+9. 固件与 Python 参考模型同步实现，测试后再做实机验收。
+
+范围限制：
+
+- V1.1 只完整重做青云山道。
+- 不做完整装备、稀有度、随机词条、合成和每日任务系统。
+- 第二个区域开始开发时，再判断是否抽取通用区域引擎。
