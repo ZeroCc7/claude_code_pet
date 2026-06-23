@@ -1,6 +1,7 @@
 from progression import (
     AdventurePhase,
     AdventureTick,
+    BattleResult,
     EventResult,
     GameState,
     ItemType,
@@ -180,6 +181,110 @@ def test_event_item_rewards_saturate_at_uint16_max():
     state.resolve_qingyun_event(choice=0, seed=0)
 
     assert state.items[ItemType.SPIRIT_HERB] == 65535
+
+
+def test_qingyun_wolf_requires_unlock_and_five_energy():
+    locked = GameState(energy=20)
+    ready = GameState(energy=4, qingyun_boss_unlocked=True)
+    capable = GameState(energy=5, qingyun_boss_unlocked=True)
+
+    assert not locked.start_qingyun_wolf_battle(False, False)
+    assert not ready.start_qingyun_wolf_battle(False, False)
+    assert capable.start_qingyun_wolf_battle(False, False)
+    assert capable.in_battle
+    assert capable.boss_hp == capable.boss_max_hp
+
+
+def test_auto_battle_consumes_one_energy_each_round():
+    state = GameState(energy=6, qingyun_boss_unlocked=True)
+    assert state.start_qingyun_wolf_battle(False, False)
+
+    result = state.tick_qingyun_wolf_battle(seed=50)
+
+    assert state.energy == 5
+    assert state.battle_round == 1
+    assert result in (BattleResult.CONTINUE, BattleResult.VICTORY)
+
+
+def test_zero_energy_retreats_and_resets_boss_hp():
+    state = GameState(energy=1, qingyun_boss_unlocked=True)
+    assert not state.start_qingyun_wolf_battle(False, False)
+    state.energy = 5
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.energy = 1
+
+    assert (
+        state.tick_qingyun_wolf_battle(seed=99)
+        == BattleResult.ENERGY_DEPLETED
+    )
+    assert not state.in_battle
+    assert state.boss_hp == state.boss_max_hp
+
+
+def test_manual_retreat_resets_boss_without_other_penalty():
+    state = GameState(
+        energy=8,
+        stamina=67,
+        qingyun_boss_unlocked=True,
+    )
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp -= 5
+
+    state.retreat_qingyun_wolf()
+
+    assert not state.in_battle
+    assert state.stamina == 67
+    assert state.boss_hp == state.boss_max_hp
+
+
+def test_attack_tendency_improves_damage_with_diminishing_returns():
+    low = GameState(level=8, tendencies=[0, 0, 0, 0])
+    high = GameState(level=8, tendencies=[40, 0, 0, 0])
+
+    low_damage = low.qingyun_attack_damage(seed=50)
+    first_damage = high.qingyun_attack_damage(seed=50)
+    assert first_damage > low_damage
+    high.tendencies[0] = 80
+    second_damage = high.qingyun_attack_damage(seed=50)
+    assert second_damage - first_damage <= first_damage - low_damage
+
+
+def test_talismans_are_consumed_at_battle_start_and_modify_one_battle():
+    state = GameState(
+        energy=10,
+        qingyun_boss_unlocked=True,
+        items=[0, 0, 1, 1, 0],
+    )
+
+    assert state.start_qingyun_wolf_battle(True, True)
+    assert state.items[ItemType.ATTACK_TALISMAN] == 0
+    assert state.items[ItemType.GUARD_TALISMAN] == 0
+    assert state.battle_attack_talisman
+    assert state.battle_guard_talisman
+
+
+def test_qingyun_wolf_victory_marks_defeat_and_halves_repeat_rewards():
+    state = GameState(
+        level=30,
+        energy=20,
+        stamina=100,
+        qingyun_boss_unlocked=True,
+    )
+    rewards = []
+
+    for _ in range(3):
+        assert state.start_qingyun_wolf_battle(False, False)
+        state.boss_hp = 1
+        before = (state.experience, state.coins)
+        assert (
+            state.tick_qingyun_wolf_battle(seed=50)
+            == BattleResult.VICTORY
+        )
+        rewards.append(
+            (state.experience - before[0], state.coins - before[1])
+        )
+
+    assert rewards == [(30, 25), (15, 12), (7, 6)]
 
 
 def test_failed_task_grants_reduced_experience():

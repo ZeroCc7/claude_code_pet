@@ -56,6 +56,15 @@ class EventResult(IntEnum):
     STAMINA_LOST = 5
 
 
+class BattleResult(IntEnum):
+    INACTIVE = 0
+    CONTINUE = 1
+    VICTORY = 2
+    DEFEAT = 3
+    ENERGY_DEPLETED = 4
+    RETREATED = 5
+
+
 @dataclass(frozen=True)
 class AiTaskRecord:
     source: str
@@ -105,6 +114,12 @@ class GameState:
     current_event_result: EventResult = EventResult.NONE
     qingyun_event_mask: int = 0
     qingyun_boss_unlocked: bool = False
+    qingyun_boss_defeated: bool = False
+    qingyun_boss_wins: int = 0
+    battle_round: int = 0
+    battle_attack_talisman: bool = False
+    battle_guard_talisman: bool = False
+    last_battle_result: BattleResult = BattleResult.INACTIVE
 
     def use_item(self, item: ItemType) -> bool:
         if self.items[item] == 0:
@@ -284,6 +299,122 @@ class GameState:
 
     def _add_item(self, item: ItemType) -> None:
         self.items[item] = min(65535, self.items[item] + 1)
+
+    def start_qingyun_wolf_battle(
+        self,
+        use_attack_talisman: bool,
+        use_guard_talisman: bool,
+    ) -> bool:
+        if (
+            self.in_battle
+            or not self.qingyun_boss_unlocked
+            or self.energy < 5
+        ):
+            return False
+        self.in_battle = True
+        self.boss_max_hp = 48
+        self.boss_hp = self.boss_max_hp
+        self.battle_round = 0
+        self.last_battle_result = BattleResult.CONTINUE
+        self.battle_attack_talisman = (
+            use_attack_talisman
+            and self.items[ItemType.ATTACK_TALISMAN] > 0
+        )
+        self.battle_guard_talisman = (
+            use_guard_talisman
+            and self.items[ItemType.GUARD_TALISMAN] > 0
+        )
+        if self.battle_attack_talisman:
+            self.items[ItemType.ATTACK_TALISMAN] -= 1
+        if self.battle_guard_talisman:
+            self.items[ItemType.GUARD_TALISMAN] -= 1
+        return True
+
+    def qingyun_attack_damage(self, seed: int) -> int:
+        damage = (
+            4
+            + self.level
+            + min(8, self.tendencies[0] // 5)
+            + min(10, self.tendencies[1] // 4)
+        )
+        if self.form in (PetForm.ROOKIE_A, PetForm.FINAL_A1):
+            damage += 1
+        elif self.form == PetForm.FINAL_A2:
+            damage += 2
+        critical_rate = 5 + min(15, self.tendencies[0] // 4)
+        if seed % 100 < critical_rate:
+            damage *= 2
+        if self.battle_attack_talisman:
+            damage = damage * 120 // 100
+        return max(1, damage)
+
+    def qingyun_incoming_damage(self, seed: int) -> int:
+        dodge_rate = 5 + min(15, self.tendencies[2] // 4)
+        if (seed // 100) % 100 < dodge_rate:
+            return 0
+        damage = max(1, 8 - min(5, self.tendencies[2] // 8))
+        if self.form in (PetForm.ROOKIE_B, PetForm.FINAL_B1):
+            damage = max(1, damage - 1)
+        elif self.form == PetForm.FINAL_B2:
+            damage = max(1, damage - 2)
+        if self.battle_guard_talisman:
+            damage = max(1, damage * 80 // 100)
+        return damage
+
+    def tick_qingyun_wolf_battle(self, seed: int) -> BattleResult:
+        if not self.in_battle:
+            return BattleResult.INACTIVE
+        self.energy -= 1
+        self.battle_round += 1
+        if self.energy == 0:
+            self._finish_qingyun_battle(BattleResult.ENERGY_DEPLETED)
+            return BattleResult.ENERGY_DEPLETED
+
+        self.boss_hp = max(
+            0, self.boss_hp - self.qingyun_attack_damage(seed)
+        )
+        if self.boss_hp == 0:
+            experience_reward = max(1, 30 >> min(15, self.qingyun_boss_wins))
+            coin_reward = max(1, 25 >> min(15, self.qingyun_boss_wins))
+            self.qingyun_boss_wins += 1
+            self.qingyun_boss_defeated = True
+            self.gain_experience(experience_reward)
+            self.coins += coin_reward
+            self._finish_qingyun_battle(BattleResult.VICTORY, reset_hp=False)
+            return BattleResult.VICTORY
+
+        incoming = self.qingyun_incoming_damage(seed)
+        self.stamina = max(0, self.stamina - incoming)
+        affinity_rate = min(20, self.tendencies[3] // 3)
+        if (
+            self.stamina > 0
+            and (seed // 10000) % 100 < affinity_rate
+        ):
+            self.stamina = min(100, self.stamina + 2)
+        if self.stamina == 0:
+            self.stamina = 30
+            self._finish_qingyun_battle(BattleResult.DEFEAT)
+            return BattleResult.DEFEAT
+        self.last_battle_result = BattleResult.CONTINUE
+        return BattleResult.CONTINUE
+
+    def retreat_qingyun_wolf(self) -> None:
+        if not self.in_battle:
+            return
+        self._finish_qingyun_battle(BattleResult.RETREATED)
+
+    def _finish_qingyun_battle(
+        self,
+        result: BattleResult,
+        *,
+        reset_hp: bool = True,
+    ) -> None:
+        self.in_battle = False
+        self.last_battle_result = result
+        if reset_hp:
+            self.boss_hp = self.boss_max_hp
+        self.battle_attack_talisman = False
+        self.battle_guard_talisman = False
 
     def tick_exploration(self, seed: int) -> None:
         if self.active_region is None or self.energy == 0:
