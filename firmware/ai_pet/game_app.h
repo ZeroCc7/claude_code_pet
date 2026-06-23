@@ -32,7 +32,8 @@ class GameApp {
   bool serialOverflow_ = false;
   uint32_t lastTickAt_ = 0;
   uint32_t lastSaveAt_ = 0;
-  uint32_t lastExplorationAt_ = 0;
+  uint32_t lastAdventureStepAt_ = 0;
+  uint32_t lastBattleRoundAt_ = 0;
   bool aiTaskActive_ = false;
   char aiTaskSource_[16] = {};
   uint32_t aiTaskStartedAt_ = 0;

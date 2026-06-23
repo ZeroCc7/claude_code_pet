@@ -5,6 +5,8 @@
 namespace {
 
 constexpr uint32_t kSaveDelayMs = 1000;
+constexpr uint32_t kAdventureStepMs = 3000;
+constexpr uint32_t kBattleRoundMs = 1200;
 
 }  // namespace
 
@@ -28,7 +30,8 @@ void GameApp::begin() {
   ui_.begin(display_);
   ui_.draw(state_, millis(), true);
   lastTickAt_ = millis();
-  lastExplorationAt_ = millis();
+  lastAdventureStepAt_ = millis();
+  lastBattleRoundAt_ = millis();
 }
 
 void GameApp::update(uint32_t now) {
@@ -51,16 +54,46 @@ void GameApp::update(uint32_t now) {
     lastTickAt_ += seconds * 1000;
   }
 
-  if (now - lastExplorationAt_ >= 60000) {
-    lastExplorationAt_ += 60000;
+  if (state_.data().adventurePhase == AdventurePhase::Advancing &&
+      now - lastAdventureStepAt_ >= kAdventureStepMs) {
+    lastAdventureStepAt_ = now;
     const PetForm oldForm = state_.data().form;
-    if (state_.tickExploration(state_.data().playSeconds)) {
+    const AdventureTick result = state_.tickQingyunAdventure(now);
+    if (result != AdventureTick::Inactive &&
+        result != AdventureTick::WaitingForChoice) {
       requestSave();
       if (state_.data().form != oldForm) {
         ui_.showEvolution(state_.data().form, now);
       } else {
+        if (result == AdventureTick::EventTriggered) {
+          ui_.notify("山道有变");
+        } else if (result == AdventureTick::EnergyDepleted) {
+          ui_.notify("灵力耗尽");
+        } else if (result == AdventureTick::BossUnlocked) {
+          ui_.notify("妖狼现踪");
+        }
         ui_.draw(state_, now, true);
       }
+    }
+  }
+
+  if (state_.data().inBattle &&
+      now - lastBattleRoundAt_ >= kBattleRoundMs) {
+    lastBattleRoundAt_ = now;
+    const PetForm oldForm = state_.data().form;
+    const BattleResult result = state_.tickQingyunWolfBattle(now);
+    requestSave();
+    if (state_.data().form != oldForm) {
+      ui_.showEvolution(state_.data().form, now);
+    } else {
+      if (result == BattleResult::Victory) {
+        ui_.notify("妖狼已伏");
+      } else if (result == BattleResult::Defeat) {
+        ui_.notify("战败归山");
+      } else if (result == BattleResult::EnergyDepleted) {
+        ui_.notify("灵力耗尽");
+      }
+      ui_.draw(state_, now, true);
     }
   }
 
