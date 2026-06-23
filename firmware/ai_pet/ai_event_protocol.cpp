@@ -136,7 +136,8 @@ bool AiEventProtocol::extractUnsigned(const String& message, const char* key,
 bool AiEventProtocol::validSource(const char* source) {
   return strcmp(source, "codex") == 0 ||
          strcmp(source, "claude_code") == 0 ||
-         strcmp(source, "opencode") == 0;
+         strcmp(source, "opencode") == 0 ||
+         strcmp(source, "codefree_o") == 0;
 }
 
 bool AiEventProtocol::parseState(const char* value, AiWorkState& state) {

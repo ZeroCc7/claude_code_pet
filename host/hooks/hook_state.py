@@ -8,7 +8,7 @@ import time
 from typing import Callable
 
 
-SOURCES = {"codex", "claude_code", "opencode"}
+SOURCES = {"codex", "claude_code", "opencode", "codefree_o"}
 STATES = {
     "submitted",
     "thinking",

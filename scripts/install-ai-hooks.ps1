@@ -1,6 +1,6 @@
 param(
     [string]$Port = "COM7",
-    [ValidateSet("All", "Codex", "Claude", "OpenCode")]
+    [ValidateSet("All", "Codex", "Claude", "OpenCode", "CodeFreeO")]
     [string]$Target = "All",
     [string]$UserProfileRoot = $env:USERPROFILE,
     [switch]$SkipUserEnvironment
@@ -138,6 +138,18 @@ if ($Target -in @("All", "OpenCode") -and
     Write-Host "OpenCode plugin installed."
 } elseif ($Target -in @("All", "OpenCode")) {
     Write-Host "OpenCode not detected; plugin template was not installed."
+}
+
+$codefreeDir = Join-Path $UserProfileRoot ".codefree-o"
+if ($Target -in @("All", "CodeFreeO") -and
+    (Test-Path -LiteralPath $codefreeDir)) {
+    $codefreePlugins = Join-Path $codefreeDir "plugins"
+    New-Item -ItemType Directory -Force -Path $codefreePlugins | Out-Null
+    Copy-Item -LiteralPath (Join-Path $installRoot "codefree-o-plugin.js") `
+        -Destination (Join-Path $codefreePlugins "ai-pet.js") -Force
+    Write-Host "CodeFree-O plugin installed."
+} elseif ($Target -in @("All", "CodeFreeO")) {
+    Write-Host "CodeFree-O not detected; plugin was not installed."
 }
 
 Write-Host "AI pet hooks installed at $installRoot"

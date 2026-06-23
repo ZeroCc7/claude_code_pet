@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import json
 
 
-SOURCES = {"codex", "claude_code", "opencode"}
+SOURCES = {"codex", "claude_code", "opencode", "codefree_o"}
 STATES = {
     "submitted",
     "thinking",
