@@ -47,6 +47,15 @@ class QingyunEvent(IntEnum):
     SHORTCUT = 4
 
 
+class EventResult(IntEnum):
+    NONE = 0
+    CONTINUED = 1
+    ITEM_GAINED = 2
+    REWARD_GAINED = 3
+    PROGRESS_GAINED = 4
+    STAMINA_LOST = 5
+
+
 @dataclass(frozen=True)
 class AiTaskRecord:
     source: str
@@ -93,6 +102,7 @@ class GameState:
     qingyun_progress: int = 0
     adventure_phase: AdventurePhase = AdventurePhase.IDLE
     current_event: QingyunEvent = QingyunEvent.NONE
+    current_event_result: EventResult = EventResult.NONE
     qingyun_event_mask: int = 0
     qingyun_boss_unlocked: bool = False
 
@@ -163,13 +173,30 @@ class GameState:
         self.current_event = QingyunEvent.NONE
 
     def tick_qingyun_adventure(self, seed: int) -> AdventureTick:
-        del seed
         if self.adventure_phase == AdventurePhase.CHOOSING:
             return AdventureTick.WAITING_FOR_CHOICE
         if self.adventure_phase != AdventurePhase.ADVANCING:
             return AdventureTick.INACTIVE
         self.energy -= 1
         self.qingyun_progress = min(100, self.qingyun_progress + 2)
+        checkpoints = (25, 45, 65, 85)
+        events = (
+            QingyunEvent.SPIRIT_HERB,
+            QingyunEvent.DEMON_BEAST,
+            QingyunEvent.WOUNDED_CULTIVATOR,
+            QingyunEvent.SHORTCUT,
+        )
+        for index, checkpoint in enumerate(checkpoints):
+            event_bit = 1 << index
+            if (
+                self.qingyun_progress >= checkpoint
+                and not self.qingyun_event_mask & event_bit
+            ):
+                self.qingyun_event_mask |= event_bit
+                self.current_event = events[index]
+                self.current_event_result = EventResult.NONE
+                self.adventure_phase = AdventurePhase.CHOOSING
+                return AdventureTick.EVENT_TRIGGERED
         if self.qingyun_progress >= 100:
             self.qingyun_boss_unlocked = True
             self.adventure_phase = AdventurePhase.BOSS_READY
@@ -178,6 +205,85 @@ class GameState:
             self.stop_qingyun_adventure()
             return AdventureTick.ENERGY_DEPLETED
         return AdventureTick.ADVANCED
+
+    def resolve_qingyun_event(self, choice: int, seed: int) -> EventResult:
+        if self.adventure_phase != AdventurePhase.CHOOSING:
+            return EventResult.NONE
+        result = EventResult.CONTINUED
+        if self.current_event == QingyunEvent.SPIRIT_HERB and choice == 0:
+            self._add_item(ItemType.SPIRIT_HERB)
+            result = EventResult.ITEM_GAINED
+        elif self.current_event == QingyunEvent.DEMON_BEAST and choice == 0:
+            score = (
+                self.level
+                + self.stamina // 10
+                + self.tendencies[0] // 4
+                + seed % 10
+            )
+            if score >= 18:
+                self.gain_experience(6)
+                self.coins += 5
+                result = EventResult.REWARD_GAINED
+            else:
+                self.stamina = max(0, self.stamina - 12)
+                result = EventResult.STAMINA_LOST
+        elif (
+            self.current_event == QingyunEvent.WOUNDED_CULTIVATOR
+            and choice == 0
+        ):
+            score = (
+                self.level
+                + self.stamina // 10
+                + self.tendencies[3] // 2
+                + seed % 10
+            )
+            if score >= 25:
+                self._add_item(ItemType.QINGYUN_TOKEN)
+                self.qingyun_boss_unlocked = True
+            else:
+                self._add_item(ItemType.RECOVERY_PILL)
+            result = EventResult.ITEM_GAINED
+        elif self.current_event == QingyunEvent.SHORTCUT:
+            if choice == 0:
+                score = (
+                    self.level
+                    + self.energy
+                    + self.tendencies[1] // 3
+                    + seed % 10
+                )
+                if score >= 20:
+                    self.qingyun_progress = min(
+                        100, self.qingyun_progress + 8 + seed % 8
+                    )
+                    result = EventResult.PROGRESS_GAINED
+                else:
+                    self.stamina = max(0, self.stamina - 10)
+                    result = EventResult.STAMINA_LOST
+            else:
+                self.qingyun_progress = min(100, self.qingyun_progress + 3)
+                result = EventResult.PROGRESS_GAINED
+        self.current_event_result = result
+        self.adventure_phase = AdventurePhase.RESULT
+        return result
+
+    def acknowledge_adventure_result(self) -> None:
+        if self.adventure_phase != AdventurePhase.RESULT:
+            return
+        self.current_event = QingyunEvent.NONE
+        self.current_event_result = EventResult.NONE
+        self.adventure_phase = (
+            AdventurePhase.BOSS_READY
+            if self.qingyun_boss_unlocked or self.qingyun_progress >= 100
+            else AdventurePhase.ADVANCING
+        )
+
+    def abandon_qingyun_event(self) -> None:
+        if self.adventure_phase != AdventurePhase.CHOOSING:
+            return
+        self.stop_qingyun_adventure()
+
+    def _add_item(self, item: ItemType) -> None:
+        self.items[item] = min(65535, self.items[item] + 1)
 
     def tick_exploration(self, seed: int) -> None:
         if self.active_region is None or self.energy == 0:

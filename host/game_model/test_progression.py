@@ -1,6 +1,7 @@
 from progression import (
     AdventurePhase,
     AdventureTick,
+    EventResult,
     GameState,
     ItemType,
     PetForm,
@@ -108,6 +109,77 @@ def test_event_choice_phase_pauses_energy_consumption():
     )
     assert state.energy == 8
     assert state.qingyun_progress == 24
+
+
+def test_progress_checkpoint_triggers_each_qingyun_event_once():
+    state = GameState(
+        energy=20,
+        qingyun_progress=23,
+        adventure_phase=AdventurePhase.ADVANCING,
+    )
+
+    assert (
+        state.tick_qingyun_adventure(seed=0)
+        == AdventureTick.EVENT_TRIGGERED
+    )
+    assert state.current_event == QingyunEvent.SPIRIT_HERB
+    assert state.adventure_phase == AdventurePhase.CHOOSING
+    assert state.qingyun_event_mask & 0b0001
+
+
+def test_collecting_spirit_herb_adds_inventory_and_resumes():
+    state = GameState(
+        adventure_phase=AdventurePhase.CHOOSING,
+        current_event=QingyunEvent.SPIRIT_HERB,
+    )
+
+    result = state.resolve_qingyun_event(choice=0, seed=0)
+
+    assert result == EventResult.ITEM_GAINED
+    assert state.items[ItemType.SPIRIT_HERB] == 1
+    assert state.adventure_phase == AdventurePhase.RESULT
+    state.acknowledge_adventure_result()
+    assert state.adventure_phase == AdventurePhase.ADVANCING
+
+
+def test_wounded_cultivator_can_award_qingyun_token_and_unlock_boss():
+    state = GameState(
+        level=12,
+        stamina=100,
+        tendencies=[0, 0, 0, 20],
+        adventure_phase=AdventurePhase.CHOOSING,
+        current_event=QingyunEvent.WOUNDED_CULTIVATOR,
+    )
+
+    state.resolve_qingyun_event(choice=0, seed=0)
+
+    assert state.items[ItemType.QINGYUN_TOKEN] == 1
+    assert state.qingyun_boss_unlocked
+
+
+def test_abandoning_event_ends_adventure_without_extra_cost():
+    state = GameState(
+        energy=7,
+        adventure_phase=AdventurePhase.CHOOSING,
+        current_event=QingyunEvent.DEMON_BEAST,
+    )
+
+    state.abandon_qingyun_event()
+
+    assert state.energy == 7
+    assert state.adventure_phase == AdventurePhase.IDLE
+
+
+def test_event_item_rewards_saturate_at_uint16_max():
+    state = GameState(
+        items=[65535, 0, 0, 0, 0],
+        adventure_phase=AdventurePhase.CHOOSING,
+        current_event=QingyunEvent.SPIRIT_HERB,
+    )
+
+    state.resolve_qingyun_event(choice=0, seed=0)
+
+    assert state.items[ItemType.SPIRIT_HERB] == 65535
 
 
 def test_failed_task_grants_reduced_experience():
