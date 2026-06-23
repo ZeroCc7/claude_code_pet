@@ -344,6 +344,40 @@ def test_qingyun_hud_uses_compact_icons_and_current_values_only():
     assert '"/100"' not in qingyun_source
 
 
+def test_qingyun_adventure_separates_large_pet_and_event_subjects():
+    scene_source = source_between(
+        UI_SOURCE,
+        "void GameUi::drawQingyunScene",
+        "void GameUi::drawQingyunAdventure",
+    )
+    event_source = source_between(
+        UI_SOURCE,
+        "void GameUi::drawQingyunEventSubject",
+        "void GameUi::drawQingyunEvent(const PetSaveData& data)",
+    )
+    choosing_source = source_between(
+        UI_SOURCE,
+        "void GameUi::drawQingyunEvent(const PetSaveData& data)",
+        "void GameUi::drawQingyunEventResult",
+    )
+    result_source = source_between(
+        UI_SOURCE,
+        "void GameUi::drawQingyunEventResult",
+        "void GameUi::drawQingyunBossPrompt",
+    )
+    assert "constexpr uint8_t kQingyunAdventurePetSize = 48;" in UI_SOURCE
+    assert "constexpr uint8_t kQingyunEventSubjectSize = 27;" in UI_SOURCE
+    assert "drawQingyunPetLarge(data.form, 40, 42 + bob);" in scene_source
+    assert "drawQingyunIcon(" not in scene_source
+    assert "drawQingyunPet(" not in event_source
+    assert "drawQingyunIconLarge(50, 50, kQingyunIconSpiritHerb);" in event_source
+    assert "drawQingyunIconLarge(50, 50, kQingyunIconDemonBeast);" in event_source
+    assert "drawQingyunEventSubject(data.currentEvent);" in choosing_source
+    assert "drawQingyunScene(data, millis());" not in choosing_source
+    assert "drawQingyunEventSubject(data.currentEvent);" in result_source
+    assert "drawQingyunScene(data, millis());" not in result_source
+
+
 def test_cloud_terrace_home_uses_larger_lower_pet_region():
     assert '#include "assets/cloud_terrace_home.h"' in UI_SOURCE
     assert "constexpr int16_t kPetRegionX = 28;" in UI_SOURCE

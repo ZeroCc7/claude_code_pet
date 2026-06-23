@@ -65,7 +65,10 @@ class GameUi {
                       const HomeButtonIcon& icon);
   void drawQingyunIcon(int16_t x, int16_t y,
                        const QingyunUiIcon& icon);
+  void drawQingyunIconLarge(int16_t x, int16_t y,
+                            const QingyunUiIcon& icon);
   void drawQingyunPet(PetForm form, int16_t x, int16_t y);
+  void drawQingyunPetLarge(PetForm form, int16_t x, int16_t y);
   void drawResourceBadge(int16_t x, int16_t y, uint16_t color,
                          const char* label, uint16_t value,
                          uint16_t maximum = 0);
@@ -79,6 +82,7 @@ class GameUi {
   void drawQingyunEventResult(const PetSaveData& data);
   void drawQingyunBossPrompt(const PetSaveData& data);
   void drawQingyunScene(const PetSaveData& data, uint32_t now);
+  void drawQingyunEventSubject(QingyunEvent event);
   void drawBattle(const PetSaveData& data);
   void drawStatus(const PetSaveData& data);
   void drawCultivation(const PetSaveData& data, uint32_t now);

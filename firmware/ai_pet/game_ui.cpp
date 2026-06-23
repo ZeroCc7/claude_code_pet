@@ -17,6 +17,8 @@ constexpr int16_t kPetRegionX = 28;
 constexpr int16_t kPetRegionY = 14;
 constexpr int16_t kPetRegionWidth = 72;
 constexpr int16_t kPetRegionHeight = 100;
+constexpr uint8_t kQingyunAdventurePetSize = 48;
+constexpr uint8_t kQingyunEventSubjectSize = 27;
 constexpr uint16_t kInkBlack = 0x0861;
 constexpr uint16_t kInkBlue = 0x10C3;
 constexpr uint16_t kPanelBlue = 0x1924;
@@ -738,6 +740,35 @@ void GameUi::drawQingyunIcon(int16_t x, int16_t y,
                          kQingyunIconWidth, kQingyunIconHeight);
 }
 
+void GameUi::drawQingyunIconLarge(int16_t x, int16_t y,
+                                  const QingyunUiIcon& icon) {
+  Adafruit_GFX& tft = target();
+  for (uint8_t row = 0; row < kQingyunIconHeight; ++row) {
+    for (uint8_t column = 0; column < kQingyunIconWidth; ++column) {
+      const uint8_t mask =
+          pgm_read_byte(icon.mask + row * 3 + column / 8);
+      if ((mask & (0x80 >> (column % 8))) == 0) {
+        continue;
+      }
+      const uint16_t color = pgm_read_word(
+          icon.pixels + row * kQingyunIconWidth + column);
+      const int16_t x0 =
+          x + column * kQingyunEventSubjectSize / kQingyunIconWidth;
+      const int16_t x1 =
+          x + ((column + 1) * kQingyunEventSubjectSize +
+               kQingyunIconWidth - 1) /
+                  kQingyunIconWidth;
+      const int16_t y0 =
+          y + row * kQingyunEventSubjectSize / kQingyunIconHeight;
+      const int16_t y1 =
+          y + ((row + 1) * kQingyunEventSubjectSize +
+               kQingyunIconHeight - 1) /
+                  kQingyunIconHeight;
+      tft.fillRect(x0, y0, x1 - x0, y1 - y0, color);
+    }
+  }
+}
+
 void GameUi::drawQingyunPet(PetForm form, int16_t x, int16_t y) {
   const QingyunPetSprite* sprites[] = {
       &kQingyunPetEgg, &kQingyunPetRookieA, &kQingyunPetRookieB,
@@ -747,6 +778,40 @@ void GameUi::drawQingyunPet(PetForm form, int16_t x, int16_t y) {
       *sprites[min<uint8_t>(static_cast<uint8_t>(form), 6)];
   target().drawRGBBitmap(x, y, sprite.pixels, sprite.mask,
                          kQingyunPetWidth, kQingyunPetHeight);
+}
+
+void GameUi::drawQingyunPetLarge(PetForm form, int16_t x, int16_t y) {
+  const QingyunPetSprite* sprites[] = {
+      &kQingyunPetEgg, &kQingyunPetRookieA, &kQingyunPetRookieB,
+      &kQingyunPetFinalA1, &kQingyunPetFinalA2, &kQingyunPetFinalB1,
+      &kQingyunPetFinalB2};
+  const QingyunPetSprite& sprite =
+      *sprites[min<uint8_t>(static_cast<uint8_t>(form), 6)];
+  Adafruit_GFX& tft = target();
+  for (uint8_t row = 0; row < kQingyunPetHeight; ++row) {
+    for (uint8_t column = 0; column < kQingyunPetWidth; ++column) {
+      const uint8_t mask =
+          pgm_read_byte(sprite.mask + row * 4 + column / 8);
+      if ((mask & (0x80 >> (column % 8))) == 0) {
+        continue;
+      }
+      const uint16_t color = pgm_read_word(
+          sprite.pixels + row * kQingyunPetWidth + column);
+      const int16_t x0 =
+          x + column * kQingyunAdventurePetSize / kQingyunPetWidth;
+      const int16_t x1 =
+          x + ((column + 1) * kQingyunAdventurePetSize +
+               kQingyunPetWidth - 1) /
+                  kQingyunPetWidth;
+      const int16_t y0 =
+          y + row * kQingyunAdventurePetSize / kQingyunPetHeight;
+      const int16_t y1 =
+          y + ((row + 1) * kQingyunAdventurePetSize +
+               kQingyunPetHeight - 1) /
+                  kQingyunPetHeight;
+      tft.fillRect(x0, y0, x1 - x0, y1 - y0, color);
+    }
+  }
 }
 
 void GameUi::drawResourceBadge(int16_t x, int16_t y, uint16_t color,
@@ -861,15 +926,20 @@ void GameUi::drawQingyunScene(const PetSaveData& data, uint32_t now) {
       data.adventurePhase == AdventurePhase::Advancing
           ? static_cast<int16_t>((now / 250) % 2)
           : 0;
-  drawQingyunPet(data.form, 10, 57 + bob);
-  if (data.currentEvent == QingyunEvent::SpiritHerb) {
-    drawQingyunIcon(98, 67, kQingyunIconSpiritHerb);
-  } else if (data.currentEvent == QingyunEvent::WoundedCultivator) {
-    drawQingyunIcon(98, 67, kQingyunIconWoundedCultivator);
-  } else if (data.currentEvent == QingyunEvent::DemonBeast) {
-    drawQingyunIcon(98, 67, kQingyunIconDemonBeast);
-  } else if (data.currentEvent == QingyunEvent::Shortcut) {
-    drawQingyunIcon(98, 67, kQingyunIconShortcut);
+  drawQingyunPetLarge(data.form, 40, 42 + bob);
+}
+
+void GameUi::drawQingyunEventSubject(QingyunEvent event) {
+  target().drawRGBBitmap(0, 36, kQingyunScene, kQingyunSceneWidth,
+                         kQingyunSceneHeight);
+  if (event == QingyunEvent::SpiritHerb) {
+    drawQingyunIconLarge(50, 50, kQingyunIconSpiritHerb);
+  } else if (event == QingyunEvent::WoundedCultivator) {
+    drawQingyunIconLarge(50, 50, kQingyunIconWoundedCultivator);
+  } else if (event == QingyunEvent::DemonBeast) {
+    drawQingyunIconLarge(50, 50, kQingyunIconDemonBeast);
+  } else if (event == QingyunEvent::Shortcut) {
+    drawQingyunIconLarge(50, 50, kQingyunIconShortcut);
   }
 }
 
@@ -911,13 +981,13 @@ void GameUi::drawQingyunEvent(const PetSaveData& data) {
   text().color(kBrightGold);
   text().draw(38, 31, "山道抉择");
   target().drawFastHLine(8, 34, 112, kDarkGold);
-  drawQingyunScene(data, millis());
+  drawQingyunEventSubject(data.currentEvent);
   const char* titles[] = {"", "灵草", "妖兽", "受伤修士", "山道捷径"};
   const char* first[] = {"", "采集", "迎战", "相助", "冒险"};
   const char* second[] = {"", "离去", "避开", "无视", "稳行"};
   const uint8_t event = static_cast<uint8_t>(data.currentEvent);
   text().color(kBrightGold);
-  text().draw(9, 102, titles[event]);
+  text().draw(9, 100, titles[event]);
   drawPanel(7, 108, 55, 27, selection_ == 0);
   drawPanel(66, 108, 55, 27, selection_ == 1);
   text().color(selection_ == 0 ? kBrightGold : kWarmWhite);
@@ -931,7 +1001,7 @@ void GameUi::drawQingyunEventResult(const PetSaveData& data) {
   text().color(kBrightGold);
   text().draw(38, 31, "因缘结果");
   target().drawFastHLine(8, 34, 112, kDarkGold);
-  drawQingyunScene(data, millis());
+  drawQingyunEventSubject(data.currentEvent);
   drawPanel(10, 101, 108, 36, false);
   const char* results[] = {"风过无痕", "继续前行", "获得物品",
                            "有所收获", "进度提升", "体力受损"};
