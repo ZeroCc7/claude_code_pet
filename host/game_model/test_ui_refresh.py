@@ -272,20 +272,44 @@ def test_operation_pages_include_required_cultivation_information():
         "乾坤袋",
         "灵草",
         "回春丹",
-        "秘境历练",
-        "首领可战",
-        "已镇守",
+        "青云山道",
+        "山道抉择",
+        "青云妖狼",
         "仙宠状态",
         "已臻化境",
     ):
         assert label in UI_SOURCE
 
 
-def test_battle_page_has_four_action_tiles_and_result_notice():
-    for label in ("攻击", "法诀", "丹药", "防御", "敌方气血", "己方体力"):
+def test_battle_page_is_automatic_and_has_result_notice():
+    for label in ("青云妖狼", "自动交锋", "敌方气血", "己方体力", "K4撤退"):
         assert label in UI_SOURCE
+    for removed in ("K1 攻击", "K2 法诀", "K3 丹药", "K4 防御"):
+        assert removed not in UI_SOURCE
     assert "startNotice(" in UI_SOURCE
     assert "drawNotice(" in UI_SOURCE
+
+
+def test_game_app_ticks_adventure_and_battle_separately():
+    assert "lastAdventureStepAt_" in APP_HEADER
+    assert "lastBattleRoundAt_" in APP_HEADER
+    assert "tickQingyunAdventure(" in APP_SOURCE
+    assert "tickQingyunWolfBattle(" in APP_SOURCE
+    assert "tickExploration(" not in APP_SOURCE
+
+
+def test_qingyun_ui_uses_replaceable_geometric_scene_helpers():
+    for signature in (
+        "void drawQingyunAdventure",
+        "void drawQingyunEvent",
+        "void drawQingyunEventResult",
+        "void drawQingyunBossPrompt",
+        "void drawQingyunScene",
+    ):
+        assert signature in UI_HEADER
+    assert "drawTriangle(" in UI_SOURCE
+    assert "fillCircle(" in UI_SOURCE
+    assert "assets/qingyun" not in UI_SOURCE
 
 
 def test_cloud_terrace_home_uses_larger_lower_pet_region():

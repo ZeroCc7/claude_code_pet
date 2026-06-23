@@ -68,6 +68,11 @@ class GameUi {
   void drawMeritLog(const PetSaveData& data);
   void drawInventory(const PetSaveData& data);
   void drawAdventure(const PetSaveData& data);
+  void drawQingyunAdventure(const PetSaveData& data, uint32_t now);
+  void drawQingyunEvent(const PetSaveData& data);
+  void drawQingyunEventResult(const PetSaveData& data);
+  void drawQingyunBossPrompt(const PetSaveData& data);
+  void drawQingyunScene(const PetSaveData& data, uint32_t now);
   void drawBattle(const PetSaveData& data);
   void drawStatus(const PetSaveData& data);
   void drawCultivation(const PetSaveData& data, uint32_t now);
@@ -90,6 +95,9 @@ class GameUi {
   UiPage page_ = UiPage::Home;
   uint8_t selection_ = 0;
   uint8_t meritPage_ = 0;
+  bool battlePrompt_ = true;
+  bool useAttackTalisman_ = false;
+  bool useGuardTalisman_ = false;
   bool dirty_ = true;
   uint32_t lastAnimationAt_ = 0;
   Feedback feedback_ = Feedback::None;
