@@ -7,6 +7,7 @@
 #include "assets/pet_sprites.h"
 #include "assets/qingyun_scene.h"
 #include "assets/qingyun_ui_icons.h"
+#include "assets/qingyun_pets.h"
 
 #include <cstring>
 
@@ -737,6 +738,17 @@ void GameUi::drawQingyunIcon(int16_t x, int16_t y,
                          kQingyunIconWidth, kQingyunIconHeight);
 }
 
+void GameUi::drawQingyunPet(PetForm form, int16_t x, int16_t y) {
+  const QingyunPetSprite* sprites[] = {
+      &kQingyunPetEgg, &kQingyunPetRookieA, &kQingyunPetRookieB,
+      &kQingyunPetFinalA1, &kQingyunPetFinalA2, &kQingyunPetFinalB1,
+      &kQingyunPetFinalB2};
+  const QingyunPetSprite& sprite =
+      *sprites[min<uint8_t>(static_cast<uint8_t>(form), 6)];
+  target().drawRGBBitmap(x, y, sprite.pixels, sprite.mask,
+                         kQingyunPetWidth, kQingyunPetHeight);
+}
+
 void GameUi::drawResourceBadge(int16_t x, int16_t y, uint16_t color,
                                const char* label, uint16_t value,
                                uint16_t maximum) {
@@ -843,83 +855,88 @@ void GameUi::drawAdventure(const PetSaveData& data) {
 
 void GameUi::drawQingyunScene(const PetSaveData& data, uint32_t now) {
   Adafruit_GFX& tft = target();
-  tft.drawRGBBitmap(0, 34, kQingyunScene, kQingyunSceneWidth,
+  tft.drawRGBBitmap(0, 36, kQingyunScene, kQingyunSceneWidth,
                     kQingyunSceneHeight);
   const int16_t bob =
       data.adventurePhase == AdventurePhase::Advancing
           ? static_cast<int16_t>((now / 250) % 2)
           : 0;
-  pet_.draw(tft, data.form, 13, 29 + bob, now);
+  drawQingyunPet(data.form, 10, 57 + bob);
   if (data.currentEvent == QingyunEvent::SpiritHerb) {
-    drawQingyunIcon(96, 67, kQingyunIconSpiritHerb);
+    drawQingyunIcon(98, 67, kQingyunIconSpiritHerb);
   } else if (data.currentEvent == QingyunEvent::WoundedCultivator) {
-    drawQingyunIcon(96, 67, kQingyunIconWoundedCultivator);
+    drawQingyunIcon(98, 67, kQingyunIconWoundedCultivator);
   } else if (data.currentEvent == QingyunEvent::DemonBeast) {
-    drawQingyunIcon(96, 67, kQingyunIconDemonBeast);
+    drawQingyunIcon(98, 67, kQingyunIconDemonBeast);
   } else if (data.currentEvent == QingyunEvent::Shortcut) {
-    drawQingyunIcon(96, 67, kQingyunIconShortcut);
+    drawQingyunIcon(98, 67, kQingyunIconShortcut);
   }
 }
 
 void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
   Adafruit_GFX& tft = target();
-  drawTitlePlaque("青云山道", kBrightGold);
+  text().color(kBrightGold);
+  text().draw(38, 31, "青云山道");
+  tft.drawFastHLine(8, 34, 112, kDarkGold);
   drawQingyunScene(data, now);
-  drawPanel(7, 99, 114, 39, false);
-  drawProgressBar(13, 108, 82, data.qingyunProgress, 100, kBrightGold);
+  drawPanel(7, 93, 114, 46, false);
+  drawProgressBar(13, 99, 82, data.qingyunProgress, 100, kBrightGold);
   tft.setTextColor(kWarmWhite);
   tft.setTextSize(1);
-  tft.setCursor(99, 104);
+  tft.setCursor(99, 95);
   tft.printf("%u%%", data.qingyunProgress);
-  text().color(kMutedCyan);
-  drawQingyunIcon(9, 111, kQingyunIconEnergy);
-  text().draw(13, 124, "灵力");
-  text().draw(58, 124, "体力");
-  tft.setCursor(40, 116);
+  drawHomeIcon(14, 109, kHomeIconEnergy);
+  drawHomeIcon(68, 109, kHomeIconHeart);
+  tft.setTextColor(kMutedCyan);
+  tft.setCursor(34, 113);
   tft.print(data.energy);
-  tft.setCursor(85, 116);
+  tft.setCursor(88, 113);
   tft.print(data.stamina);
   if (data.adventurePhase == AdventurePhase::Advancing) {
     text().color(kBrightGold);
-    text().draw(13, 135, "自动前行");
-    drawFooterHints("剩余步数=灵力", "K4结束");
+    text().draw(35, 136, "自动前行");
+    drawFooterHints("自动前行", "K4结束");
   } else if (data.adventurePhase == AdventurePhase::BossReady) {
     text().color(kCinnabar);
-    text().draw(13, 135, "青云妖狼已现");
+    text().draw(23, 136, "青云妖狼已现");
     drawFooterHints("K1挑战", "K4返回");
   } else {
     text().color(kWarmWhite);
-    text().draw(13, 135, "整装待发");
+    text().draw(35, 136, "整装待发");
     drawFooterHints("K1开始", "K4返回");
   }
 }
 
 void GameUi::drawQingyunEvent(const PetSaveData& data) {
-  drawTitlePlaque("山道抉择", kBrightGold);
+  text().color(kBrightGold);
+  text().draw(38, 31, "山道抉择");
+  target().drawFastHLine(8, 34, 112, kDarkGold);
   drawQingyunScene(data, millis());
   const char* titles[] = {"", "灵草", "妖兽", "受伤修士", "山道捷径"};
   const char* first[] = {"", "采集", "迎战", "相助", "冒险"};
   const char* second[] = {"", "离去", "避开", "无视", "稳行"};
   const uint8_t event = static_cast<uint8_t>(data.currentEvent);
   text().color(kBrightGold);
-  text().draw(9, 104, titles[event]);
-  drawPanel(7, 111, 55, 24, selection_ == 0);
-  drawPanel(66, 111, 55, 24, selection_ == 1);
+  text().draw(9, 102, titles[event]);
+  drawPanel(7, 108, 55, 27, selection_ == 0);
+  drawPanel(66, 108, 55, 27, selection_ == 1);
   text().color(selection_ == 0 ? kBrightGold : kWarmWhite);
-  text().draw(18, 127, first[event]);
+  text().draw(18, 126, first[event]);
   text().color(selection_ == 1 ? kBrightGold : kWarmWhite);
-  text().draw(77, 127, second[event]);
+  text().draw(77, 126, second[event]);
   drawFooterHints("K1确认 K2K3切换", "K4放弃");
 }
 
 void GameUi::drawQingyunEventResult(const PetSaveData& data) {
-  drawTitlePlaque("因缘结果", kBrightGold);
+  text().color(kBrightGold);
+  text().draw(38, 31, "因缘结果");
+  target().drawFastHLine(8, 34, 112, kDarkGold);
   drawQingyunScene(data, millis());
-  drawPanel(10, 103, 108, 34, false);
+  drawPanel(10, 101, 108, 36, false);
   const char* results[] = {"风过无痕", "继续前行", "获得物品",
                            "有所收获", "进度提升", "体力受损"};
   text().color(kWarmWhite);
-  text().draw(29, 124,
+  text().draw(29, 123,
               results[static_cast<uint8_t>(data.currentEventResult)]);
   drawFooterHints("K1继续", "K4结束");
 }

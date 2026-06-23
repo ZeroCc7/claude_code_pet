@@ -10,6 +10,7 @@
 #include "assets/home_button_icons.h"
 #include "assets/qingyun_scene.h"
 #include "assets/qingyun_ui_icons.h"
+#include "assets/qingyun_pets.h"
 
 class GameUi {
  public:
@@ -64,6 +65,7 @@ class GameUi {
                       const HomeButtonIcon& icon);
   void drawQingyunIcon(int16_t x, int16_t y,
                        const QingyunUiIcon& icon);
+  void drawQingyunPet(PetForm form, int16_t x, int16_t y);
   void drawResourceBadge(int16_t x, int16_t y, uint16_t color,
                          const char* label, uint16_t value,
                          uint16_t maximum = 0);

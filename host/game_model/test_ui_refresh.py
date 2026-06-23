@@ -325,9 +325,23 @@ def test_qingyun_scene_and_ui_icons_use_generated_assets():
         "kQingyunIconDemonBeast",
         "kQingyunIconWoundedCultivator",
         "kQingyunIconShortcut",
-        "kQingyunIconEnergy",
     ):
         assert icon in UI_SOURCE
+
+
+def test_qingyun_hud_uses_compact_icons_and_current_values_only():
+    qingyun_source = source_between(
+        UI_SOURCE,
+        "void GameUi::drawQingyunAdventure",
+        "void GameUi::drawQingyunEvent",
+    )
+    assert "drawQingyunPet(" in UI_SOURCE
+    assert "kHomeIconEnergy" in qingyun_source
+    assert "kHomeIconHeart" in qingyun_source
+    assert '"灵力"' not in qingyun_source
+    assert '"体力"' not in qingyun_source
+    assert '"/20"' not in qingyun_source
+    assert '"/100"' not in qingyun_source
 
 
 def test_cloud_terrace_home_uses_larger_lower_pet_region():

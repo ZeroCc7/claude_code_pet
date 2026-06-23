@@ -7,14 +7,18 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENE_SOURCE = ROOT / "assets/raw/backgrounds/qingyun_scene.png"
-SCENE_PREVIEW = ROOT / "assets/processed/backgrounds/qingyun_scene_128x62.png"
+SCENE_PREVIEW = ROOT / "assets/processed/backgrounds/qingyun_scene_128x54.png"
 SCENE_HEADER = ROOT / "firmware/ai_pet/assets/qingyun_scene.h"
 ICON_SOURCE = ROOT / "assets/raw/ui/qingyun_icons/icons_3x3.png"
 ICON_PREVIEW = ROOT / "assets/processed/ui/qingyun_icons/firmware_preview"
 ICON_HEADER = ROOT / "firmware/ai_pet/assets/qingyun_ui_icons.h"
+PET_SOURCE = ROOT / "assets/processed/pets/firmware_preview"
+PET_PREVIEW = ROOT / "assets/processed/pets/qingyun_preview"
+PET_HEADER = ROOT / "firmware/ai_pet/assets/qingyun_pets.h"
 SCENE_WIDTH = 128
-SCENE_HEIGHT = 62
+SCENE_HEIGHT = 54
 ICON_SIZE = 18
+PET_SIZE = 32
 ICON_NAMES = (
     "SpiritHerb",
     "RecoveryPill",
@@ -25,6 +29,15 @@ ICON_NAMES = (
     "WoundedCultivator",
     "Shortcut",
     "Energy",
+)
+PET_NAMES = (
+    "egg",
+    "rookie_a",
+    "rookie_b",
+    "final_a1",
+    "final_a2",
+    "final_b1",
+    "final_b2",
 )
 
 
@@ -173,9 +186,75 @@ def convert_icons() -> None:
     ICON_HEADER.write_text("\n".join(lines), encoding="utf-8")
 
 
+def convert_pets() -> None:
+    PET_PREVIEW.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "#pragma once",
+        "",
+        "#include <Arduino.h>",
+        "",
+        f"constexpr uint8_t kQingyunPetWidth = {PET_SIZE};",
+        f"constexpr uint8_t kQingyunPetHeight = {PET_SIZE};",
+        "",
+        "struct QingyunPetSprite {",
+        "  const uint16_t* pixels;",
+        "  const uint8_t* mask;",
+        "};",
+        "",
+    ]
+    definitions = []
+    for name in PET_NAMES:
+        source = Image.open(PET_SOURCE / name / "frame-1.png").convert("RGBA")
+        bbox = source.getchannel("A").getbbox()
+        if bbox is None:
+            raise ValueError(f"empty pet preview: {name}")
+        subject = source.crop(bbox)
+        scale = min((PET_SIZE - 2) / subject.width,
+                    (PET_SIZE - 2) / subject.height)
+        size = (
+            max(1, round(subject.width * scale)),
+            max(1, round(subject.height * scale)),
+        )
+        subject = subject.resize(size, Image.Resampling.NEAREST)
+        frame = Image.new("RGBA", (PET_SIZE, PET_SIZE), (0, 0, 0, 0))
+        frame.alpha_composite(
+            subject,
+            ((PET_SIZE - size[0]) // 2, PET_SIZE - size[1] - 1),
+        )
+        frame.save(PET_PREVIEW / f"{name}.png")
+        pixels = [
+            rgb565(*frame.getpixel((x, y))[:3])
+            for y in range(PET_SIZE)
+            for x in range(PET_SIZE)
+        ]
+        mask = []
+        for y in range(PET_SIZE):
+            for byte_x in range(0, PET_SIZE, 8):
+                value = 0
+                for bit in range(8):
+                    x = byte_x + bit
+                    if frame.getpixel((x, y))[3] >= 96:
+                        value |= 0x80 >> bit
+                mask.append(value)
+        symbol = "".join(part.title() for part in name.split("_"))
+        pixel_name = f"kQingyunPet{symbol}Pixels"
+        mask_name = f"kQingyunPet{symbol}Mask"
+        append_array(lines, "uint16_t", pixel_name, pixels)
+        append_array(lines, "uint8_t", mask_name, mask)
+        definitions.append((symbol, pixel_name, mask_name))
+    for symbol, pixels, mask in definitions:
+        lines.append(
+            f"const QingyunPetSprite kQingyunPet{symbol} = "
+            f"{{{pixels}, {mask}}};"
+        )
+    lines.append("")
+    PET_HEADER.write_text("\n".join(lines), encoding="utf-8")
+
+
 def main() -> None:
     convert_scene()
     convert_icons()
+    convert_pets()
 
 
 if __name__ == "__main__":
