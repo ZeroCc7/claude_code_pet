@@ -59,8 +59,6 @@ class GameState:
     boss_hp: int = 0
     boss_max_hp: int = 0
     energy_recovery_seconds: int = 0
-    recent_task_hashes: list[int] = field(default_factory=lambda: [0] * 16)
-    recent_task_index: int = 0
     items: list[int] = field(default_factory=lambda: [0] * 5)
     ai_task_records: list[AiTaskRecord | None] = field(
         default_factory=lambda: [None] * 10
@@ -222,30 +220,12 @@ class GameState:
         else:
             self.gain_experience(max(1, (minutes + 1) // 2))
 
-    @staticmethod
-    def task_hash(source: str, task_id: str) -> int:
-        value = 0x811C9DC5
-        for byte in f"{source}:{task_id}".encode("utf-8"):
-            value ^= byte
-            value = (value * 0x01000193) & 0xFFFFFFFF
-        return value or 1
-
-    def apply_ai_task(
-        self, source: str, task_id: str, duration_seconds: int, success: bool,
-        halved: bool = False,
-    ) -> bool:
-        if not success:
-            return False
-        digest = self.task_hash(source, task_id)
-        if digest in self.recent_task_hashes:
-            return False
+    def complete_ai_task(
+        self, source: str, duration_seconds: int, halved: bool = False
+    ) -> None:
         old_experience = self.experience
         old_coins = self.coins
         self.apply_task(duration_seconds, True, halved)
-        self.recent_task_hashes[self.recent_task_index] = digest
-        self.recent_task_index = (self.recent_task_index + 1) % len(
-            self.recent_task_hashes
-        )
         self.ai_task_records[self.ai_task_record_index] = AiTaskRecord(
             source=source,
             duration_seconds=duration_seconds,
@@ -258,7 +238,6 @@ class GameState:
         self.ai_task_record_count = min(
             len(self.ai_task_records), self.ai_task_record_count + 1
         )
-        return True
 
     def recent_ai_tasks(self) -> list[AiTaskRecord]:
         records = []

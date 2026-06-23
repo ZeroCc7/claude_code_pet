@@ -225,20 +225,18 @@ def test_task_rewards_respect_energy_cap():
     assert state.energy == 20
 
 
-def test_completed_ai_task_is_rewarded_only_once():
+def test_completed_ai_task_grants_rewards():
     state = GameState()
 
-    assert state.apply_ai_task("codex", "task-123", 300, True)
-    first_reward = (state.experience, state.coins, state.energy)
-    assert not state.apply_ai_task("codex", "task-123", 300, True)
+    state.complete_ai_task("codex", 300)
 
-    assert (state.experience, state.coins, state.energy) == first_reward
+    assert (state.experience, state.coins, state.energy) == (10, 35, 12)
 
 
 def test_completed_ai_task_records_source_duration_and_rewards():
     state = GameState()
 
-    assert state.apply_ai_task("codex", "record-1", 300, True)
+    state.complete_ai_task("codex", 300)
 
     records = state.recent_ai_tasks()
     assert len(records) == 1
@@ -248,23 +246,11 @@ def test_completed_ai_task_records_source_duration_and_rewards():
     assert records[0].coin_reward == 5
 
 
-def test_failed_or_duplicate_ai_task_is_not_recorded():
-    state = GameState()
-
-    assert not state.apply_ai_task("codex", "failed", 300, False)
-    assert state.apply_ai_task("codex", "duplicate", 300, True)
-    assert not state.apply_ai_task("codex", "duplicate", 300, True)
-
-    assert [record.source for record in state.recent_ai_tasks()] == ["codex"]
-
-
 def test_recent_ai_task_log_keeps_ten_newest_records():
     state = GameState()
 
     for index in range(11):
-        assert state.apply_ai_task(
-            "codex", f"log-{index}", (index + 1) * 60, True
-        )
+        state.complete_ai_task("codex", (index + 1) * 60)
 
     records = state.recent_ai_tasks()
     assert len(records) == 10
@@ -272,22 +258,17 @@ def test_recent_ai_task_log_keeps_ten_newest_records():
     assert records[-1].duration_seconds == 120
 
 
-def test_task_identity_includes_source():
+def test_task_records_preserve_source():
     state = GameState()
 
-    assert state.apply_ai_task("codex", "same-id", 60, True)
-    assert state.apply_ai_task("claude_code", "same-id", 60, True)
+    state.complete_ai_task("codex", 60)
+    state.complete_ai_task("codefree-o", 60)
 
     assert state.experience == 4
-
-
-def test_recent_task_ring_replaces_oldest_after_sixteen_entries():
-    state = GameState()
-    for index in range(17):
-        assert state.apply_ai_task("codex", f"task-{index}", 60, True)
-
-    assert state.apply_ai_task("codex", "task-0", 60, True)
-    assert not state.apply_ai_task("codex", "task-16", 60, True)
+    assert [record.source for record in state.recent_ai_tasks()] == [
+        "codefree-o",
+        "codex",
+    ]
 
 
 def test_halved_task_grants_half_experience_and_coins():
@@ -302,7 +283,7 @@ def test_halved_task_grants_half_experience_and_coins():
 def test_halved_ai_task_grants_half_rewards():
     state = GameState()
 
-    assert state.apply_ai_task("codex", "timeout-1", 600, True, halved=True)
+    state.complete_ai_task("codex", 600, halved=True)
 
     assert state.experience == 10
     assert state.coins == 35
