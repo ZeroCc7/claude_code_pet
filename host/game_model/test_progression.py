@@ -1,4 +1,12 @@
-from progression import GameState, ItemType, PetForm, crc32
+from progression import (
+    AdventurePhase,
+    AdventureTick,
+    GameState,
+    ItemType,
+    PetForm,
+    QingyunEvent,
+    crc32,
+)
 
 
 def test_new_game_has_safe_defaults():
@@ -60,6 +68,46 @@ def test_start_exploration_consumes_energy():
     assert state.start_exploration(0)
     assert state.energy == 2
     assert state.active_region == 0
+
+
+def test_qingyun_adventure_starts_for_three_energy_and_advances_one_step():
+    state = GameState(energy=5)
+
+    assert state.start_qingyun_adventure()
+    assert state.energy == 2
+    assert state.adventure_phase == AdventurePhase.ADVANCING
+
+    result = state.tick_qingyun_adventure(seed=0)
+
+    assert result == AdventureTick.ADVANCED
+    assert state.energy == 1
+    assert state.qingyun_progress == 2
+
+
+def test_qingyun_adventure_stops_at_zero_energy_and_keeps_progress():
+    state = GameState(energy=4, qingyun_progress=20)
+    assert state.start_qingyun_adventure()
+
+    assert state.tick_qingyun_adventure(seed=0) == AdventureTick.ENERGY_DEPLETED
+    assert state.energy == 0
+    assert state.qingyun_progress == 22
+    assert state.adventure_phase == AdventurePhase.IDLE
+
+
+def test_event_choice_phase_pauses_energy_consumption():
+    state = GameState(
+        energy=8,
+        qingyun_progress=24,
+        adventure_phase=AdventurePhase.CHOOSING,
+        current_event=QingyunEvent.SPIRIT_HERB,
+    )
+
+    assert (
+        state.tick_qingyun_adventure(seed=9)
+        == AdventureTick.WAITING_FOR_CHOICE
+    )
+    assert state.energy == 8
+    assert state.qingyun_progress == 24
 
 
 def test_failed_task_grants_reduced_experience():

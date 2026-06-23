@@ -22,6 +22,31 @@ class ItemType(IntEnum):
     QINGYUN_TOKEN = 4
 
 
+class AdventurePhase(IntEnum):
+    IDLE = 0
+    ADVANCING = 1
+    CHOOSING = 2
+    RESULT = 3
+    BOSS_READY = 4
+
+
+class AdventureTick(IntEnum):
+    INACTIVE = 0
+    ADVANCED = 1
+    EVENT_TRIGGERED = 2
+    WAITING_FOR_CHOICE = 3
+    ENERGY_DEPLETED = 4
+    BOSS_UNLOCKED = 5
+
+
+class QingyunEvent(IntEnum):
+    NONE = 0
+    SPIRIT_HERB = 1
+    DEMON_BEAST = 2
+    WOUNDED_CULTIVATOR = 3
+    SHORTCUT = 4
+
+
 @dataclass(frozen=True)
 class AiTaskRecord:
     source: str
@@ -65,6 +90,11 @@ class GameState:
     )
     ai_task_record_index: int = 0
     ai_task_record_count: int = 0
+    qingyun_progress: int = 0
+    adventure_phase: AdventurePhase = AdventurePhase.IDLE
+    current_event: QingyunEvent = QingyunEvent.NONE
+    qingyun_event_mask: int = 0
+    qingyun_boss_unlocked: bool = False
 
     def use_item(self, item: ItemType) -> bool:
         if self.items[item] == 0:
@@ -110,6 +140,44 @@ class GameState:
         self.energy -= 3
         self.active_region = region
         return True
+
+    def start_qingyun_adventure(self) -> bool:
+        if self.adventure_phase not in (
+            AdventurePhase.IDLE,
+            AdventurePhase.BOSS_READY,
+        ):
+            return False
+        if self.energy < 3:
+            return False
+        self.energy -= 3
+        self.adventure_phase = AdventurePhase.ADVANCING
+        self.current_event = QingyunEvent.NONE
+        return True
+
+    def stop_qingyun_adventure(self) -> None:
+        self.adventure_phase = (
+            AdventurePhase.BOSS_READY
+            if self.qingyun_boss_unlocked
+            else AdventurePhase.IDLE
+        )
+        self.current_event = QingyunEvent.NONE
+
+    def tick_qingyun_adventure(self, seed: int) -> AdventureTick:
+        del seed
+        if self.adventure_phase == AdventurePhase.CHOOSING:
+            return AdventureTick.WAITING_FOR_CHOICE
+        if self.adventure_phase != AdventurePhase.ADVANCING:
+            return AdventureTick.INACTIVE
+        self.energy -= 1
+        self.qingyun_progress = min(100, self.qingyun_progress + 2)
+        if self.qingyun_progress >= 100:
+            self.qingyun_boss_unlocked = True
+            self.adventure_phase = AdventurePhase.BOSS_READY
+            return AdventureTick.BOSS_UNLOCKED
+        if self.energy == 0:
+            self.stop_qingyun_adventure()
+            return AdventureTick.ENERGY_DEPLETED
+        return AdventureTick.ADVANCED
 
     def tick_exploration(self, seed: int) -> None:
         if self.active_region is None or self.energy == 0:
