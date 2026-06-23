@@ -64,10 +64,7 @@ if ($Target -in @("All", "Codex")) {
             -NotePropertyValue ([pscustomobject]@{})
     }
     $codexScript = Join-Path $installRoot "codex-hook.ps1"
-    foreach ($event in @(
-        "UserPromptSubmit", "PreToolUse", "PermissionRequest",
-        "PostToolUse", "Stop"
-    )) {
+    foreach ($event in @("UserPromptSubmit", "Stop")) {
         $command = "powershell -NoProfile -ExecutionPolicy Bypass -File " +
             "`"$codexScript`" -Event $event"
         Add-CodexHook $codexHooks.hooks $event $command
@@ -116,10 +113,7 @@ if ($Target -in @("All", "Claude") -and
             -NotePropertyValue ([pscustomobject]@{})
     }
     $claudeScript = Join-Path $installRoot "claude-hook.ps1"
-    foreach ($event in @(
-        "UserPromptSubmit", "PreToolUse", "PostToolUseFailure",
-        "PermissionRequest", "Notification", "Stop", "SessionEnd"
-    )) {
+    foreach ($event in @("UserPromptSubmit", "Stop")) {
         $command = "powershell -NoProfile -ExecutionPolicy Bypass -File " +
             "`"$claudeScript`" -Event $event"
         Add-ClaudeHook $settings.hooks $event $command

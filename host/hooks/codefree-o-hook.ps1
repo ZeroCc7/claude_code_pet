@@ -1,9 +1,6 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("submitted", "thinking", "tool", "editing",
-                 "waiting", "blocked", "idle", "complete")]
-    [string]$Event,
-    [string]$Session = "codefree-o-default"
+    [ValidateSet("start", "end")]
+    [string]$Event
 )
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -13,22 +10,8 @@ if (-not $pythonCommand) {
     $pythonCommand = (Get-Command python -ErrorAction SilentlyContinue).Source
     $pythonPrefix = @()
 }
-if (-not $pythonCommand) {
-    exit 0
-}
-$stateScript = Join-Path $root "hook_state.py"
-$sender = Join-Path $root "send-ai-pet-event.ps1"
-if ($Event -eq "submitted") {
-    $json = & $pythonCommand @pythonPrefix $stateScript begin --source codefree_o `
-        --session $Session
-} elseif ($Event -eq "complete") {
-    $json = & $pythonCommand @pythonPrefix $stateScript complete --source codefree_o `
-        --session $Session --result success
-} else {
-    $json = & $pythonCommand @pythonPrefix $stateScript status --source codefree_o `
-        --session $Session --state $Event
-}
-if ($json) {
-    & $sender -Payload $json | Out-Null
+if ($pythonCommand) {
+    & $pythonCommand @pythonPrefix (Join-Path $root "ai_pet_hook.py") `
+        $Event --source codefree-o | Out-Null
 }
 exit 0

@@ -51,22 +51,14 @@ except ImportError:
                     pass
             fd.close()
 
-from hook_state import HookState, SOURCES, STATES
+SOURCES = {"codex", "claude-code", "opencode", "codefree-o"}
+COMMANDS = ("start", "end")
 
 
-COMMANDS = tuple(sorted(STATES | {"complete", "failure", "cancelled"}))
-
-
-def build_payload(
-    state: HookState, command: str, source: str, session: str
-) -> dict:
-    if command == "submitted":
-        return state.begin(source, session)
-    if command == "complete":
-        return state.complete(source, session, "success")
-    if command in {"failure", "cancelled"}:
-        return state.complete(source, session, command)
-    return state.status(source, session, command)
+def build_payload(command: str, source: str) -> dict:
+    if command not in COMMANDS or source not in SOURCES:
+        raise ValueError("unsupported event")
+    return {"type": command, "source": source}
 
 
 def choose_port(
@@ -181,13 +173,7 @@ def main() -> int:
 
     parser.add_argument("command", nargs="?", choices=COMMANDS)
     parser.add_argument("--source", choices=sorted(SOURCES), default="codex")
-    parser.add_argument("--session", default="manual")
     parser.add_argument("--port")
-    parser.add_argument(
-        "--state-file",
-        type=Path,
-        default=install_root / "state.json",
-    )
     args = parser.parse_args()
 
     if args.subcommand == "send":
@@ -204,12 +190,7 @@ def main() -> int:
         )
         if not port:
             raise RuntimeError("没有找到 RP2040 串口，请使用 --port COM7")
-        payload = build_payload(
-            HookState(args.state_file),
-            args.command,
-            args.source,
-            args.session,
-        )
+        payload = build_payload(args.command, args.source)
         with _serial_lock(install_root / "serial.lock"):
             ack = send_payload(payload, port)
     except Exception as exc:
