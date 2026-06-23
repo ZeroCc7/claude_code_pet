@@ -63,7 +63,8 @@ void GameUi::handle(InputAction action, GameState& state) {
     } else if (action == InputAction::Back) {
       page_ = UiPage::Status;
     }
-  } else if (action == InputAction::Back && page_ != UiPage::Battle) {
+  } else if (action == InputAction::Back && page_ != UiPage::Battle &&
+             page_ != UiPage::Cultivation) {
     page_ = UiPage::Home;
   } else if (page_ == UiPage::Care) {
     if (action == InputAction::Up) {
@@ -158,11 +159,9 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (!display_) {
     return;
   }
-  if (page_ == UiPage::Cultivation &&
-      now - aiLastEventAt_ >= 600000) {
-    page_ = UiPage::Home;
-    aiResultActive_ = false;
-    dirty_ = true;
+  if (page_ == UiPage::Cultivation && !aiResultActive_ &&
+      aiLastEventAt_ != 0 && now - aiLastEventAt_ >= 1800000) {
+    // 30 分钟无新事件，由 game_app 检测并触发减半结算
   }
   if (page_ == UiPage::Cultivation && aiResultActive_ &&
       now - aiLastEventAt_ >= 2500) {
@@ -248,6 +247,17 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
 
 UiPage GameUi::page() const {
   return page_;
+}
+
+void GameUi::clearAiCultivation(uint32_t now) {
+  (void)now;
+  aiTaskId_[0] = '\0';
+  aiTaskStartedAt_ = 0;
+  aiLastEventAt_ = 0;
+  aiResultActive_ = false;
+  aiState_ = AiWorkState::Idle;
+  page_ = UiPage::Home;
+  dirty_ = true;
 }
 
 void GameUi::notify(const char* message) {
@@ -540,7 +550,7 @@ void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
                static_cast<unsigned long>(elapsedSeconds / 60),
                static_cast<unsigned long>(elapsedSeconds % 60));
   }
-  drawFooterHints("AI修炼联动", "K4返回");
+  drawFooterHints("AI修炼联动", "修炼中");
 }
 
 void GameUi::drawTitlePlaque(const char* title, uint16_t accent) {

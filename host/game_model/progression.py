@@ -199,11 +199,17 @@ class GameState:
             steady = self.tendencies[2] + self.tendencies[3]
             self.form = PetForm.ROOKIE_A if agile >= steady else PetForm.ROOKIE_B
 
-    def apply_task(self, duration_seconds: int, success: bool) -> None:
+    def apply_task(self, duration_seconds: int, success: bool,
+                   halved: bool = False) -> None:
         minutes = max(1, min(60, duration_seconds // 60))
         if success:
-            self.gain_experience(minutes * 2)
-            self.coins += minutes
+            exp_gain = minutes * 2
+            coin_gain = minutes
+            if halved:
+                exp_gain = max(1, exp_gain // 2)
+                coin_gain = max(1, coin_gain // 2)
+            self.gain_experience(exp_gain)
+            self.coins += coin_gain
             self.energy = min(20, self.energy + max(1, minutes // 2))
         else:
             self.gain_experience(max(1, (minutes + 1) // 2))
@@ -217,14 +223,15 @@ class GameState:
         return value or 1
 
     def apply_ai_task(
-        self, source: str, task_id: str, duration_seconds: int, success: bool
+        self, source: str, task_id: str, duration_seconds: int, success: bool,
+        halved: bool = False,
     ) -> bool:
         if not success:
             return False
         digest = self.task_hash(source, task_id)
         if digest in self.recent_task_hashes:
             return False
-        self.apply_task(duration_seconds, True)
+        self.apply_task(duration_seconds, True, halved)
         self.recent_task_hashes[self.recent_task_index] = digest
         self.recent_task_index = (self.recent_task_index + 1) % len(
             self.recent_task_hashes

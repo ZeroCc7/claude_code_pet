@@ -19,10 +19,10 @@ class GameState {
   bool startBoss(uint8_t region);
   bool battleAction(uint8_t action);
   void gainExperience(uint16_t amount);
-  void applyTask(uint32_t durationSeconds, bool success);
+  void applyTask(uint32_t durationSeconds, bool success, bool halved = false);
   bool hasProcessedTask(const char* source, const char* taskId) const;
   bool applyAiTask(const char* source, const char* taskId,
-                   uint32_t durationSeconds, bool success);
+                   uint32_t durationSeconds, bool success, bool halved = false);
   bool tickRuntime(uint32_t seconds);
   MeditationResult meditate();
 

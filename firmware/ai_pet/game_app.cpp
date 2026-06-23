@@ -64,6 +64,25 @@ void GameApp::update(uint32_t now) {
     }
   }
 
+  if (ui_.page() == UiPage::Cultivation && !ui_.aiResultActive() &&
+      ui_.aiTaskId()[0] != '\0' && ui_.aiLastEventAt() != 0 &&
+      now - ui_.aiLastEventAt() >= 1800000) {
+    const uint32_t rawDuration = (now - ui_.aiTaskStartedAt()) / 1000;
+    const uint32_t duration = rawDuration < 60 ? 60 :
+                              (rawDuration > 3600 ? 3600 : rawDuration);
+    const uint16_t oldExperience = state_.data().experience;
+    const uint16_t oldCoins = state_.data().coins;
+    const PetForm oldForm = state_.data().form;
+    state_.applyAiTask(ui_.aiSource(), ui_.aiTaskId(), duration, true, true);
+    const uint16_t experienceGain =
+        state_.data().experience - oldExperience;
+    const uint16_t coinGain = state_.data().coins - oldCoins;
+    const bool evolved = state_.data().form != oldForm;
+    ui_.showAiResult(ui_.aiSource(), true, experienceGain, coinGain,
+                     evolved, now);
+    requestSave();
+  }
+
   if (savePending_ && now - lastSaveAt_ >= kSaveDelayMs) {
     if (saves_.save(state_)) {
       savePending_ = false;

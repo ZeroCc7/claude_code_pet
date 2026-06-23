@@ -164,12 +164,19 @@ void GameState::gainExperience(uint16_t amount) {
   updateEvolution();
 }
 
-void GameState::applyTask(uint32_t durationSeconds, bool success) {
+void GameState::applyTask(uint32_t durationSeconds, bool success,
+                         bool halved) {
   const uint16_t minutes =
       constrain(static_cast<uint16_t>(durationSeconds / 60), 1, 60);
   if (success) {
-    gainExperience(minutes * 2);
-    data_.coins += minutes;
+    uint16_t expGain = minutes * 2;
+    uint16_t coinGain = minutes;
+    if (halved) {
+      expGain = max<uint16_t>(1, expGain / 2);
+      coinGain = max<uint16_t>(1, coinGain / 2);
+    }
+    gainExperience(expGain);
+    data_.coins += coinGain;
     data_.energy =
         min<uint16_t>(kMaxEnergy,
                       data_.energy + max<uint16_t>(1, minutes / 2));
@@ -202,11 +209,12 @@ bool GameState::hasProcessedTask(const char* source,
 }
 
 bool GameState::applyAiTask(const char* source, const char* taskId,
-                            uint32_t durationSeconds, bool success) {
+                            uint32_t durationSeconds, bool success,
+                            bool halved) {
   if (!success || hasProcessedTask(source, taskId)) {
     return false;
   }
-  applyTask(durationSeconds, true);
+  applyTask(durationSeconds, true, halved);
   data_.recentTaskHashes[data_.recentTaskIndex] = taskHash(source, taskId);
   data_.recentTaskIndex =
       (data_.recentTaskIndex + 1) %

@@ -115,18 +115,8 @@ def test_ai_pet_effects_start_when_cultivation_result_returns_home():
         "void GameUi::setPreviewForm",
     )
 
-    assert "if (aiResultSuccess_)" in delayed_return_source
-    assert "startPetEffect(" in delayed_return_source
-    effect_call_start = delayed_return_source.index("startPetEffect(")
-    effect_call_end = delayed_return_source.index(");", effect_call_start)
-    effect_call = delayed_return_source[effect_call_start:effect_call_end]
-    assert "aiEvolved_" in effect_call
-    assert "PetEffect::Evolution" in effect_call
-    assert "PetEffect::AiComplete" in effect_call
-    assert "now" in effect_call
-    assert delayed_return_source.index("startPetEffect(") < delayed_return_source.index(
-        "aiResultActive_ = false;"
-    )
+    assert "aiResultActive_ = false;" in delayed_return_source
+    assert "startPetEffect(" not in delayed_return_source
     assert "aiResultActive_ = true;" in evolution_source
     assert "aiLastEventAt_ = now;" in evolution_source
     assert "page_ = UiPage::Cultivation;" in evolution_source
@@ -273,7 +263,7 @@ def test_cultivation_page_supports_all_hook_states_and_timeout():
         "AiWorkState::Idle",
     ):
         assert state in UI_SOURCE
-    assert "600000" in UI_SOURCE
+    assert "1800000" in UI_SOURCE
 
 
 def test_ai_result_can_show_rewards_and_evolution():

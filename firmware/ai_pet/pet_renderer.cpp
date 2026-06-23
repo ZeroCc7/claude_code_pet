@@ -64,7 +64,7 @@ void PetRenderer::drawEffect(Adafruit_GFX& tft, PetForm form, int16_t x,
       return;
   }
   const PetEffectFrame& frame =
-      frames[(effectElapsed / 100) % kPetEffectFrameCount];
+      frames[(effectElapsed / 200) % kPetEffectFrameCount];
   tft.drawRGBBitmap(x, y, frame.pixels, frame.mask, kPetEffectWidth,
                     kPetEffectHeight);
 }

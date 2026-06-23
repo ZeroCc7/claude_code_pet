@@ -257,3 +257,30 @@ def test_recent_task_ring_replaces_oldest_after_sixteen_entries():
 
     assert state.apply_ai_task("codex", "task-0", 60, True)
     assert not state.apply_ai_task("codex", "task-16", 60, True)
+
+
+def test_halved_task_grants_half_experience_and_coins():
+    state = GameState()
+
+    state.apply_task(duration_seconds=600, success=True, halved=True)
+
+    assert state.experience == 10
+    assert state.coins == 35
+
+
+def test_halved_ai_task_grants_half_rewards():
+    state = GameState()
+
+    assert state.apply_ai_task("codex", "timeout-1", 600, True, halved=True)
+
+    assert state.experience == 10
+    assert state.coins == 35
+
+
+def test_halved_task_minimum_reward_is_one():
+    state = GameState()
+
+    state.apply_task(duration_seconds=60, success=True, halved=True)
+
+    assert state.experience == 1
+    assert state.coins == 31

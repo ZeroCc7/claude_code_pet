@@ -26,6 +26,12 @@ class GameUi {
   bool previewEnabled() const;
   PetForm previewForm() const;
   UiPage page() const;
+  bool aiResultActive() const { return aiResultActive_; }
+  const char* aiSource() const { return aiSource_; }
+  const char* aiTaskId() const { return aiTaskId_; }
+  uint32_t aiTaskStartedAt() const { return aiTaskStartedAt_; }
+  uint32_t aiLastEventAt() const { return aiLastEventAt_; }
+  void clearAiCultivation(uint32_t now);
 
  private:
   enum class Feedback : uint8_t {
