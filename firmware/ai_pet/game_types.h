@@ -14,17 +14,12 @@ enum class PetForm : uint8_t {
 
 enum class UiPage : uint8_t {
   Home,
-  Care,
+  MeritLog,
+  Inventory,
   Adventure,
   Battle,
   Status,
   Cultivation,
-};
-
-enum class MeditationResult : uint8_t {
-  Restored,
-  Full,
-  Exhausted,
 };
 
 enum class ItemType : uint8_t {
@@ -69,8 +64,6 @@ struct PetSaveData {
   uint8_t inBattle;
   uint32_t playSeconds;
   uint16_t energyRecoverySeconds;
-  uint32_t meditationCycleSeconds;
-  uint8_t meditationsUsed;
   uint32_t recentTaskHashes[16];
   uint8_t recentTaskIndex;
   InventoryData inventory;

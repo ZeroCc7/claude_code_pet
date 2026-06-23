@@ -74,7 +74,7 @@ def test_firmware_inventory_rules_match_python_recovery_items():
     use_item_source = source_between(
         GAME_STATE_SOURCE,
         "bool GameState::useItem",
-        "void GameState::interact",
+        "bool GameState::startExploration",
     )
     assert "data_.energy + 3" in use_item_source
     assert "data_.stamina + 20" in use_item_source
@@ -223,9 +223,10 @@ def test_operation_pages_use_shared_ancient_ui_components():
 
 def test_operation_pages_include_required_cultivation_information():
     for label in (
-        "洞府培养",
-        "体力 +20",
-        "心境 +5",
+        "功德簿",
+        "乾坤袋",
+        "灵草",
+        "回春丹",
         "秘境历练",
         "首领可战",
         "已镇守",
@@ -280,16 +281,45 @@ def test_home_hud_uses_reference_art_icons_and_gold_panels():
         assert icon in UI_SOURCE
 
 
-def test_home_button_row_uses_four_generated_art_icons():
+def test_home_navigation_opens_merit_log_inventory_adventure_and_status():
+    home_source = source_between(
+        UI_SOURCE,
+        "if (page_ == UiPage::Home)",
+        "} else if (page_ == UiPage::MeritLog)",
+    )
+    assert "page_ = UiPage::MeritLog;" in home_source
+    assert "page_ = UiPage::Inventory;" in home_source
+    assert "page_ = UiPage::Adventure;" in home_source
+    assert "page_ = UiPage::Status;" in home_source
+    assert "state.interact()" not in home_source
+    assert "UiPage::Care" not in UI_SOURCE
+    assert "drawCare(" not in UI_SOURCE
+
+
+def test_removed_care_actions_are_not_part_of_v1_1_state():
+    assert "MeditationResult" not in GAME_TYPES
+    assert "meditationCycleSeconds" not in GAME_TYPES
+    assert "meditationsUsed" not in GAME_TYPES
+    assert "void interact();" not in GAME_STATE_HEADER
+    assert "bool feed();" not in GAME_STATE_HEADER
+    assert "MeditationResult meditate();" not in GAME_STATE_HEADER
+
+
+def test_home_button_row_uses_new_text_entries_and_existing_navigation_icons():
     assert '#include "assets/home_button_icons.h"' in UI_SOURCE
     assert "drawButtonIcon(" in UI_SOURCE
-    for icon in (
-        "kHomeButtonInteract",
-        "kHomeButtonCare",
-        "kHomeButtonAdventure",
-        "kHomeButtonStatus",
-    ):
+    assert 'text().draw(10, 153, "簿");' in UI_SOURCE
+    assert 'text().draw(42, 153, "囊");' in UI_SOURCE
+    for icon in ("kHomeButtonAdventure", "kHomeButtonStatus"):
         assert icon in UI_SOURCE
+
+
+def test_inventory_and_merit_log_pages_have_expected_controls():
+    assert "void GameUi::drawInventory" in UI_SOURCE
+    assert "void GameUi::drawMeritLog" in UI_SOURCE
+    assert "state.useItem(" in UI_SOURCE
+    assert "meritPage_" in UI_HEADER
+    assert "每页二则" in UI_SOURCE
 
 
 def test_ai_work_uses_a_dedicated_cultivation_page():

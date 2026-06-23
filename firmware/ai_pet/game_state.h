@@ -12,8 +12,6 @@ class GameState {
   PetSaveData& mutableData();
 
   bool useItem(ItemType item);
-  void interact();
-  bool feed();
   bool startExploration(uint8_t region);
   bool regionUnlocked(uint8_t region) const;
   bool tickExploration(uint32_t seed);
@@ -25,7 +23,6 @@ class GameState {
   bool applyAiTask(const char* source, const char* taskId,
                    uint32_t durationSeconds, bool success, bool halved = false);
   bool tickRuntime(uint32_t seconds);
-  MeditationResult meditate();
 
  private:
   void updateEvolution();

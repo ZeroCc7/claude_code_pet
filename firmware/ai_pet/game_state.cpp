@@ -9,8 +9,6 @@ constexpr uint16_t kSaveVersion = 5;
 constexpr uint8_t kNoActiveRegion = 0xFF;
 constexpr uint16_t kMaxEnergy = 20;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
-constexpr uint32_t kMeditationCycleSeconds = 86400;
-constexpr uint8_t kMeditationsPerCycle = 3;
 
 }  // namespace
 
@@ -67,21 +65,6 @@ bool GameState::useItem(ItemType item) {
     return false;
   }
   quantity--;
-  return true;
-}
-
-void GameState::interact() {
-  data_.mood = clampPercent(data_.mood + 5);
-  data_.tendencies[3]++;
-}
-
-bool GameState::feed() {
-  if (data_.coins < 10 || data_.stamina >= 100) {
-    return false;
-  }
-  data_.coins -= 10;
-  data_.stamina = clampPercent(data_.stamina + 20);
-  data_.tendencies[3]++;
   return true;
 }
 
@@ -263,15 +246,6 @@ bool GameState::applyAiTask(const char* source, const char* taskId,
 
 bool GameState::tickRuntime(uint32_t seconds) {
   bool changed = false;
-  data_.meditationCycleSeconds += seconds;
-  while (data_.meditationCycleSeconds >= kMeditationCycleSeconds) {
-    data_.meditationCycleSeconds -= kMeditationCycleSeconds;
-    if (data_.meditationsUsed != 0) {
-      data_.meditationsUsed = 0;
-      changed = true;
-    }
-  }
-
   if (data_.energy >= kMaxEnergy) {
     data_.energyRecoverySeconds = 0;
     return changed;
@@ -288,19 +262,6 @@ bool GameState::tickRuntime(uint32_t seconds) {
     data_.energyRecoverySeconds = 0;
   }
   return changed;
-}
-
-MeditationResult GameState::meditate() {
-  if (data_.energy >= kMaxEnergy) {
-    return MeditationResult::Full;
-  }
-  if (data_.meditationsUsed >= kMeditationsPerCycle) {
-    return MeditationResult::Exhausted;
-  }
-  data_.energy = min<uint16_t>(kMaxEnergy, data_.energy + 3);
-  data_.meditationsUsed++;
-  data_.tendencies[1]++;
-  return MeditationResult::Restored;
 }
 
 void GameState::updateEvolution() {

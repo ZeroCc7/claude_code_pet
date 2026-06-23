@@ -52,12 +52,10 @@ void GameUi::handle(InputAction action, GameState& state) {
 
   if (page_ == UiPage::Home) {
     if (action == InputAction::Confirm) {
-      const uint8_t oldMood = state.data().mood;
-      state.interact();
-      startFeedback(state.data().mood > oldMood ? Feedback::MoodUp
-                                                : Feedback::AlreadyFull);
+      page_ = UiPage::MeritLog;
     } else if (action == InputAction::Up) {
-      page_ = UiPage::Care;
+      page_ = UiPage::Inventory;
+      selection_ = 0;
     } else if (action == InputAction::Down) {
       page_ = UiPage::Adventure;
     } else if (action == InputAction::Back) {
@@ -66,38 +64,25 @@ void GameUi::handle(InputAction action, GameState& state) {
   } else if (action == InputAction::Back && page_ != UiPage::Battle &&
              page_ != UiPage::Cultivation) {
     page_ = UiPage::Home;
-  } else if (page_ == UiPage::Care) {
+  } else if (page_ == UiPage::MeritLog) {
     if (action == InputAction::Up) {
-      selection_ = selection_ == 0 ? 2 : selection_ - 1;
+      meritPage_ = meritPage_ == 0 ? 4 : meritPage_ - 1;
     } else if (action == InputAction::Down) {
-      selection_ = (selection_ + 1) % 3;
+      meritPage_ = (meritPage_ + 1) % 5;
+    }
+  } else if (page_ == UiPage::Inventory) {
+    if (action == InputAction::Up) {
+      selection_ = selection_ == 0 ? 4 : selection_ - 1;
+    } else if (action == InputAction::Down) {
+      selection_ = (selection_ + 1) % 5;
     } else if (action == InputAction::Confirm) {
-      if (selection_ == 0) {
-        const uint16_t oldCoins = state.data().coins;
-        const uint8_t oldStamina = state.data().stamina;
-        if (state.feed()) {
-          startNotice("体力恢复");
-        } else if (oldCoins < 10) {
-          startNotice("灵石不足");
-        } else if (oldStamina >= 100) {
-          startNotice("当前已满");
-        }
-      } else if (selection_ == 1) {
-        const uint8_t oldMood = state.data().mood;
-        state.interact();
-        startNotice(state.data().mood > oldMood ? "心境提升" : "当前已满");
+      const ItemType item = static_cast<ItemType>(selection_);
+      if (state.useItem(item)) {
+        startNotice(selection_ == 0 ? "灵力恢复" : "体力恢复");
+      } else if (selection_ >= 2) {
+        startNotice(selection_ == 4 ? "自动生效" : "战前使用");
       } else {
-        switch (state.meditate()) {
-          case MeditationResult::Restored:
-            startNotice("灵力恢复");
-            break;
-          case MeditationResult::Full:
-            startNotice("灵力已满");
-            break;
-          case MeditationResult::Exhausted:
-            startNotice("今日已尽");
-            break;
-        }
+        startNotice("无法使用");
       }
     }
   } else if (page_ == UiPage::Adventure) {
@@ -445,8 +430,11 @@ void GameUi::drawMenuFrame(const PetSaveData& data) {
   }
   drawHeader(data);
   switch (page_) {
-    case UiPage::Care:
-      drawCare(data);
+    case UiPage::MeritLog:
+      drawMeritLog(data);
+      break;
+    case UiPage::Inventory:
+      drawInventory(data);
       break;
     case UiPage::Adventure:
       drawAdventure(data);
@@ -512,7 +500,6 @@ void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
   const PetForm form = displayForm(data.form);
   const bool finalForm = form >= PetForm::FinalA1;
   const uint8_t spriteW = finalForm ? kFinalPetSpriteWidth : kPetSpriteWidth;
-  const uint8_t spriteH = finalForm ? kFinalPetSpriteHeight : kPetSpriteHeight;
   const int16_t petX = (128 - spriteW) / 2;
   const int16_t petY = finalForm ? 32 : 42;
   const uint32_t effectElapsed =
@@ -707,8 +694,9 @@ void GameUi::drawHomeVitals(const PetSaveData& data) {
   tft.drawFastVLine(64, 133, 24, 0x4A85);
   tft.drawFastVLine(96, 133, 24, 0x4A85);
 
-  drawButtonIcon(9, 138, kHomeButtonInteract);
-  drawButtonIcon(41, 138, kHomeButtonCare);
+  text().color(kBrightGold);
+  text().draw(10, 153, "簿");
+  text().draw(42, 153, "囊");
   drawButtonIcon(73, 138, kHomeButtonAdventure);
   drawButtonIcon(105, 138, kHomeButtonStatus);
 }
@@ -771,41 +759,65 @@ void GameUi::restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
   }
 }
 
-void GameUi::drawCare(const PetSaveData& data) {
+void GameUi::drawMeritLog(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
-  drawTitlePlaque("洞府培养", kBrightGold);
-
-  drawPanel(8, 46, 112, 27, selection_ == 0);
-  text().color(selection_ == 0 ? kBrightGold : kWarmWhite);
-  text().draw(17, 59, "喂食");
+  drawTitlePlaque("功德簿", kBrightGold);
+  const char* sources[] = {"Codex", "Claude", "OpenCode", "CodeFree"};
+  const uint8_t firstOffset = meritPage_ * 2;
+  for (uint8_t row = 0; row < 2; ++row) {
+    const uint8_t offset = firstOffset + row;
+    const int16_t y = 48 + row * 43;
+    drawPanel(7, y, 114, 38, false);
+    if (offset >= data.aiTaskRecordCount) {
+      text().color(0x632C);
+      text().draw(14, y + 22, "尚无记载");
+      continue;
+    }
+    const uint8_t index =
+        (data.aiTaskRecordIndex + 10 - 1 - offset) % 10;
+    const AiTaskRecord& record = data.aiTaskRecords[index];
+    tft.setTextColor(kBrightGold);
+    tft.setTextSize(1);
+    tft.setCursor(13, y + 7);
+    tft.print(sources[min<uint8_t>(record.source, 3)]);
+    tft.setTextColor(kWarmWhite);
+    tft.setCursor(13, y + 20);
+    tft.printf("%um%us", record.durationSeconds / 60,
+               record.durationSeconds % 60);
+    tft.setCursor(69, y + 20);
+    tft.printf("+%uXP", record.experienceReward);
+    tft.setCursor(69, y + 30);
+    tft.printf("+%u", record.coinReward);
+  }
   text().color(kMutedCyan);
-  text().draw(67, 59, "十灵石");
-  text().color(kWarmWhite);
-  text().draw(17, 70, "体力 +20");
-
-  drawPanel(8, 76, 112, 27, selection_ == 1);
-  text().color(selection_ == 1 ? kBrightGold : kWarmWhite);
-  text().draw(17, 89, "互动");
-  text().color(kWarmWhite);
-  text().draw(67, 89, "心境 +5");
-
-  drawPanel(8, 106, 112, 32, selection_ == 2);
-  text().color(selection_ == 2 ? kBrightGold : kWarmWhite);
-  text().draw(17, 120, "打坐");
-  text().color(kMutedCyan);
-  text().draw(67, 120, "灵力 +3");
-  text().color(kWarmWhite);
-  text().draw(17, 134, "当前");
+  text().draw(8, 140, "每页二则");
   tft.setTextColor(kWarmWhite);
-  tft.setTextSize(1);
-  tft.setCursor(48, 127);
-  tft.print(data.energy);
-  text().color(kMutedCyan);
-  text().draw(67, 134, "余");
-  tft.setCursor(87, 127);
-  tft.print(data.meditationsUsed >= 3 ? 0 : 3 - data.meditationsUsed);
-  text().draw(99, 134, "次");
-  drawFooterHints("K1确认", "K4返回");
+  tft.setCursor(96, 133);
+  tft.printf("%u/5", meritPage_ + 1);
+  drawFooterHints("K2K3翻页", "K4返回");
+}
+
+void GameUi::drawInventory(const PetSaveData& data) {
+  Adafruit_GFX& tft = target();
+  drawTitlePlaque("乾坤袋", kBrightGold);
+  const char* names[] = {"灵草", "回春丹", "攻击符", "护身符",
+                         "青云信物"};
+  for (uint8_t i = 0; i < 5; ++i) {
+    const int16_t y = 45 + i * 19;
+    drawPanel(8, y, 112, 17, selection_ == i);
+    text().color(selection_ == i ? kBrightGold : kWarmWhite);
+    text().draw(15, y + 13, names[i]);
+    tft.setTextColor(kMutedCyan);
+    tft.setTextSize(1);
+    tft.setCursor(91, y + 5);
+    const uint16_t quantity = data.inventory.items[i];
+    if (quantity > 999) {
+      tft.print("999+");
+    } else {
+      tft.print(quantity);
+    }
+  }
+  drawFooterHints("K1使用", "K4返回");
 }
 
 void GameUi::drawAdventure(const PetSaveData& data) {

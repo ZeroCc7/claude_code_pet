@@ -12,6 +12,15 @@ def test_new_game_has_safe_defaults():
     assert state.items == [0, 0, 0, 0, 0]
 
 
+def test_v1_1_state_has_no_care_actions():
+    state = GameState()
+
+    assert not hasattr(state, "interact")
+    assert not hasattr(state, "feed")
+    assert not hasattr(state, "meditate")
+    assert not hasattr(state, "meditations_used")
+
+
 def test_spirit_herb_restores_three_energy_and_consumes_one():
     state = GameState(energy=16, items=[1, 0, 0, 0, 0])
 
@@ -43,30 +52,6 @@ def test_recovery_item_fails_without_stock():
 
     assert not state.use_item(ItemType.SPIRIT_HERB)
     assert not state.use_item(ItemType.RECOVERY_PILL)
-
-
-def test_interaction_improves_mood_without_exceeding_100():
-    state = GameState(mood=98)
-
-    state.interact()
-
-    assert state.mood == 100
-
-
-def test_feed_spends_coins_and_restores_stamina():
-    state = GameState(coins=20, stamina=70)
-
-    assert state.feed()
-    assert state.coins == 10
-    assert state.stamina == 90
-
-
-def test_feed_fails_without_enough_coins():
-    state = GameState(coins=9, stamina=50)
-
-    assert not state.feed()
-    assert state.coins == 9
-    assert state.stamina == 50
 
 
 def test_start_exploration_consumes_energy():
@@ -230,31 +215,6 @@ def test_passive_recovery_never_exceeds_twenty_or_banks_ticks():
     assert not state.tick_runtime(299)
     assert state.tick_runtime(1)
     assert state.energy == 20
-
-
-def test_meditation_restores_energy_and_consumes_one_use():
-    state = GameState(energy=12)
-
-    assert state.meditate() == "restored"
-    assert state.energy == 15
-    assert state.meditations_used == 1
-
-
-def test_full_energy_meditation_does_not_consume_use():
-    state = GameState(energy=20)
-
-    assert state.meditate() == "full"
-    assert state.meditations_used == 0
-
-
-def test_fourth_meditation_fails_until_runtime_cycle_resets():
-    state = GameState(energy=5, meditations_used=3)
-
-    assert state.meditate() == "exhausted"
-    state.tick_runtime(86400)
-    assert state.meditations_used == 0
-    state.energy = 10
-    assert state.meditate() == "restored"
 
 
 def test_task_rewards_respect_energy_cap():

@@ -68,7 +68,8 @@ class GameUi {
                          uint16_t maximum = 0);
   void restoreBackgroundRect(int16_t x, int16_t y, int16_t width,
                              int16_t height);
-  void drawCare(const PetSaveData& data);
+  void drawMeritLog(const PetSaveData& data);
+  void drawInventory(const PetSaveData& data);
   void drawAdventure(const PetSaveData& data);
   void drawBattle(const PetSaveData& data);
   void drawStatus(const PetSaveData& data);
@@ -91,6 +92,7 @@ class GameUi {
   ChineseText* renderText_ = nullptr;
   UiPage page_ = UiPage::Home;
   uint8_t selection_ = 0;
+  uint8_t meritPage_ = 0;
   bool dirty_ = true;
   uint32_t lastAnimationAt_ = 0;
   Feedback feedback_ = Feedback::None;

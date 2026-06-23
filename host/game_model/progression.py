@@ -59,8 +59,6 @@ class GameState:
     boss_hp: int = 0
     boss_max_hp: int = 0
     energy_recovery_seconds: int = 0
-    meditation_cycle_seconds: int = 0
-    meditations_used: int = 0
     recent_task_hashes: list[int] = field(default_factory=lambda: [0] * 16)
     recent_task_index: int = 0
     items: list[int] = field(default_factory=lambda: [0] * 5)
@@ -86,27 +84,8 @@ class GameState:
         self.items[item] -= 1
         return True
 
-    def interact(self) -> None:
-        self.mood = min(100, self.mood + 5)
-        self.tendencies[3] += 1
-
-    def feed(self) -> bool:
-        if self.coins < 10 or self.stamina >= 100:
-            return False
-        self.coins -= 10
-        self.stamina = min(100, self.stamina + 20)
-        self.tendencies[3] += 1
-        return True
-
     def tick_runtime(self, seconds: int) -> bool:
         changed = False
-        self.meditation_cycle_seconds += seconds
-        while self.meditation_cycle_seconds >= 86400:
-            self.meditation_cycle_seconds -= 86400
-            if self.meditations_used:
-                self.meditations_used = 0
-                changed = True
-
         if self.energy >= 20:
             self.energy_recovery_seconds = 0
             return changed
@@ -119,15 +98,6 @@ class GameState:
         if self.energy >= 20:
             self.energy_recovery_seconds = 0
         return changed
-
-    def meditate(self) -> str:
-        if self.energy >= 20:
-            return "full"
-        if self.meditations_used >= 3:
-            return "exhausted"
-        self.energy = min(20, self.energy + 3)
-        self.meditations_used += 1
-        return "restored"
 
     def region_unlocked(self, region: int) -> bool:
         return region == 0 or bool(self.boss_defeated_mask & (1 << (region - 1)))
