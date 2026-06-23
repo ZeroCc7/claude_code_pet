@@ -102,7 +102,17 @@ def test_codex_only_installer_preserves_notify_and_is_idempotent():
                                     }
                                 ]
                             }
-                        ]
+                        ],
+                        "PreToolUse": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "powershell .ai-pet-hooks old",
+                                    }
+                                ]
+                            }
+                        ],
                     }
                 }
             ),
@@ -142,3 +152,8 @@ def test_codex_only_installer_preserves_notify_and_is_idempotent():
             assert len(pet_entries) == 1
             handler = pet_entries[0]["hooks"][0]
             assert handler["commandWindows"] == handler["command"]
+        for event in ("PreToolUse", "PermissionRequest", "PostToolUse"):
+            assert event not in installed["hooks"] or not any(
+                ".ai-pet-hooks" in json.dumps(entry)
+                for entry in installed["hooks"][event]
+            )

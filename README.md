@@ -276,18 +276,13 @@ RAM:    10468 bytes / 262144 bytes（3%）
 
 Hook 会把 AI 工作过程映射为修仙状态：
 
-| Hook 状态 | 屏幕文案 |
+| Hook 事件 | 设备行为 |
 |---|---|
-| `submitted` | 接引任务 |
-| `thinking` | 推演中 |
-| `tool` | 施法中 |
-| `editing` | 炼器中 |
-| `waiting` | 等待指令 |
-| `blocked` | 修炼受阻 |
-| `complete` | 修炼完成并结算 |
-| `idle` | 返回首页 |
+| `start` | 进入修炼页并由设备开始计时 |
+| `end` | 同来源任务成功结算并返回首页 |
 
-只有成功完成事件会结算奖励。失败、取消、中间状态都不会增加经验。
+设备一次只跟踪一个任务。运行中收到新的 `start`，或收到其他来源的
+`end`，都会忽略。30 分钟未收到结束事件时自动减半结算。
 
 ### 安装 Hook
 
@@ -312,31 +307,18 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 ```powershell
 cd $env:USERPROFILE\.ai-pet-hooks
 
-py -3 .\ai_pet_hook.py submitted
-py -3 .\ai_pet_hook.py thinking
-py -3 .\ai_pet_hook.py tool
-py -3 .\ai_pet_hook.py editing
-py -3 .\ai_pet_hook.py waiting
-py -3 .\ai_pet_hook.py blocked
-py -3 .\ai_pet_hook.py complete
-py -3 .\ai_pet_hook.py idle
+py -3 .\ai_pet_hook.py start --source codex
+py -3 .\ai_pet_hook.py end --source codex
 ```
 
-指定来源、会话和串口：
+指定来源和串口：
 
 ```powershell
-py -3 .\ai_pet_hook.py thinking `
-  --source claude_code --session demo-1 --port COM7
+py -3 .\ai_pet_hook.py start --source codefree-o --port COM7
+py -3 .\ai_pet_hook.py end --source codefree-o --port COM7
 ```
 
-失败和取消：
-
-```powershell
-py -3 .\ai_pet_hook.py failure
-py -3 .\ai_pet_hook.py cancelled
-```
-
-注意：`complete` 会真实修改设备存档并发放奖励。测试时建议使用独立的 `--session` 名称。
+注意：`end` 会真实修改设备存档并发放奖励。
 
 完整说明见 [AI Hook 使用指南](docs/ai-hooks-guide.md)。
 
@@ -385,16 +367,15 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 ```powershell
 cd $env:USERPROFILE\.ai-pet-hooks
-py -3 .\ai_pet_hook.py submitted --session smoke-test
-py -3 .\ai_pet_hook.py editing --session smoke-test
-py -3 .\ai_pet_hook.py complete --session smoke-test
+py -3 .\ai_pet_hook.py start --source codex
+py -3 .\ai_pet_hook.py end --source codex
 ```
 
 预期：
 
 - 屏幕依次显示“接引任务”“炼器中”“修炼完成”。
 - 每条命令返回 JSON ACK。
-- `complete` 至少增加 2 经验和 1 灵石。
+- `end` 至少增加 2 经验和 1 灵石。
 
 再次使用相同任务 ID 发送完成事件时，设备应返回 `duplicate`，且不重复奖励。
 

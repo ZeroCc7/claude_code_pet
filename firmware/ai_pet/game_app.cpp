@@ -65,7 +65,7 @@ void GameApp::update(uint32_t now) {
   }
 
   if (aiTaskActive_ && now - aiTaskStartedAt_ >= 1800000) {
-    completeAiTask(now, true);
+    completeAiTask(now, true, false);
   }
 
   if (savePending_ && now - lastSaveAt_ >= kSaveDelayMs) {
@@ -173,10 +173,10 @@ void GameApp::processAiEvent(const AiEvent& event, uint32_t now) {
     printAck("ignored");
     return;
   }
-  completeAiTask(now, false);
+  completeAiTask(now, false, true);
 }
 
-void GameApp::completeAiTask(uint32_t now, bool halved) {
+void GameApp::completeAiTask(uint32_t now, bool halved, bool acknowledge) {
   const uint32_t elapsedSeconds = (now - aiTaskStartedAt_) / 1000;
   const uint32_t duration = constrain(elapsedSeconds, 60U, 1800U);
   const uint16_t oldExperience = state_.data().experience;
@@ -192,7 +192,9 @@ void GameApp::completeAiTask(uint32_t now, bool halved) {
   aiTaskSource_[0] = '\0';
   aiTaskStartedAt_ = 0;
   requestSave();
-  printAck(halved ? "timeout" : "accepted", experienceGain, coinGain);
+  if (acknowledge) {
+    printAck("accepted", experienceGain, coinGain);
+  }
 }
 
 void GameApp::printAck(const char* status,

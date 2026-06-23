@@ -346,6 +346,8 @@ def test_simple_ai_protocol_and_single_active_task_controller():
     assert "strncmp(aiTaskSource_, event.source" in APP_SOURCE
     assert "now - aiTaskStartedAt_ >= 1800000" in APP_SOURCE
     assert "completeAiTask(" in APP_SOURCE
+    assert "completeAiTask(now, true, false);" in APP_SOURCE
+    assert "completeAiTask(now, false, true);" in APP_SOURCE
 
 
 def test_ai_result_can_show_rewards_and_evolution():

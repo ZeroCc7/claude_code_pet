@@ -80,7 +80,6 @@
 | 文件 | 职责 |
 |---|---|
 | `ai_pet_hook.py` | 手动触发 CLI：`py ai_pet_hook.py <command> [--source --session --port]` |
-| `hook_state.py` | V1.0 旧协议兼容文件；V1.1 Hook 不再依赖任务状态文件 |
 | `claude-hook.ps1` / `codex-hook.ps1` / `opencode-hook.ps1` | 各工具的事件钩子 |
 | `opencode-plugin.js` | OpenCode 插件 |
 | `send-ai-pet-event.ps1` | 共用发送器 |
@@ -149,12 +148,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-ai-hooks.p
 
 ```powershell
 cd $env:USERPROFILE\.ai-pet-hooks
-py -3 .\ai_pet_hook.py submitted --session smoke-test
-py -3 .\ai_pet_hook.py editing   --session smoke-test
-py -3 .\ai_pet_hook.py complete  --session smoke-test
+py -3 .\ai_pet_hook.py start --source codex
+py -3 .\ai_pet_hook.py end   --source codex
 ```
 
-`complete` 会真实修改设备存档并发放奖励。测试时务必用独立 `--session`，避免污染真实任务去重表。
+`end` 会真实修改设备存档、发放奖励并写入功德簿。
 
 ### 串口状态检查
 
@@ -214,13 +212,13 @@ py -3 .\ai_pet_hook.py complete  --session smoke-test
 3. 跑 pytest，再编译固件确认。
 4. 若影响存档结构，bump `kSaveVersion`，是否迁移按当前版本设计执行。
 
-### 新增一种 AI 工作状态
+### 调整 AI 任务协议
 
-1. 在 `firmware/ai_pet/ai_event_protocol.h` 的 `AiWorkState` 与状态名表加值。
-2. 在 `host/game_model/ai_protocol.py` 的 `STATES` 与 `host/hooks/hook_state.py` 的 `STATES` 同步加值。
-3. 在 `game_ui.cpp` 的 `showAiStatus` 文案表加对应中文。
-4. 更新协议测试 `test_ai_protocol.py`。
-5. 更新 README 的 Hook 状态表。
+1. 同步修改固件 `ai_event_protocol.*` 与 Python `ai_protocol.py`。
+2. 保持协议仅包含 `start/end + source`。
+3. 更新四种工具的开始与结束生命周期映射。
+4. 更新协议、Hook 和安装器测试。
+5. 更新 README 与 `docs/ai-hooks-guide.md`。
 
 ### 新增素材
 

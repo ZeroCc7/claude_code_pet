@@ -45,6 +45,23 @@ function Add-CodexHook($Hooks, [string]$Name, [string]$Command) {
     }
 }
 
+function Remove-AiPetHooks($Hooks, [string[]]$Names) {
+    foreach ($name in $Names) {
+        if (-not ($Hooks.PSObject.Properties.Name -contains $name)) {
+            continue
+        }
+        $remaining = @($Hooks.$name) | Where-Object {
+            ($_ | ConvertTo-Json -Depth 10) -notmatch
+                [regex]::Escape(".ai-pet-hooks")
+        }
+        if ($remaining.Count -eq 0) {
+            $Hooks.PSObject.Properties.Remove($name)
+        } else {
+            $Hooks.$name = $remaining
+        }
+    }
+}
+
 if ($Target -in @("All", "Codex")) {
     $codexHome = Join-Path $UserProfileRoot ".codex"
     New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
@@ -64,6 +81,10 @@ if ($Target -in @("All", "Codex")) {
             -NotePropertyValue ([pscustomobject]@{})
     }
     $codexScript = Join-Path $installRoot "codex-hook.ps1"
+    Remove-AiPetHooks $codexHooks.hooks @(
+        "UserPromptSubmit", "PreToolUse", "PermissionRequest",
+        "PostToolUse", "Stop"
+    )
     foreach ($event in @("UserPromptSubmit", "Stop")) {
         $command = "powershell -NoProfile -ExecutionPolicy Bypass -File " +
             "`"$codexScript`" -Event $event"
@@ -113,6 +134,10 @@ if ($Target -in @("All", "Claude") -and
             -NotePropertyValue ([pscustomobject]@{})
     }
     $claudeScript = Join-Path $installRoot "claude-hook.ps1"
+    Remove-AiPetHooks $settings.hooks @(
+        "UserPromptSubmit", "PreToolUse", "PostToolUseFailure",
+        "PermissionRequest", "Notification", "Stop", "SessionEnd"
+    )
     foreach ($event in @("UserPromptSubmit", "Stop")) {
         $command = "powershell -NoProfile -ExecutionPolicy Bypass -File " +
             "`"$claudeScript`" -Event $event"
