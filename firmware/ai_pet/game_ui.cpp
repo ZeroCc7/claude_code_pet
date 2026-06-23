@@ -3,6 +3,8 @@
 #include "assets/cloud_terrace_home.h"
 #include "assets/home_button_icons.h"
 #include "assets/home_ui_icons.h"
+#include "assets/immortal_cave_home.h"
+#include "assets/pet_sprites.h"
 
 #include <cstring>
 
@@ -165,18 +167,18 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (page_ == UiPage::Cultivation && aiResultActive_ &&
       now - aiLastEventAt_ >= 2500) {
     page_ = UiPage::Home;
-    if (aiResultSuccess_) {
-      startPetEffect(
-          aiEvolved_ ? PetEffect::Evolution : PetEffect::AiComplete, now);
-    }
     aiResultActive_ = false;
     dirty_ = true;
   }
   if (petEffect_ != PetEffect::None &&
       now - petEffectStartedAt_ >= kPetEffectDurationMs) {
-    petEffect_ = PetEffect::None;
-    if (page_ == UiPage::Home) {
-      dirty_ = true;
+    if (page_ == UiPage::Cultivation && !aiResultActive_) {
+      // 修炼中状态：特效持续循环播放，不清除
+    } else {
+      petEffect_ = PetEffect::None;
+      if (page_ == UiPage::Home) {
+        dirty_ = true;
+      }
     }
   }
 
@@ -184,11 +186,13 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   const bool menuRedraw = (dirty_ || force) && page_ != UiPage::Home;
   const uint32_t homeAnimationInterval =
       petEffect_ == PetEffect::None ? 400 : 100;
+  const uint32_t cultivationInterval =
+      petEffect_ == PetEffect::None ? 300 : 100;
   const bool animate =
       ((page_ == UiPage::Home &&
         now - lastAnimationAt_ >= homeAnimationInterval) ||
        (page_ == UiPage::Cultivation &&
-        now - lastAnimationAt_ >= 300));
+        now - lastAnimationAt_ >= cultivationInterval));
   const bool feedbackActive =
       feedback_ != Feedback::None && now - feedbackStartedAt_ < 1200;
   const bool feedbackFrame =
@@ -264,6 +268,9 @@ void GameUi::showAiStatus(const char* source, AiWorkState state,
   aiResultActive_ = false;
   page_ = state == AiWorkState::Idle ? UiPage::Home
                                      : UiPage::Cultivation;
+  if (state != AiWorkState::Idle) {
+    startPetEffect(PetEffect::AiComplete, now);
+  }
   dirty_ = true;
 }
 
@@ -458,45 +465,25 @@ void GameUi::drawMenuFrame(const PetSaveData& data) {
 
 void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
   Adafruit_GFX& tft = target();
-  drawTitlePlaque(aiResultActive_ ? "修炼结算" : "仙途修炼",
-                  aiResultSuccess_ || !aiResultActive_ ? kBrightGold
-                                                      : kCinnabar);
-  drawPanel(9, 47, 110, 87, false);
-
-  tft.setTextSize(1);
+  tft.drawRGBBitmap(0, 0, kImmortalCaveHome, kImmortalCaveHomeWidth,
+                    kImmortalCaveHomeHeight);
+  tft.fillRect(0, 0, 128, 18, kInkBlack);
+  tft.drawFastHLine(0, 18, 128, kDarkGold);
   tft.setTextColor(kMutedCyan);
-  tft.setCursor(15, 53);
+  tft.setTextSize(1);
+  tft.setCursor(4, 5);
   tft.print(aiSource_);
   tft.setTextColor(kWarmWhite);
-  tft.setCursor(87, 53);
+  tft.setCursor(100, 5);
   tft.printf("LV%u", data.level);
 
+  const char* label;
+  uint16_t labelColor;
   if (aiResultActive_) {
-    text().color(aiResultSuccess_ ? kBrightGold : kCinnabar);
-    text().draw(34, 76,
-                aiResultSuccess_ ? "修炼完成" : "修炼受阻");
-    if (aiResultSuccess_) {
-      if (aiEvolved_) {
-        const char* forms[] = {"混沌灵卵", "凌霄麒麟", "镇岳麒麟",
-                               "太虚剑仙", "九转丹仙", "不灭武仙",
-                               "万灵仙尊"};
-        text().color(0x7DFF);
-        text().draw(34, 91, "灵光进化");
-        text().color(kWarmWhite);
-        const char* form = forms[static_cast<unsigned>(data.form)];
-        const int16_t formWidth = utf8GlyphCount(form) * 12;
-        text().draw(max<int16_t>(12, (128 - formWidth) / 2),
-                    114, form);
-      } else {
-        tft.setTextColor(kWarmWhite);
-        tft.setCursor(25, 88);
-        tft.printf("EXP +%u", aiExperienceGain_);
-        tft.setCursor(25, 101);
-        tft.printf("STONE +%u", aiCoinGain_);
-      }
-    }
+    label = aiResultSuccess_ ? "修炼完成" : "修炼受阻";
+    labelColor = aiResultSuccess_ ? kBrightGold : kCinnabar;
   } else {
-    const char* label = "修炼暂歇";
+    label = "修炼暂歇";
     switch (aiState_) {
       case AiWorkState::Submitted: label = "接引任务"; break;
       case AiWorkState::Thinking: label = "推演中"; break;
@@ -506,29 +493,52 @@ void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
       case AiWorkState::Blocked: label = "修炼受阻"; break;
       case AiWorkState::Idle: label = "修炼暂歇"; break;
     }
-    text().color(aiState_ == AiWorkState::Blocked ? kCinnabar
-                                                  : kBrightGold);
-    const int16_t labelWidth = utf8GlyphCount(label) * 12;
-    text().draw(max<int16_t>(15, (128 - labelWidth) / 2), 76, label);
+    labelColor = aiState_ == AiWorkState::Blocked ? kCinnabar : kBrightGold;
+  }
+  text().color(labelColor);
+  const int16_t labelWidth = utf8GlyphCount(label) * 12;
+  text().draw(max<int16_t>(0, (128 - labelWidth) / 2), 24, label);
 
+  const PetForm form = displayForm(data.form);
+  const bool finalForm = form >= PetForm::FinalA1;
+  const uint8_t spriteW = finalForm ? kFinalPetSpriteWidth : kPetSpriteWidth;
+  const uint8_t spriteH = finalForm ? kFinalPetSpriteHeight : kPetSpriteHeight;
+  const int16_t petX = (128 - spriteW) / 2;
+  const int16_t petY = finalForm ? 32 : 42;
+  const uint32_t effectElapsed =
+      petEffect_ == PetEffect::None ? 0 : now - petEffectStartedAt_;
+  pet_.draw(tft, form, petX, petY, now, petEffect_, effectElapsed);
+
+  tft.fillRect(0, 112, 128, 30, kInkBlack);
+  tft.drawFastHLine(0, 112, 128, kDarkGold);
+  tft.setTextColor(kWarmWhite);
+  tft.setTextSize(1);
+  if (aiResultActive_) {
+    if (aiResultSuccess_) {
+      if (aiEvolved_) {
+        const char* forms[] = {"混沌灵卵", "凌霄麒麟", "镇岳麒麟",
+                               "太虚剑仙", "九转丹仙", "不灭武仙",
+                               "万灵仙尊"};
+        text().color(0x7DFF);
+        text().draw(34, 116, "灵光进化");
+        text().color(kWarmWhite);
+        const char* formName = forms[static_cast<unsigned>(data.form)];
+        const int16_t formWidth = utf8GlyphCount(formName) * 12;
+        text().draw(max<int16_t>(0, (128 - formWidth) / 2), 130, formName);
+      } else {
+        tft.setCursor(28, 118);
+        tft.printf("EXP +%u", aiExperienceGain_);
+        tft.setCursor(64, 118);
+        tft.printf("STN +%u", aiCoinGain_);
+      }
+    }
+  } else {
     const uint32_t elapsedSeconds =
         aiTaskStartedAt_ == 0 ? 0 : (now - aiTaskStartedAt_) / 1000;
-    tft.setTextColor(kWarmWhite);
-    tft.setCursor(41, 88);
+    tft.setCursor(50, 118);
     tft.printf("%02lu:%02lu",
                static_cast<unsigned long>(elapsedSeconds / 60),
                static_cast<unsigned long>(elapsedSeconds % 60));
-
-    const int16_t centerX = 64;
-    const int16_t centerY = 112;
-    const uint8_t phase = (now / 300) % 8;
-    for (uint8_t i = 0; i < 8; ++i) {
-      const uint16_t color =
-          i == phase ? kBrightGold : kDarkGold;
-      const int16_t dx[] = {0, 9, 13, 9, 0, -9, -13, -9};
-      const int16_t dy[] = {-13, -9, 0, 9, 13, 9, 0, -9};
-      tft.fillCircle(centerX + dx[i], centerY + dy[i], 2, color);
-    }
   }
   drawFooterHints("AI修炼联动", "K4返回");
 }
@@ -931,9 +941,6 @@ void GameUi::startFeedback(Feedback feedback) {
 }
 
 void GameUi::startPetEffect(PetEffect effect, uint32_t now) {
-  if (page_ == UiPage::Cultivation) {
-    return;
-  }
   petEffect_ = effect;
   petEffectStartedAt_ = now;
   dirty_ = true;
