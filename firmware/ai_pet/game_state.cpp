@@ -5,7 +5,7 @@
 namespace {
 
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 4;
+constexpr uint16_t kSaveVersion = 5;
 constexpr uint8_t kNoActiveRegion = 0xFF;
 constexpr uint16_t kMaxEnergy = 20;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
@@ -214,11 +214,27 @@ bool GameState::applyAiTask(const char* source, const char* taskId,
   if (!success || hasProcessedTask(source, taskId)) {
     return false;
   }
+  const uint16_t oldExperience = data_.experience;
+  const uint16_t oldCoins = data_.coins;
   applyTask(durationSeconds, true, halved);
   data_.recentTaskHashes[data_.recentTaskIndex] = taskHash(source, taskId);
   data_.recentTaskIndex =
       (data_.recentTaskIndex + 1) %
       (sizeof(data_.recentTaskHashes) / sizeof(data_.recentTaskHashes[0]));
+  AiTaskRecord& record = data_.aiTaskRecords[data_.aiTaskRecordIndex];
+  record.source = strcmp(source, "codex") == 0 ? 0 :
+                  strcmp(source, "claude_code") == 0 ? 1 :
+                  strcmp(source, "opencode") == 0 ? 2 : 3;
+  record.durationSeconds =
+      min<uint32_t>(durationSeconds, 0xFFFFU);
+  record.experienceReward = data_.experience - oldExperience;
+  record.coinReward = data_.coins - oldCoins;
+  data_.aiTaskRecordIndex =
+      (data_.aiTaskRecordIndex + 1) %
+      (sizeof(data_.aiTaskRecords) / sizeof(data_.aiTaskRecords[0]));
+  data_.aiTaskRecordCount =
+      min<uint8_t>(sizeof(data_.aiTaskRecords) / sizeof(data_.aiTaskRecords[0]),
+                   data_.aiTaskRecordCount + 1);
   return true;
 }
 

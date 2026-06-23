@@ -27,6 +27,17 @@ enum class MeditationResult : uint8_t {
   Exhausted,
 };
 
+struct InventoryData {
+  uint16_t items[5];
+};
+
+struct AiTaskRecord {
+  uint8_t source;
+  uint16_t durationSeconds;
+  uint16_t experienceReward;
+  uint16_t coinReward;
+};
+
 struct PetSaveData {
   uint32_t magic;
   uint16_t version;
@@ -54,5 +65,9 @@ struct PetSaveData {
   uint8_t meditationsUsed;
   uint32_t recentTaskHashes[16];
   uint8_t recentTaskIndex;
+  InventoryData inventory;
+  AiTaskRecord aiTaskRecords[10];
+  uint8_t aiTaskRecordIndex;
+  uint8_t aiTaskRecordCount;
   uint32_t crc32;
 };

@@ -19,12 +19,43 @@ PET_RENDERER = (
 PET_RENDERER_HEADER = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "pet_renderer.h"
 ).read_text(encoding="utf-8")
+GAME_TYPES = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_types.h"
+).read_text(encoding="utf-8")
+GAME_STATE_SOURCE = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_state.cpp"
+).read_text(encoding="utf-8")
+SAVE_STORE_SOURCE = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "save_store.cpp"
+).read_text(encoding="utf-8")
 
 
 def source_between(source: str, start_signature: str, end_signature: str) -> str:
     start = source.index(start_signature)
     end = source.index(end_signature, start)
     return source[start:end]
+
+
+def test_v1_1_save_data_contains_inventory_and_merit_log():
+    assert "struct InventoryData" in GAME_TYPES
+    assert "uint16_t items[5];" in GAME_TYPES
+    assert "struct AiTaskRecord" in GAME_TYPES
+    assert "uint8_t source;" in GAME_TYPES
+    assert "uint16_t durationSeconds;" in GAME_TYPES
+    assert "uint16_t experienceReward;" in GAME_TYPES
+    assert "uint16_t coinReward;" in GAME_TYPES
+    assert "AiTaskRecord aiTaskRecords[10];" in GAME_TYPES
+    assert "uint8_t aiTaskRecordIndex;" in GAME_TYPES
+    assert "uint8_t aiTaskRecordCount;" in GAME_TYPES
+
+
+def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
+    assert "constexpr uint16_t kSaveVersion = 5;" in SAVE_STORE_SOURCE
+    assert "PetSaveDataV3" not in SAVE_STORE_SOURCE
+    assert "PetSaveDataV2" not in SAVE_STORE_SOURCE
+    assert "migrated" not in SAVE_STORE_SOURCE
+    assert "fileSize != sizeof(PetSaveData)" in SAVE_STORE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 5;" in GAME_STATE_SOURCE
 
 
 def test_animation_frames_do_not_redraw_the_full_background():
