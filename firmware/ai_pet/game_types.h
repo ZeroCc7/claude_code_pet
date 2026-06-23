@@ -27,6 +27,14 @@ enum class MeditationResult : uint8_t {
   Exhausted,
 };
 
+enum class ItemType : uint8_t {
+  SpiritHerb,
+  RecoveryPill,
+  AttackTalisman,
+  GuardTalisman,
+  QingyunToken,
+};
+
 struct InventoryData {
   uint16_t items[5];
 };

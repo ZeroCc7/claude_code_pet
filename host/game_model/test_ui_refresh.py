@@ -25,6 +25,9 @@ GAME_TYPES = (
 GAME_STATE_SOURCE = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_state.cpp"
 ).read_text(encoding="utf-8")
+GAME_STATE_HEADER = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "game_state.h"
+).read_text(encoding="utf-8")
 SAVE_STORE_SOURCE = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "save_store.cpp"
 ).read_text(encoding="utf-8")
@@ -56,6 +59,27 @@ def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
     assert "migrated" not in SAVE_STORE_SOURCE
     assert "fileSize != sizeof(PetSaveData)" in SAVE_STORE_SOURCE
     assert "constexpr uint16_t kSaveVersion = 5;" in GAME_STATE_SOURCE
+
+
+def test_firmware_inventory_rules_match_python_recovery_items():
+    for item in (
+        "SpiritHerb",
+        "RecoveryPill",
+        "AttackTalisman",
+        "GuardTalisman",
+        "QingyunToken",
+    ):
+        assert item in GAME_TYPES
+    assert "bool useItem(ItemType item);" in GAME_STATE_HEADER
+    use_item_source = source_between(
+        GAME_STATE_SOURCE,
+        "bool GameState::useItem",
+        "void GameState::interact",
+    )
+    assert "data_.energy + 3" in use_item_source
+    assert "data_.stamina + 20" in use_item_source
+    assert "quantity--;" in use_item_source
+    assert "return false;" in use_item_source
 
 
 def test_animation_frames_do_not_redraw_the_full_background():

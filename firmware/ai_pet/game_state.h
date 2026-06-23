@@ -11,6 +11,7 @@ class GameState {
   const PetSaveData& data() const;
   PetSaveData& mutableData();
 
+  bool useItem(ItemType item);
   void interact();
   bool feed();
   bool startExploration(uint8_t region);

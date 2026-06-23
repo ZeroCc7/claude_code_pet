@@ -47,6 +47,29 @@ PetSaveData& GameState::mutableData() {
   return data_;
 }
 
+bool GameState::useItem(ItemType item) {
+  const uint8_t index = static_cast<uint8_t>(item);
+  uint16_t& quantity = data_.inventory.items[index];
+  if (quantity == 0) {
+    return false;
+  }
+  if (item == ItemType::SpiritHerb) {
+    if (data_.energy >= kMaxEnergy) {
+      return false;
+    }
+    data_.energy = min<uint16_t>(kMaxEnergy, data_.energy + 3);
+  } else if (item == ItemType::RecoveryPill) {
+    if (data_.stamina >= 100) {
+      return false;
+    }
+    data_.stamina = clampPercent(data_.stamina + 20);
+  } else {
+    return false;
+  }
+  quantity--;
+  return true;
+}
+
 void GameState::interact() {
   data_.mood = clampPercent(data_.mood + 5);
   data_.tendencies[3]++;
