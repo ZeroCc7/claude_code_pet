@@ -275,6 +275,43 @@ def test_completed_ai_task_is_rewarded_only_once():
     assert (state.experience, state.coins, state.energy) == first_reward
 
 
+def test_completed_ai_task_records_source_duration_and_rewards():
+    state = GameState()
+
+    assert state.apply_ai_task("codex", "record-1", 300, True)
+
+    records = state.recent_ai_tasks()
+    assert len(records) == 1
+    assert records[0].source == "codex"
+    assert records[0].duration_seconds == 300
+    assert records[0].experience_reward == 10
+    assert records[0].coin_reward == 5
+
+
+def test_failed_or_duplicate_ai_task_is_not_recorded():
+    state = GameState()
+
+    assert not state.apply_ai_task("codex", "failed", 300, False)
+    assert state.apply_ai_task("codex", "duplicate", 300, True)
+    assert not state.apply_ai_task("codex", "duplicate", 300, True)
+
+    assert [record.source for record in state.recent_ai_tasks()] == ["codex"]
+
+
+def test_recent_ai_task_log_keeps_ten_newest_records():
+    state = GameState()
+
+    for index in range(11):
+        assert state.apply_ai_task(
+            "codex", f"log-{index}", (index + 1) * 60, True
+        )
+
+    records = state.recent_ai_tasks()
+    assert len(records) == 10
+    assert records[0].duration_seconds == 660
+    assert records[-1].duration_seconds == 120
+
+
 def test_task_identity_includes_source():
     state = GameState()
 

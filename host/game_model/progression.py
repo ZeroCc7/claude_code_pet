@@ -22,6 +22,14 @@ class ItemType(IntEnum):
     QINGYUN_TOKEN = 4
 
 
+@dataclass(frozen=True)
+class AiTaskRecord:
+    source: str
+    duration_seconds: int
+    experience_reward: int
+    coin_reward: int
+
+
 def crc32(payload: bytes) -> int:
     value = 0xFFFFFFFF
     for byte in payload:
@@ -56,6 +64,11 @@ class GameState:
     recent_task_hashes: list[int] = field(default_factory=lambda: [0] * 16)
     recent_task_index: int = 0
     items: list[int] = field(default_factory=lambda: [0] * 5)
+    ai_task_records: list[AiTaskRecord | None] = field(
+        default_factory=lambda: [None] * 10
+    )
+    ai_task_record_index: int = 0
+    ai_task_record_count: int = 0
 
     def use_item(self, item: ItemType) -> bool:
         if self.items[item] == 0:
@@ -256,9 +269,34 @@ class GameState:
         digest = self.task_hash(source, task_id)
         if digest in self.recent_task_hashes:
             return False
+        old_experience = self.experience
+        old_coins = self.coins
         self.apply_task(duration_seconds, True, halved)
         self.recent_task_hashes[self.recent_task_index] = digest
         self.recent_task_index = (self.recent_task_index + 1) % len(
             self.recent_task_hashes
         )
+        self.ai_task_records[self.ai_task_record_index] = AiTaskRecord(
+            source=source,
+            duration_seconds=duration_seconds,
+            experience_reward=self.experience - old_experience,
+            coin_reward=self.coins - old_coins,
+        )
+        self.ai_task_record_index = (
+            self.ai_task_record_index + 1
+        ) % len(self.ai_task_records)
+        self.ai_task_record_count = min(
+            len(self.ai_task_records), self.ai_task_record_count + 1
+        )
         return True
+
+    def recent_ai_tasks(self) -> list[AiTaskRecord]:
+        records = []
+        for offset in range(1, self.ai_task_record_count + 1):
+            index = (self.ai_task_record_index - offset) % len(
+                self.ai_task_records
+            )
+            record = self.ai_task_records[index]
+            if record is not None:
+                records.append(record)
+        return records
