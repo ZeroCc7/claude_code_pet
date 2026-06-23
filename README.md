@@ -2,7 +2,9 @@
 
 一台运行在 RP2040-Zero 上的离线修仙宠物设备。
 
-它使用 1.8 寸 ST7735S 128×160 彩屏和四个实体按键，支持培养、历练、首领战、分支进化、Flash 存档，并能通过 USB 串口接收 Codex、Claude Code、OpenCode 的工作状态。AI 任务成功结束后，宠物会获得经验、灵石和少量灵力。
+当前稳定版本：`v1.0.0`。
+
+它使用 1.8 寸 ST7735S 128×160 彩屏和四个实体按键，支持培养、历练、首领战、分支进化、Flash 存档，并能通过 USB 串口接收 Codex、Claude Code、OpenCode、CodeFree-O 的工作状态。AI 任务成功结束后，宠物会获得经验、灵石和少量灵力。
 
 ![首页 UI](assets/raw/ui/reference/home_hud_reference.png)
 
@@ -22,7 +24,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\upload-firmware.ps
 # 3. 跑 Python 测试确认规则一致
 py -3 -m pytest .\host\game_model .\host\hooks .\host\diagnostics -q
 
-# 4.（可选）把 AI Hook 装进 Codex / Claude Code / OpenCode
+# 4.（可选）把 AI Hook 装进 Codex / Claude Code / OpenCode / CodeFree-O
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-ai-hooks.ps1 -Port COM7
 ```
 
@@ -31,7 +33,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-ai-hooks.p
 ## 架构概览
 
 ```text
-AI 工具（Codex / Claude Code / OpenCode）
+AI 工具（Codex / Claude Code / OpenCode / CodeFree-O）
         │  事件钩子 → host/hooks/ai_pet_hook.py
         ▼  JSON over USB Serial (115200, ≤384B)
 ┌─────────────────────────────────────────────┐
@@ -61,7 +63,7 @@ host/game_model/（Python 参考实现 + pytest）
 - 首领可以重复挑战，奖励逐次减半，最低保留 1 点。
 - 7 种宠物形态和两次分支进化。
 - LV3 从灵卵进化为幼年麒麟，LV12 最终化形。
-- Codex、Claude Code、OpenCode Hook 状态页。
+- Codex、Claude Code、OpenCode、CodeFree-O Hook 状态页。
 - AI 成功任务按耗时奖励，重复任务不会重复结算。
 - LittleFS 双槽存档、CRC 校验和旧存档迁移。
 - PowerShell 编译、烧录、Hook 安装脚本。
@@ -295,8 +297,9 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - 备份并增量修改 Claude Code 配置。
 - 保留已有 CursorLight Codex 通知逻辑。
 - 检测到 OpenCode 后安装插件。
+- 检测到 CodeFree-O 后安装插件。
 
-安装后重启 Codex、Claude Code 或 OpenCode。
+安装后重启 Codex、Claude Code、OpenCode 或 CodeFree-O。
 
 ### Python 手动触发
 
@@ -494,11 +497,12 @@ docs/                  硬件、Arduino、Hook 和设计文档
 - LittleFS 写入、读取、校验、清理：通过。
 - AI Hook ACK、任务奖励、防重复：通过。
 - LV3 自动进化：通过。
-- 30 分钟诊断稳定性测试：用户选择跳过。
+- Codex、Claude Code、OpenCode、CodeFree-O Hook 联调：通过。
+- 30 分钟诊断稳定性测试：通过。
 
 ## 后续计划
 
-- 为接引、推演、施法、炼器、等待、受阻、完成、进化制作正式动画素材。
-- 完善最终人形麒麟形态。
 - 增加更多历练事件和首领。
-- OpenCode 安装后进行真实 Hook 联调。
+- 扩充宠物互动、事件文本和长期养成内容。
+
+版本变更见 [CHANGELOG.md](CHANGELOG.md)。
