@@ -55,7 +55,7 @@
 | `game_state.{h,cpp}` | 游戏规则与 `PetSaveData`：培养、历练、战斗、经验、进化、AI 任务结算 |
 | `game_types.h` | 枚举（`PetForm`/`UiPage`/`MeditationResult`）+ `PetSaveData` 结构 |
 | `game_ui.{h,cpp}` | 全部 UI 渲染（六页面 + 局部刷新 + 反馈/通知/AI 状态页） |
-| `ai_event_protocol.{h,cpp}` | 解析串口 JSON，校验 source/task_id/state |
+| `ai_event_protocol.{h,cpp}` | 解析 AI 任务 `start/end + source` 串口 JSON |
 | `save_store.{h,cpp}` | LittleFS A/B 双槽存档 + CRC32 + 旧版迁移 |
 | `display_device.{h,cpp}` | ST7735S 封装（init/背光/诊断图样） |
 | `button_scanner.{h,cpp}` | 四按键去抖扫描 |
@@ -80,7 +80,7 @@
 | 文件 | 职责 |
 |---|---|
 | `ai_pet_hook.py` | 手动触发 CLI：`py ai_pet_hook.py <command> [--source --session --port]` |
-| `hook_state.py` | 持久化任务状态（`~/.ai-pet-hooks/state.json`），生成 task_id、计算 duration |
+| `hook_state.py` | V1.0 旧协议兼容文件；V1.1 Hook 不再依赖任务状态文件 |
 | `claude-hook.ps1` / `codex-hook.ps1` / `opencode-hook.ps1` | 各工具的事件钩子 |
 | `opencode-plugin.js` | OpenCode 插件 |
 | `send-ai-pet-event.ps1` | 共用发送器 |
@@ -189,9 +189,9 @@ py -3 .\ai_pet_hook.py complete  --session smoke-test
 1. **Flash 布局固定**：必须选 `2MB (Sketch: 1792KB, FS: 256KB)`。选 `2MB (no FS)` 会导致 `SaveStore` 失败、存档丢失。
 2. **`PetSaveData` 是存档磁盘格式**：`game_types.h` 中的结构体字段顺序/类型即存档二进制布局。`save_store.cpp` 用 `kSaveMagic=0x50455431`、`kSaveVersion`（当前 4）、`size`、`sequence`、`crc32` 做校验。改结构必须 bump `kSaveVersion`。通常需要写迁移逻辑；V1.1 已明确放弃 V1.0 存档兼容，旧存档应直接失效并初始化新角色。
 3. **A/B 双槽**：`SaveStore` 轮流写入 A/B 两个文件，CRC 校验通过才视为有效，写入失败不覆盖最后有效存档。
-4. **AI 协议上限 384 字节**：`AiEventProtocol::kMaximumMessageBytes=384`（`host/game_model/ai_protocol.py:32` 同步）。超长会被拒绝。
-5. **任务去重**：`PetSaveData.recentTaskHashes[16]`（16 槽环形缓冲）记录最近任务哈希。同一 `source+taskId` 的成功事件只结算一次，重复返回 `duplicate`。固件 `applyAiTask()` 与 Python `hook_state.complete()` 都依赖此语义。
-6. **奖励规则**：AI 成功任务按 `duration`（秒）结算，每分钟 2 经验，最少按 1 分钟、最多按 60 分钟；`duration` 在 hook 侧被 `max(60, min(3600, elapsed))` 钳制（`host/hooks/hook_state.py:70`）。失败/取消不结算奖励。
+4. **AI 协议上限 384 字节**：`AiEventProtocol::kMaximumMessageBytes=384`（`host/game_model/ai_protocol.py` 同步）。超长会被拒绝。
+5. **单活动任务**：设备仅接受空闲时的 `start`，运行中忽略其他 `start`；只有来源匹配的 `end` 才结算。协议不使用 `task_id`。
+6. **奖励规则**：设备按本地运行时间结算，每分钟 2 经验、1 灵石，最少按 1 分钟、最多按 30 分钟；30 分钟未结束自动减半结算。
 7. **引脚分配写死**：`board_config.h` 定义 GP2–GP11，改引脚必须同步更新 `docs/hardware-bringup.md` 和 README 接线表。
 8. **固件 ↔ Python 规则必须一致**：`firmware/ai_pet/game_state.cpp` 与 `host/game_model/progression.py` 是同一规则的两种实现。改一处必须改另一处并更新对应 pytest。
 9. **进化阈值固定**：LV3 第一次分支、LV12 最终分支，每 20 经验一级，最高 LV30。
