@@ -30,6 +30,49 @@ enum class ItemType : uint8_t {
   QingyunToken,
 };
 
+enum class AdventurePhase : uint8_t {
+  Idle,
+  Advancing,
+  Choosing,
+  Result,
+  BossReady,
+};
+
+enum class AdventureTick : uint8_t {
+  Inactive,
+  Advanced,
+  EventTriggered,
+  WaitingForChoice,
+  EnergyDepleted,
+  BossUnlocked,
+};
+
+enum class QingyunEvent : uint8_t {
+  None,
+  SpiritHerb,
+  DemonBeast,
+  WoundedCultivator,
+  Shortcut,
+};
+
+enum class EventResult : uint8_t {
+  None,
+  Continued,
+  ItemGained,
+  RewardGained,
+  ProgressGained,
+  StaminaLost,
+};
+
+enum class BattleResult : uint8_t {
+  Inactive,
+  Continue,
+  Victory,
+  Defeat,
+  EnergyDepleted,
+  Retreated,
+};
+
 struct InventoryData {
   uint16_t items[5];
 };
@@ -54,14 +97,21 @@ struct PetSaveData {
   uint16_t coins;
   uint16_t energy;
   uint16_t tendencies[4];
-  uint8_t regionProgress[3];
-  uint8_t bossDefeatedMask;
-  uint8_t bossWins[3];
-  uint8_t activeRegion;
-  uint8_t battleRegion;
+  uint8_t qingyunProgress;
+  uint8_t qingyunEventMask;
+  uint8_t qingyunBossUnlocked;
+  AdventurePhase adventurePhase;
+  QingyunEvent currentEvent;
+  EventResult currentEventResult;
+  uint8_t qingyunBossWins;
+  uint8_t qingyunBossDefeated;
   uint8_t bossHp;
   uint8_t bossMaxHp;
   uint8_t inBattle;
+  uint8_t battleRound;
+  uint8_t battleAttackTalisman;
+  uint8_t battleGuardTalisman;
+  BattleResult lastBattleResult;
   uint32_t playSeconds;
   uint16_t energyRecoverySeconds;
   InventoryData inventory;

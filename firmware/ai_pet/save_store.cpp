@@ -8,7 +8,7 @@ namespace {
 constexpr char kSlotA[] = "/save_a.bin";
 constexpr char kSlotB[] = "/save_b.bin";
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 5;
+constexpr uint16_t kSaveVersion = 6;
 
 }  // namespace
 

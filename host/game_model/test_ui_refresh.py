@@ -57,12 +57,33 @@ def test_v1_1_save_data_contains_inventory_and_merit_log():
 
 
 def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
-    assert "constexpr uint16_t kSaveVersion = 5;" in SAVE_STORE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 6;" in SAVE_STORE_SOURCE
     assert "PetSaveDataV3" not in SAVE_STORE_SOURCE
     assert "PetSaveDataV2" not in SAVE_STORE_SOURCE
     assert "migrated" not in SAVE_STORE_SOURCE
     assert "fileSize != sizeof(PetSaveData)" in SAVE_STORE_SOURCE
-    assert "constexpr uint16_t kSaveVersion = 5;" in GAME_STATE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 6;" in GAME_STATE_SOURCE
+
+
+def test_qingyun_state_is_persisted_in_v1_1_save_data():
+    for token in (
+        "enum class AdventurePhase",
+        "enum class QingyunEvent",
+        "enum class EventResult",
+        "enum class BattleResult",
+        "uint8_t qingyunProgress;",
+        "uint8_t qingyunEventMask;",
+        "uint8_t qingyunBossUnlocked;",
+        "AdventurePhase adventurePhase;",
+        "QingyunEvent currentEvent;",
+        "EventResult currentEventResult;",
+        "uint8_t qingyunBossWins;",
+        "uint8_t qingyunBossDefeated;",
+        "uint8_t battleRound;",
+        "uint8_t battleAttackTalisman;",
+        "uint8_t battleGuardTalisman;",
+    ):
+        assert token in GAME_TYPES
 
 
 def test_firmware_inventory_rules_match_python_recovery_items():

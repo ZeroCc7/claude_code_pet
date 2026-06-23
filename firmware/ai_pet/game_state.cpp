@@ -5,8 +5,7 @@
 namespace {
 
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 5;
-constexpr uint8_t kNoActiveRegion = 0xFF;
+constexpr uint16_t kSaveVersion = 6;
 constexpr uint16_t kMaxEnergy = 20;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
 
@@ -27,7 +26,10 @@ void GameState::reset() {
   data_.stamina = 80;
   data_.coins = 30;
   data_.energy = 10;
-  data_.activeRegion = kNoActiveRegion;
+  data_.adventurePhase = AdventurePhase::Idle;
+  data_.currentEvent = QingyunEvent::None;
+  data_.currentEventResult = EventResult::None;
+  data_.lastBattleResult = BattleResult::Inactive;
 }
 
 void GameState::load(const PetSaveData& data) {
