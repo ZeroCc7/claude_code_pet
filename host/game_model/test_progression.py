@@ -1,4 +1,4 @@
-from progression import GameState, PetForm, crc32
+from progression import GameState, ItemType, PetForm, crc32
 
 
 def test_new_game_has_safe_defaults():
@@ -9,6 +9,40 @@ def test_new_game_has_safe_defaults():
     assert state.stamina == 80
     assert state.coins == 30
     assert state.energy == 10
+    assert state.items == [0, 0, 0, 0, 0]
+
+
+def test_spirit_herb_restores_three_energy_and_consumes_one():
+    state = GameState(energy=16, items=[1, 0, 0, 0, 0])
+
+    assert state.use_item(ItemType.SPIRIT_HERB)
+    assert state.energy == 19
+    assert state.items[ItemType.SPIRIT_HERB] == 0
+
+
+def test_spirit_herb_respects_cap_and_is_not_wasted_when_full():
+    state = GameState(energy=19, items=[2, 0, 0, 0, 0])
+
+    assert state.use_item(ItemType.SPIRIT_HERB)
+    assert state.energy == 20
+    assert state.items[ItemType.SPIRIT_HERB] == 1
+    assert not state.use_item(ItemType.SPIRIT_HERB)
+    assert state.items[ItemType.SPIRIT_HERB] == 1
+
+
+def test_recovery_pill_restores_twenty_stamina_and_consumes_one():
+    state = GameState(stamina=75, items=[0, 1, 0, 0, 0])
+
+    assert state.use_item(ItemType.RECOVERY_PILL)
+    assert state.stamina == 95
+    assert state.items[ItemType.RECOVERY_PILL] == 0
+
+
+def test_recovery_item_fails_without_stock():
+    state = GameState(energy=10, stamina=50)
+
+    assert not state.use_item(ItemType.SPIRIT_HERB)
+    assert not state.use_item(ItemType.RECOVERY_PILL)
 
 
 def test_interaction_improves_mood_without_exceeding_100():

@@ -14,6 +14,14 @@ class PetForm(IntEnum):
     FINAL_B2 = 6
 
 
+class ItemType(IntEnum):
+    SPIRIT_HERB = 0
+    RECOVERY_PILL = 1
+    ATTACK_TALISMAN = 2
+    GUARD_TALISMAN = 3
+    QINGYUN_TOKEN = 4
+
+
 def crc32(payload: bytes) -> int:
     value = 0xFFFFFFFF
     for byte in payload:
@@ -47,6 +55,23 @@ class GameState:
     meditations_used: int = 0
     recent_task_hashes: list[int] = field(default_factory=lambda: [0] * 16)
     recent_task_index: int = 0
+    items: list[int] = field(default_factory=lambda: [0] * 5)
+
+    def use_item(self, item: ItemType) -> bool:
+        if self.items[item] == 0:
+            return False
+        if item == ItemType.SPIRIT_HERB:
+            if self.energy >= 20:
+                return False
+            self.energy = min(20, self.energy + 3)
+        elif item == ItemType.RECOVERY_PILL:
+            if self.stamina >= 100:
+                return False
+            self.stamina = min(100, self.stamina + 20)
+        else:
+            return False
+        self.items[item] -= 1
+        return True
 
     def interact(self) -> None:
         self.mood = min(100, self.mood + 5)
