@@ -99,12 +99,36 @@ def test_firmware_inventory_rules_match_python_recovery_items():
     use_item_source = source_between(
         GAME_STATE_SOURCE,
         "bool GameState::useItem",
-        "bool GameState::startExploration",
+        "bool GameState::startQingyunAdventure",
     )
     assert "data_.energy + 3" in use_item_source
     assert "data_.stamina + 20" in use_item_source
     assert "quantity--;" in use_item_source
     assert "return false;" in use_item_source
+
+
+def test_firmware_exposes_qingyun_adventure_and_event_api():
+    for signature in (
+        "bool startQingyunAdventure();",
+        "void stopQingyunAdventure();",
+        "AdventureTick tickQingyunAdventure(uint32_t seed);",
+        "EventResult resolveQingyunEvent(uint8_t choice, uint32_t seed);",
+        "void acknowledgeAdventureResult();",
+        "void abandonQingyunEvent();",
+    ):
+        assert signature in GAME_STATE_HEADER
+    for value in ("25", "45", "65", "85"):
+        assert value in GAME_STATE_SOURCE
+
+
+def test_firmware_exposes_qingyun_auto_battle_api():
+    for signature in (
+        "bool startQingyunWolfBattle(bool useAttackTalisman,",
+        "BattleResult tickQingyunWolfBattle(uint32_t seed);",
+        "void retreatQingyunWolf();",
+    ):
+        assert signature in GAME_STATE_HEADER
+    assert "battleAction(" not in GAME_STATE_HEADER
 
 
 def test_animation_frames_do_not_redraw_the_full_background():

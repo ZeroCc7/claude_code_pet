@@ -70,100 +70,264 @@ bool GameState::useItem(ItemType item) {
   return true;
 }
 
-bool GameState::startExploration(uint8_t region) {
-  if (region >= 3 || !regionUnlocked(region) || data_.energy < 3) {
+bool GameState::startQingyunAdventure() {
+  if ((data_.adventurePhase != AdventurePhase::Idle &&
+       data_.adventurePhase != AdventurePhase::BossReady) ||
+      data_.energy < 3) {
     return false;
   }
   data_.energy -= 3;
-  data_.activeRegion = region;
+  data_.adventurePhase = AdventurePhase::Advancing;
+  data_.currentEvent = QingyunEvent::None;
+  data_.currentEventResult = EventResult::None;
   return true;
 }
 
-bool GameState::regionUnlocked(uint8_t region) const {
-  return region == 0 ||
-         (region < 3 && (data_.bossDefeatedMask & (1U << (region - 1))));
+void GameState::stopQingyunAdventure() {
+  data_.adventurePhase = data_.qingyunBossUnlocked
+                             ? AdventurePhase::BossReady
+                             : AdventurePhase::Idle;
+  data_.currentEvent = QingyunEvent::None;
+  data_.currentEventResult = EventResult::None;
 }
 
-bool GameState::tickExploration(uint32_t seed) {
-  if (data_.activeRegion >= 3 || data_.energy == 0) {
-    return false;
+AdventureTick GameState::tickQingyunAdventure(uint32_t seed) {
+  (void)seed;
+  if (data_.adventurePhase == AdventurePhase::Choosing) {
+    return AdventureTick::WaitingForChoice;
   }
-
-  const uint8_t region = data_.activeRegion;
+  if (data_.adventurePhase != AdventurePhase::Advancing) {
+    return AdventureTick::Inactive;
+  }
   data_.energy--;
-  const uint8_t gain = 1 + seed % 3;
-  data_.regionProgress[region] =
-      min<uint8_t>(100, data_.regionProgress[region] + gain);
-  data_.coins++;
-  gainExperience(region + 1);
-  data_.tendencies[region == 0 ? 0 : 2]++;
+  data_.qingyunProgress =
+      min<uint8_t>(100, data_.qingyunProgress + 2);
 
-  if (data_.regionProgress[region] == 100 || data_.energy == 0) {
-    data_.activeRegion = kNoActiveRegion;
+  constexpr uint8_t checkpoints[] = {25, 45, 65, 85};
+  constexpr QingyunEvent events[] = {
+      QingyunEvent::SpiritHerb, QingyunEvent::DemonBeast,
+      QingyunEvent::WoundedCultivator, QingyunEvent::Shortcut};
+  for (uint8_t index = 0; index < 4; ++index) {
+    const uint8_t eventBit = 1U << index;
+    if (data_.qingyunProgress >= checkpoints[index] &&
+        !(data_.qingyunEventMask & eventBit)) {
+      data_.qingyunEventMask |= eventBit;
+      data_.currentEvent = events[index];
+      data_.currentEventResult = EventResult::None;
+      data_.adventurePhase = AdventurePhase::Choosing;
+      return AdventureTick::EventTriggered;
+    }
   }
-  return true;
+  if (data_.qingyunProgress >= 100) {
+    data_.qingyunBossUnlocked = 1;
+    data_.adventurePhase = AdventurePhase::BossReady;
+    return AdventureTick::BossUnlocked;
+  }
+  if (data_.energy == 0) {
+    stopQingyunAdventure();
+    return AdventureTick::EnergyDepleted;
+  }
+  return AdventureTick::Advanced;
 }
 
-bool GameState::startBoss(uint8_t region) {
-  if (region >= 3 || data_.regionProgress[region] < 100) {
+EventResult GameState::resolveQingyunEvent(uint8_t choice, uint32_t seed) {
+  if (data_.adventurePhase != AdventurePhase::Choosing) {
+    return EventResult::None;
+  }
+  EventResult result = EventResult::Continued;
+  if (data_.currentEvent == QingyunEvent::SpiritHerb && choice == 0) {
+    addItem(ItemType::SpiritHerb);
+    result = EventResult::ItemGained;
+  } else if (data_.currentEvent == QingyunEvent::DemonBeast &&
+             choice == 0) {
+    const uint16_t score =
+        data_.level + data_.stamina / 10 + data_.tendencies[0] / 4 +
+        seed % 10;
+    if (score >= 18) {
+      gainExperience(6);
+      data_.coins += 5;
+      result = EventResult::RewardGained;
+    } else {
+      data_.stamina = data_.stamina > 12 ? data_.stamina - 12 : 0;
+      result = EventResult::StaminaLost;
+    }
+  } else if (data_.currentEvent == QingyunEvent::WoundedCultivator &&
+             choice == 0) {
+    const uint16_t score =
+        data_.level + data_.stamina / 10 + data_.tendencies[3] / 2 +
+        seed % 10;
+    if (score >= 25) {
+      addItem(ItemType::QingyunToken);
+      data_.qingyunBossUnlocked = 1;
+    } else {
+      addItem(ItemType::RecoveryPill);
+    }
+    result = EventResult::ItemGained;
+  } else if (data_.currentEvent == QingyunEvent::Shortcut) {
+    if (choice == 0) {
+      const uint16_t score =
+          data_.level + data_.energy + data_.tendencies[1] / 3 +
+          seed % 10;
+      if (score >= 20) {
+        data_.qingyunProgress =
+            min<uint8_t>(100, data_.qingyunProgress + 8 + seed % 8);
+        result = EventResult::ProgressGained;
+      } else {
+        data_.stamina = data_.stamina > 10 ? data_.stamina - 10 : 0;
+        result = EventResult::StaminaLost;
+      }
+    } else {
+      data_.qingyunProgress =
+          min<uint8_t>(100, data_.qingyunProgress + 3);
+      result = EventResult::ProgressGained;
+    }
+  }
+  data_.currentEventResult = result;
+  data_.adventurePhase = AdventurePhase::Result;
+  return result;
+}
+
+void GameState::acknowledgeAdventureResult() {
+  if (data_.adventurePhase != AdventurePhase::Result) {
+    return;
+  }
+  data_.currentEvent = QingyunEvent::None;
+  data_.currentEventResult = EventResult::None;
+  data_.adventurePhase =
+      data_.qingyunBossUnlocked || data_.qingyunProgress >= 100
+          ? AdventurePhase::BossReady
+          : AdventurePhase::Advancing;
+}
+
+void GameState::abandonQingyunEvent() {
+  if (data_.adventurePhase == AdventurePhase::Choosing) {
+    stopQingyunAdventure();
+  }
+}
+
+void GameState::addItem(ItemType item) {
+  uint16_t& quantity = data_.inventory.items[static_cast<uint8_t>(item)];
+  if (quantity < 0xFFFFU) {
+    quantity++;
+  }
+}
+
+bool GameState::startQingyunWolfBattle(bool useAttackTalisman,
+                                       bool useGuardTalisman) {
+  if (data_.inBattle || !data_.qingyunBossUnlocked || data_.energy < 5) {
     return false;
   }
   data_.inBattle = 1;
-  data_.battleRegion = region;
-  data_.bossMaxHp = 25 + region * 20;
+  data_.bossMaxHp = 48;
   data_.bossHp = data_.bossMaxHp;
+  data_.battleRound = 0;
+  data_.lastBattleResult = BattleResult::Continue;
+  uint16_t& attackQuantity =
+      data_.inventory.items[static_cast<uint8_t>(ItemType::AttackTalisman)];
+  uint16_t& guardQuantity =
+      data_.inventory.items[static_cast<uint8_t>(ItemType::GuardTalisman)];
+  data_.battleAttackTalisman = useAttackTalisman && attackQuantity > 0;
+  data_.battleGuardTalisman = useGuardTalisman && guardQuantity > 0;
+  if (data_.battleAttackTalisman) {
+    attackQuantity--;
+  }
+  if (data_.battleGuardTalisman) {
+    guardQuantity--;
+  }
   return true;
 }
 
-bool GameState::battleAction(uint8_t action) {
+uint8_t GameState::qingyunAttackDamage(uint32_t seed) const {
+  uint16_t damage =
+      4 + data_.level + min<uint16_t>(8, data_.tendencies[0] / 5) +
+      min<uint16_t>(10, data_.tendencies[1] / 4);
+  if (data_.form == PetForm::RookieA || data_.form == PetForm::FinalA1) {
+    damage++;
+  } else if (data_.form == PetForm::FinalA2) {
+    damage += 2;
+  }
+  const uint8_t criticalRate =
+      5 + min<uint16_t>(15, data_.tendencies[0] / 4);
+  if (seed % 100 < criticalRate) {
+    damage *= 2;
+  }
+  if (data_.battleAttackTalisman) {
+    damage = damage * 120 / 100;
+  }
+  return min<uint16_t>(255, max<uint16_t>(1, damage));
+}
+
+uint8_t GameState::qingyunIncomingDamage(uint32_t seed) const {
+  const uint8_t dodgeRate =
+      5 + min<uint16_t>(15, data_.tendencies[2] / 4);
+  if ((seed / 100) % 100 < dodgeRate) {
+    return 0;
+  }
+  uint8_t damage =
+      max<int16_t>(1, 8 - min<uint16_t>(5, data_.tendencies[2] / 8));
+  if (data_.form == PetForm::RookieB || data_.form == PetForm::FinalB1) {
+    damage = max<uint8_t>(1, damage - 1);
+  } else if (data_.form == PetForm::FinalB2) {
+    damage = max<uint8_t>(1, damage - 2);
+  }
+  if (data_.battleGuardTalisman) {
+    damage = max<uint8_t>(1, damage * 80 / 100);
+  }
+  return damage;
+}
+
+BattleResult GameState::tickQingyunWolfBattle(uint32_t seed) {
   if (!data_.inBattle) {
-    return false;
+    return BattleResult::Inactive;
   }
-
-  uint8_t damage = 0;
-  uint8_t incoming = 5 + data_.battleRegion * 2;
-  if (action == 0) {
-    damage = 6 + data_.level;
-    data_.tendencies[0]++;
-  } else if (action == 1 && data_.energy >= 2) {
-    data_.energy -= 2;
-    damage = 10 + data_.level * 2;
-    data_.tendencies[1]++;
-  } else if (action == 2 && data_.coins >= 5) {
-    data_.coins -= 5;
-    data_.stamina = clampPercent(data_.stamina + 15);
-    incoming = 0;
-    data_.tendencies[3]++;
-  } else if (action == 3) {
-    incoming = 3;
-    data_.tendencies[2]++;
-  } else {
-    return false;
+  data_.energy--;
+  data_.battleRound++;
+  if (data_.energy == 0) {
+    finishQingyunBattle(BattleResult::EnergyDepleted);
+    return BattleResult::EnergyDepleted;
   }
-
+  const uint8_t damage = qingyunAttackDamage(seed);
   data_.bossHp = damage >= data_.bossHp ? 0 : data_.bossHp - damage;
   if (data_.bossHp == 0) {
-    const uint8_t repeatCount = data_.bossWins[data_.battleRegion];
-    const uint8_t shift = min<uint8_t>(repeatCount, 15);
-    const uint16_t experienceReward =
-        max<uint16_t>(1, (20 + data_.battleRegion * 10) >> shift);
-    const uint16_t coinReward =
-        max<uint16_t>(1, (20 + data_.battleRegion * 15) >> shift);
-    data_.bossDefeatedMask |= 1U << data_.battleRegion;
-    data_.bossWins[data_.battleRegion]++;
-    data_.coins += coinReward;
-    gainExperience(experienceReward);
-    data_.inBattle = 0;
-    return true;
+    const uint8_t shift = min<uint8_t>(15, data_.qingyunBossWins);
+    gainExperience(max<uint16_t>(1, 30 >> shift));
+    data_.coins += max<uint16_t>(1, 25 >> shift);
+    data_.qingyunBossWins++;
+    data_.qingyunBossDefeated = 1;
+    finishQingyunBattle(BattleResult::Victory, false);
+    return BattleResult::Victory;
   }
-
+  const uint8_t incoming = qingyunIncomingDamage(seed);
   data_.stamina =
       incoming >= data_.stamina ? 0 : data_.stamina - incoming;
-  if (data_.stamina == 0) {
-    data_.inBattle = 0;
-    data_.stamina = 30;
+  const uint8_t affinityRate =
+      min<uint16_t>(20, data_.tendencies[3] / 3);
+  if (data_.stamina > 0 && (seed / 10000) % 100 < affinityRate) {
+    data_.stamina = clampPercent(data_.stamina + 2);
   }
-  return true;
+  if (data_.stamina == 0) {
+    data_.stamina = 30;
+    finishQingyunBattle(BattleResult::Defeat);
+    return BattleResult::Defeat;
+  }
+  data_.lastBattleResult = BattleResult::Continue;
+  return BattleResult::Continue;
+}
+
+void GameState::retreatQingyunWolf() {
+  if (data_.inBattle) {
+    finishQingyunBattle(BattleResult::Retreated);
+  }
+}
+
+void GameState::finishQingyunBattle(BattleResult result, bool resetHp) {
+  data_.inBattle = 0;
+  data_.lastBattleResult = result;
+  if (resetHp) {
+    data_.bossHp = data_.bossMaxHp;
+  }
+  data_.battleAttackTalisman = 0;
+  data_.battleGuardTalisman = 0;
 }
 
 void GameState::gainExperience(uint16_t amount) {
