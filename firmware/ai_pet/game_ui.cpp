@@ -5,6 +5,8 @@
 #include "assets/home_ui_icons.h"
 #include "assets/immortal_cave_home.h"
 #include "assets/pet_sprites.h"
+#include "assets/qingyun_scene.h"
+#include "assets/qingyun_ui_icons.h"
 
 #include <cstring>
 
@@ -729,6 +731,12 @@ void GameUi::drawButtonIcon(int16_t x, int16_t y,
                     kHomeButtonIconWidth, kHomeButtonIconHeight);
 }
 
+void GameUi::drawQingyunIcon(int16_t x, int16_t y,
+                             const QingyunUiIcon& icon) {
+  target().drawRGBBitmap(x, y, icon.pixels, icon.mask,
+                         kQingyunIconWidth, kQingyunIconHeight);
+}
+
 void GameUi::drawResourceBadge(int16_t x, int16_t y, uint16_t color,
                                const char* label, uint16_t value,
                                uint16_t maximum) {
@@ -800,11 +808,16 @@ void GameUi::drawInventory(const PetSaveData& data) {
   drawTitlePlaque("乾坤袋", kBrightGold);
   const char* names[] = {"灵草", "回春丹", "攻击符", "护身符",
                          "青云信物"};
+  const QingyunUiIcon* icons[] = {
+      &kQingyunIconSpiritHerb, &kQingyunIconRecoveryPill,
+      &kQingyunIconAttackTalisman, &kQingyunIconGuardTalisman,
+      &kQingyunIconToken};
   for (uint8_t i = 0; i < 5; ++i) {
     const int16_t y = 45 + i * 19;
     drawPanel(8, y, 112, 17, selection_ == i);
+    drawQingyunIcon(11, y, *icons[i]);
     text().color(selection_ == i ? kBrightGold : kWarmWhite);
-    text().draw(15, y + 13, names[i]);
+    text().draw(32, y + 13, names[i]);
     tft.setTextColor(kMutedCyan);
     tft.setTextSize(1);
     tft.setCursor(91, y + 5);
@@ -830,34 +843,21 @@ void GameUi::drawAdventure(const PetSaveData& data) {
 
 void GameUi::drawQingyunScene(const PetSaveData& data, uint32_t now) {
   Adafruit_GFX& tft = target();
-  tft.fillRect(0, 34, 128, 62, 0x11E5);
-  tft.fillTriangle(0, 69, 34, 39, 65, 69, 0x2388);
-  tft.fillTriangle(49, 69, 88, 32, 127, 69, 0x2C29);
-  tft.drawTriangle(0, 69, 34, 39, 65, 69, 0x6B8D);
-  tft.drawLine(0, 91, 54, 61, kDarkGold);
-  tft.drawLine(127, 91, 72, 61, kDarkGold);
-  tft.drawLine(18, 95, 59, 63, 0x6B8D);
-  tft.drawLine(111, 95, 68, 63, 0x6B8D);
+  tft.drawRGBBitmap(0, 34, kQingyunScene, kQingyunSceneWidth,
+                    kQingyunSceneHeight);
   const int16_t bob =
       data.adventurePhase == AdventurePhase::Advancing
           ? static_cast<int16_t>((now / 250) % 2)
           : 0;
   pet_.draw(tft, data.form, 13, 29 + bob, now);
   if (data.currentEvent == QingyunEvent::SpiritHerb) {
-    tft.drawLine(99, 69, 99, 84, 0x6E8D);
-    tft.drawLine(99, 75, 93, 70, 0x6E8D);
-    tft.drawLine(99, 77, 105, 72, 0x6E8D);
+    drawQingyunIcon(96, 67, kQingyunIconSpiritHerb);
   } else if (data.currentEvent == QingyunEvent::WoundedCultivator) {
-    tft.fillCircle(101, 65, 4, kWarmWhite);
-    tft.drawLine(101, 69, 101, 84, kWarmWhite);
-    tft.drawLine(101, 74, 94, 80, kWarmWhite);
-  } else if (data.currentEvent == QingyunEvent::DemonBeast ||
-             data.qingyunBossUnlocked) {
-    tft.fillRoundRect(91, 67, 24, 14, 4, 0x632C);
-    tft.fillTriangle(93, 68, 97, 60, 101, 68, 0x632C);
-    tft.fillTriangle(105, 68, 110, 60, 113, 69, 0x632C);
-    tft.fillCircle(99, 72, 1, kCinnabar);
-    tft.fillCircle(108, 72, 1, kCinnabar);
+    drawQingyunIcon(96, 67, kQingyunIconWoundedCultivator);
+  } else if (data.currentEvent == QingyunEvent::DemonBeast) {
+    drawQingyunIcon(96, 67, kQingyunIconDemonBeast);
+  } else if (data.currentEvent == QingyunEvent::Shortcut) {
+    drawQingyunIcon(96, 67, kQingyunIconShortcut);
   }
 }
 
@@ -872,6 +872,7 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
   tft.setCursor(99, 104);
   tft.printf("%u%%", data.qingyunProgress);
   text().color(kMutedCyan);
+  drawQingyunIcon(9, 111, kQingyunIconEnergy);
   text().draw(13, 124, "灵力");
   text().draw(58, 124, "体力");
   tft.setCursor(40, 116);

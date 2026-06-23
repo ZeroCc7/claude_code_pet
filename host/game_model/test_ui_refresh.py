@@ -298,7 +298,7 @@ def test_game_app_ticks_adventure_and_battle_separately():
     assert "tickExploration(" not in APP_SOURCE
 
 
-def test_qingyun_ui_uses_replaceable_geometric_scene_helpers():
+def test_qingyun_ui_keeps_boss_as_geometric_placeholder():
     for signature in (
         "void drawQingyunAdventure",
         "void drawQingyunEvent",
@@ -307,9 +307,27 @@ def test_qingyun_ui_uses_replaceable_geometric_scene_helpers():
         "void drawQingyunScene",
     ):
         assert signature in UI_HEADER
-    assert "drawTriangle(" in UI_SOURCE
+    assert "fillTriangle(" in UI_SOURCE
     assert "fillCircle(" in UI_SOURCE
-    assert "assets/qingyun" not in UI_SOURCE
+    assert "qingyun_wolf" not in UI_SOURCE
+
+
+def test_qingyun_scene_and_ui_icons_use_generated_assets():
+    assert '#include "assets/qingyun_scene.h"' in UI_SOURCE
+    assert '#include "assets/qingyun_ui_icons.h"' in UI_SOURCE
+    assert "kQingyunScene" in UI_SOURCE
+    for icon in (
+        "kQingyunIconSpiritHerb",
+        "kQingyunIconRecoveryPill",
+        "kQingyunIconAttackTalisman",
+        "kQingyunIconGuardTalisman",
+        "kQingyunIconToken",
+        "kQingyunIconDemonBeast",
+        "kQingyunIconWoundedCultivator",
+        "kQingyunIconShortcut",
+        "kQingyunIconEnergy",
+    ):
+        assert icon in UI_SOURCE
 
 
 def test_cloud_terrace_home_uses_larger_lower_pet_region():
