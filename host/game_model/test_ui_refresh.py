@@ -31,6 +31,9 @@ GAME_STATE_HEADER = (
 SAVE_STORE_SOURCE = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "save_store.cpp"
 ).read_text(encoding="utf-8")
+AI_PROTOCOL_HEADER = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "ai_event_protocol.h"
+).read_text(encoding="utf-8")
 
 
 def source_between(source: str, start_signature: str, end_signature: str) -> str:
@@ -50,6 +53,7 @@ def test_v1_1_save_data_contains_inventory_and_merit_log():
     assert "AiTaskRecord aiTaskRecords[10];" in GAME_TYPES
     assert "uint8_t aiTaskRecordIndex;" in GAME_TYPES
     assert "uint8_t aiTaskRecordCount;" in GAME_TYPES
+    assert "recentTaskHashes" not in GAME_TYPES
 
 
 def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
@@ -145,11 +149,7 @@ def test_success_feedback_ai_completion_and_evolution_start_pet_effects():
     startPetEffect(PetEffect::Interaction, millis());
   }
 """ in feedback_source
-    assert """
-  if (success) {
-    startPetEffect(evolved ? PetEffect::Evolution : PetEffect::AiComplete, now);
-  }
-""" in ai_result_source
+    assert "startPetEffect(evolved ? PetEffect::Evolution" in ai_result_source
     assert "startPetEffect(PetEffect::Evolution, now);" in evolution_source
 
 
@@ -260,7 +260,7 @@ def test_home_pet_is_lowered_fourteen_pixels_above_vitals():
 def test_home_header_shows_level_current_xp_and_connection_icon():
     assert "drawHomeHeader(" in UI_SOURCE
     assert "data.experience % 20" in UI_SOURCE
-    assert "aiState_ == AiWorkState::Idle" in UI_SOURCE
+    assert "aiActive_" in UI_SOURCE
     assert "Offline/sleeping icon" in UI_SOURCE
     assert "Online/active icon" in UI_SOURCE
     assert 'tft.print("USB")' not in UI_SOURCE
@@ -325,30 +325,27 @@ def test_inventory_and_merit_log_pages_have_expected_controls():
 def test_ai_work_uses_a_dedicated_cultivation_page():
     assert "UiPage::Cultivation" in UI_SOURCE
     assert "drawCultivation(" in UI_SOURCE
-    assert "showAiStatus(" in UI_HEADER
+    assert "showAiActive(" in UI_HEADER
     assert "showAiResult(" in UI_HEADER
 
 
-def test_ai_event_uses_update_timestamp_to_avoid_immediate_timeout():
+def test_simple_ai_protocol_and_single_active_task_controller():
+    assert "AiEventKind::Start" in APP_SOURCE
+    assert "AiEventKind::End" in APP_SOURCE
+    assert "Start," in AI_PROTOCOL_HEADER
+    assert "End," in AI_PROTOCOL_HEADER
+    for removed in ("taskId", "AiWorkState", "durationSeconds", "success"):
+        assert removed not in AI_PROTOCOL_HEADER
     assert "void processSerial(uint32_t now);" in APP_HEADER
     assert "void processAiEvent(const AiEvent& event, uint32_t now);" in APP_HEADER
     assert "processSerial(now);" in APP_SOURCE
     assert "processAiEvent(event, now);" in APP_SOURCE
-    assert "showAiStatus(event.source, event.state, event.taskId, now);" in APP_SOURCE
-
-
-def test_cultivation_page_supports_all_hook_states_and_timeout():
-    for state in (
-        "AiWorkState::Submitted",
-        "AiWorkState::Thinking",
-        "AiWorkState::Tool",
-        "AiWorkState::Editing",
-        "AiWorkState::Waiting",
-        "AiWorkState::Blocked",
-        "AiWorkState::Idle",
-    ):
-        assert state in UI_SOURCE
-    assert "1800000" in UI_SOURCE
+    assert "aiTaskActive_" in APP_HEADER
+    assert "aiTaskSource_" in APP_HEADER
+    assert "aiTaskStartedAt_" in APP_HEADER
+    assert "strncmp(aiTaskSource_, event.source" in APP_SOURCE
+    assert "now - aiTaskStartedAt_ >= 1800000" in APP_SOURCE
+    assert "completeAiTask(" in APP_SOURCE
 
 
 def test_ai_result_can_show_rewards_and_evolution():

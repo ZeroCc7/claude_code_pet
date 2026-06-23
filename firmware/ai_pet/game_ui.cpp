@@ -144,10 +144,6 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   if (!display_) {
     return;
   }
-  if (page_ == UiPage::Cultivation && !aiResultActive_ &&
-      aiLastEventAt_ != 0 && now - aiLastEventAt_ >= 1800000) {
-    // 30 分钟无新事件，由 game_app 检测并触发减半结算
-  }
   if (page_ == UiPage::Cultivation && aiResultActive_ &&
       now - aiLastEventAt_ >= 2500) {
     page_ = UiPage::Home;
@@ -236,11 +232,10 @@ UiPage GameUi::page() const {
 
 void GameUi::clearAiCultivation(uint32_t now) {
   (void)now;
-  aiTaskId_[0] = '\0';
+  aiActive_ = false;
   aiTaskStartedAt_ = 0;
   aiLastEventAt_ = 0;
   aiResultActive_ = false;
-  aiState_ = AiWorkState::Idle;
   page_ = UiPage::Home;
   dirty_ = true;
 }
@@ -249,41 +244,32 @@ void GameUi::notify(const char* message) {
   startNotice(message);
 }
 
-void GameUi::showAiStatus(const char* source, AiWorkState state,
-                          const char* taskId, uint32_t now) {
-  if (strncmp(aiTaskId_, taskId, sizeof(aiTaskId_)) != 0) {
-    strncpy(aiTaskId_, taskId, sizeof(aiTaskId_) - 1);
-    aiTaskId_[sizeof(aiTaskId_) - 1] = '\0';
-    aiTaskStartedAt_ = now;
-  }
+void GameUi::showAiActive(const char* source, uint32_t now) {
   strncpy(aiSource_, source, sizeof(aiSource_) - 1);
   aiSource_[sizeof(aiSource_) - 1] = '\0';
-  aiState_ = state;
+  aiActive_ = true;
+  aiTaskStartedAt_ = now;
   aiLastEventAt_ = now;
   aiResultActive_ = false;
-  page_ = state == AiWorkState::Idle ? UiPage::Home
-                                     : UiPage::Cultivation;
-  if (state != AiWorkState::Idle) {
-    startPetEffect(PetEffect::AiComplete, now);
-  }
+  page_ = UiPage::Cultivation;
+  startPetEffect(PetEffect::AiComplete, now);
   dirty_ = true;
 }
 
-void GameUi::showAiResult(const char* source, bool success,
-                          uint16_t experienceGain, uint16_t coinGain,
+void GameUi::showAiResult(const char* source, uint16_t experienceGain,
+                          uint16_t coinGain,
                           bool evolved, uint32_t now) {
   strncpy(aiSource_, source, sizeof(aiSource_) - 1);
   aiSource_[sizeof(aiSource_) - 1] = '\0';
+  aiActive_ = false;
   aiResultActive_ = true;
-  aiResultSuccess_ = success;
+  aiResultSuccess_ = true;
   aiExperienceGain_ = experienceGain;
   aiCoinGain_ = coinGain;
   aiEvolved_ = evolved;
   aiLastEventAt_ = now;
   page_ = UiPage::Cultivation;
-  if (success) {
-    startPetEffect(evolved ? PetEffect::Evolution : PetEffect::AiComplete, now);
-  }
+  startPetEffect(evolved ? PetEffect::Evolution : PetEffect::AiComplete, now);
   dirty_ = true;
 }
 
@@ -364,7 +350,7 @@ void GameUi::drawHomeHeader(const PetSaveData& data) {
   tft.printf("%u/20", currentExperience);
 
   // Right column: status icon (replace text with icon)
-  if (aiState_ == AiWorkState::Idle) {
+  if (!aiActive_) {
     // Offline/sleeping icon: small crescent moon
     tft.drawPixel(108, 2, kMutedCyan);
     tft.drawPixel(109, 3, kMutedCyan);
@@ -478,20 +464,11 @@ void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
   const char* label;
   uint16_t labelColor;
   if (aiResultActive_) {
-    label = aiResultSuccess_ ? "修炼完成" : "修炼受阻";
-    labelColor = aiResultSuccess_ ? kBrightGold : kCinnabar;
+    label = "修炼完成";
+    labelColor = kBrightGold;
   } else {
-    label = "修炼暂歇";
-    switch (aiState_) {
-      case AiWorkState::Submitted: label = "接引任务"; break;
-      case AiWorkState::Thinking: label = "推演中"; break;
-      case AiWorkState::Tool: label = "施法中"; break;
-      case AiWorkState::Editing: label = "炼器中"; break;
-      case AiWorkState::Waiting: label = "等待指令"; break;
-      case AiWorkState::Blocked: label = "修炼受阻"; break;
-      case AiWorkState::Idle: label = "修炼暂歇"; break;
-    }
-    labelColor = aiState_ == AiWorkState::Blocked ? kCinnabar : kBrightGold;
+    label = "修炼中";
+    labelColor = kBrightGold;
   }
   text().color(labelColor);
   const int16_t labelWidth = utf8GlyphCount(label) * 12;

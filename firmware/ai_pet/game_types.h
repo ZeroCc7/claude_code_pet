@@ -64,8 +64,6 @@ struct PetSaveData {
   uint8_t inBattle;
   uint32_t playSeconds;
   uint16_t energyRecoverySeconds;
-  uint32_t recentTaskHashes[16];
-  uint8_t recentTaskIndex;
   InventoryData inventory;
   AiTaskRecord aiTaskRecords[10];
   uint8_t aiTaskRecordIndex;

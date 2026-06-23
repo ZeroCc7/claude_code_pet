@@ -191,45 +191,14 @@ void GameState::applyTask(uint32_t durationSeconds, bool success,
   }
 }
 
-uint32_t GameState::taskHash(const char* source, const char* taskId) {
-  uint32_t value = 0x811C9DC5U;
-  const char* parts[] = {source, ":", taskId};
-  for (const char* part : parts) {
-    while (*part) {
-      value ^= static_cast<uint8_t>(*part++);
-      value *= 0x01000193U;
-    }
-  }
-  return value == 0 ? 1 : value;
-}
-
-bool GameState::hasProcessedTask(const char* source,
-                                 const char* taskId) const {
-  const uint32_t digest = taskHash(source, taskId);
-  for (uint32_t stored : data_.recentTaskHashes) {
-    if (stored == digest) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool GameState::applyAiTask(const char* source, const char* taskId,
-                            uint32_t durationSeconds, bool success,
-                            bool halved) {
-  if (!success || hasProcessedTask(source, taskId)) {
-    return false;
-  }
+void GameState::completeAiTask(const char* source, uint32_t durationSeconds,
+                               bool halved) {
   const uint16_t oldExperience = data_.experience;
   const uint16_t oldCoins = data_.coins;
   applyTask(durationSeconds, true, halved);
-  data_.recentTaskHashes[data_.recentTaskIndex] = taskHash(source, taskId);
-  data_.recentTaskIndex =
-      (data_.recentTaskIndex + 1) %
-      (sizeof(data_.recentTaskHashes) / sizeof(data_.recentTaskHashes[0]));
   AiTaskRecord& record = data_.aiTaskRecords[data_.aiTaskRecordIndex];
   record.source = strcmp(source, "codex") == 0 ? 0 :
-                  strcmp(source, "claude_code") == 0 ? 1 :
+                  strcmp(source, "claude-code") == 0 ? 1 :
                   strcmp(source, "opencode") == 0 ? 2 : 3;
   record.durationSeconds =
       min<uint32_t>(durationSeconds, 0xFFFFU);
@@ -241,7 +210,6 @@ bool GameState::applyAiTask(const char* source, const char* taskId,
   data_.aiTaskRecordCount =
       min<uint8_t>(sizeof(data_.aiTaskRecords) / sizeof(data_.aiTaskRecords[0]),
                    data_.aiTaskRecordCount + 1);
-  return true;
 }
 
 bool GameState::tickRuntime(uint32_t seconds) {

@@ -64,23 +64,8 @@ void GameApp::update(uint32_t now) {
     }
   }
 
-  if (ui_.page() == UiPage::Cultivation && !ui_.aiResultActive() &&
-      ui_.aiTaskId()[0] != '\0' && ui_.aiLastEventAt() != 0 &&
-      now - ui_.aiLastEventAt() >= 1800000) {
-    const uint32_t rawDuration = (now - ui_.aiTaskStartedAt()) / 1000;
-    const uint32_t duration = rawDuration < 60 ? 60 :
-                              (rawDuration > 3600 ? 3600 : rawDuration);
-    const uint16_t oldExperience = state_.data().experience;
-    const uint16_t oldCoins = state_.data().coins;
-    const PetForm oldForm = state_.data().form;
-    state_.applyAiTask(ui_.aiSource(), ui_.aiTaskId(), duration, true, true);
-    const uint16_t experienceGain =
-        state_.data().experience - oldExperience;
-    const uint16_t coinGain = state_.data().coins - oldCoins;
-    const bool evolved = state_.data().form != oldForm;
-    ui_.showAiResult(ui_.aiSource(), true, experienceGain, coinGain,
-                     evolved, now);
-    requestSave();
+  if (aiTaskActive_ && now - aiTaskStartedAt_ >= 1800000) {
+    completeAiTask(now, true);
   }
 
   if (savePending_ && now - lastSaveAt_ >= kSaveDelayMs) {
@@ -169,43 +154,53 @@ void GameApp::processPreviewCommand(const String& command, uint32_t now) {
 }
 
 void GameApp::processAiEvent(const AiEvent& event, uint32_t now) {
-  if (event.kind == AiEventKind::Status) {
-    ui_.showAiStatus(event.source, event.state, event.taskId, now);
-    printAck(event, "accepted");
+  if (event.kind == AiEventKind::Start) {
+    if (aiTaskActive_) {
+      printAck("ignored");
+      return;
+    }
+    aiTaskActive_ = true;
+    strncpy(aiTaskSource_, event.source, sizeof(aiTaskSource_) - 1);
+    aiTaskSource_[sizeof(aiTaskSource_) - 1] = '\0';
+    aiTaskStartedAt_ = now;
+    ui_.showAiActive(event.source, now);
+    printAck("accepted");
     return;
   }
 
-  if (!event.success) {
-    ui_.showAiResult(event.source, false, 0, 0, false, now);
-    printAck(event, "accepted");
+  if (event.kind != AiEventKind::End || !aiTaskActive_ ||
+      strncmp(aiTaskSource_, event.source, sizeof(aiTaskSource_)) != 0) {
+    printAck("ignored");
     return;
   }
+  completeAiTask(now, false);
+}
 
-  if (state_.hasProcessedTask(event.source, event.taskId)) {
-    printAck(event, "duplicate");
-    return;
-  }
-
+void GameApp::completeAiTask(uint32_t now, bool halved) {
+  const uint32_t elapsedSeconds = (now - aiTaskStartedAt_) / 1000;
+  const uint32_t duration = constrain(elapsedSeconds, 60U, 1800U);
   const uint16_t oldExperience = state_.data().experience;
   const uint16_t oldCoins = state_.data().coins;
   const PetForm oldForm = state_.data().form;
-  state_.applyAiTask(event.source, event.taskId, event.durationSeconds, true);
+  state_.completeAiTask(aiTaskSource_, duration, halved);
   const uint16_t experienceGain =
       state_.data().experience - oldExperience;
   const uint16_t coinGain = state_.data().coins - oldCoins;
   const bool evolved = state_.data().form != oldForm;
-  ui_.showAiResult(event.source, true, experienceGain, coinGain, evolved,
-                   now);
+  ui_.showAiResult(aiTaskSource_, experienceGain, coinGain, evolved, now);
+  aiTaskActive_ = false;
+  aiTaskSource_[0] = '\0';
+  aiTaskStartedAt_ = 0;
   requestSave();
-  printAck(event, "accepted", experienceGain, coinGain);
+  printAck(halved ? "timeout" : "accepted", experienceGain, coinGain);
 }
 
-void GameApp::printAck(const AiEvent& event, const char* status,
+void GameApp::printAck(const char* status,
                        uint16_t experience, uint16_t coins) {
   Serial.printf(
-      "{\"type\":\"ack\",\"task_id\":\"%s\",\"status\":\"%s\","
+      "{\"type\":\"ack\",\"status\":\"%s\","
       "\"experience\":%u,\"coins\":%u}\n",
-      event.taskId, status, experience, coins);
+      status, experience, coins);
 }
 
 void GameApp::printStatus() {
