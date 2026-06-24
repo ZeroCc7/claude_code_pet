@@ -76,6 +76,7 @@ class GameUi {
                              int16_t height);
   void drawMeritLog(const PetSaveData& data);
   void drawInventory(const PetSaveData& data);
+  void drawTreasureInventory(const PetSaveData& data);
   void drawAdventure(const PetSaveData& data);
   void drawQingyunAdventure(const PetSaveData& data, uint32_t now);
   void drawQingyunEvent(const PetSaveData& data);
@@ -104,6 +105,7 @@ class GameUi {
   ChineseText* renderText_ = nullptr;
   UiPage page_ = UiPage::Home;
   uint8_t selection_ = 0;
+  uint8_t inventoryTab_ = 0;
   uint8_t meritPage_ = 0;
   bool battlePrompt_ = true;
   bool useAttackTalisman_ = false;

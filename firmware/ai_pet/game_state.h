@@ -32,6 +32,15 @@ class GameState {
   void addItem(ItemType item);
   uint8_t qingyunAttackDamage(uint32_t seed) const;
   uint8_t qingyunIncomingDamage(uint32_t seed) const;
+  uint8_t qingyunBossMaxHp() const;
+  uint16_t qingyunCompletionExperience() const;
+  uint16_t qingyunCompletionCoins() const;
+  uint16_t qingyunHealthPercent() const;
+  uint16_t qingyunDamagePercent() const;
+  uint8_t qingyunEventDamage(uint8_t baseDamage) const;
+  void resetQingyunRun();
+  void grantQingyunItems(uint32_t seed);
+  void rollQingyunSword(uint32_t seed);
   void finishQingyunBattle(BattleResult result, bool resetHp = true);
   void updateEvolution();
   static uint8_t clampPercent(uint16_t value);

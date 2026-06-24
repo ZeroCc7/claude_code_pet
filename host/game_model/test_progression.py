@@ -256,6 +256,25 @@ def test_manual_retreat_resets_boss_without_other_penalty():
     assert state.qingyun_round == 1
 
 
+def test_stamina_defeat_resets_current_run_without_losing_round():
+    state = GameState(
+        energy=20,
+        stamina=1,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
+        qingyun_boss_unlocked=True,
+        qingyun_round=8,
+    )
+    assert state.start_qingyun_wolf_battle(False, False)
+
+    assert state.tick_qingyun_wolf_battle(seed=5000) == BattleResult.DEFEAT
+
+    assert state.stamina == 30
+    assert state.qingyun_progress == 0
+    assert state.qingyun_event_mask == 0
+    assert state.qingyun_round == 8
+
+
 def test_attack_tendency_improves_damage_with_diminishing_returns():
     low = GameState(level=8, tendencies=[0, 0, 0, 0])
     high = GameState(level=8, tendencies=[40, 0, 0, 0])

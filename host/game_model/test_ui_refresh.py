@@ -57,12 +57,12 @@ def test_v1_1_save_data_contains_inventory_and_merit_log():
 
 
 def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
-    assert "constexpr uint16_t kSaveVersion = 6;" in SAVE_STORE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 7;" in SAVE_STORE_SOURCE
     assert "PetSaveDataV3" not in SAVE_STORE_SOURCE
     assert "PetSaveDataV2" not in SAVE_STORE_SOURCE
     assert "migrated" not in SAVE_STORE_SOURCE
     assert "fileSize != sizeof(PetSaveData)" in SAVE_STORE_SOURCE
-    assert "constexpr uint16_t kSaveVersion = 6;" in GAME_STATE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 7;" in GAME_STATE_SOURCE
 
 
 def test_qingyun_state_is_persisted_in_v1_1_save_data():
@@ -82,8 +82,30 @@ def test_qingyun_state_is_persisted_in_v1_1_save_data():
         "uint8_t battleRound;",
         "uint8_t battleAttackTalisman;",
         "uint8_t battleGuardTalisman;",
+        "uint16_t qingyunRound;",
+        "uint8_t qingyunMisses;",
+        "uint8_t hasQingyunSword;",
+        "uint16_t staminaRecoverySeconds;",
+        "uint16_t lastQingyunExperience;",
+        "uint16_t lastQingyunCoins;",
+        "uint8_t lastQingyunItems[4];",
+        "uint8_t lastQingyunSword;",
     ):
         assert token in GAME_TYPES
+
+
+def test_firmware_exposes_repeat_challenge_helpers():
+    for signature in (
+        "uint8_t qingyunAttackDamage(uint32_t seed) const;",
+        "uint8_t qingyunIncomingDamage(uint32_t seed) const;",
+        "uint8_t qingyunBossMaxHp() const;",
+        "uint16_t qingyunCompletionExperience() const;",
+        "uint16_t qingyunCompletionCoins() const;",
+        "void resetQingyunRun();",
+        "void grantQingyunItems(uint32_t seed);",
+        "void rollQingyunSword(uint32_t seed);",
+    ):
+        assert signature in GAME_STATE_HEADER
 
 
 def test_firmware_inventory_rules_match_python_recovery_items():
@@ -105,6 +127,41 @@ def test_firmware_inventory_rules_match_python_recovery_items():
     assert "data_.stamina + 20" in use_item_source
     assert "quantity--;" in use_item_source
     assert "return false;" in use_item_source
+
+
+def test_inventory_has_item_and_treasure_pages():
+    assert "void drawTreasureInventory(const PetSaveData& data);" in UI_HEADER
+    assert "uint8_t inventoryTab_ = 0;" in UI_HEADER
+    assert "inventoryTab_" in source_between(
+        UI_SOURCE,
+        "void GameUi::handle",
+        "void GameUi::draw",
+    )
+    for label in ("宝物", "青云剑", "尚未获得", "伤害+10%", "减伤+10%"):
+        assert label in UI_SOURCE
+    assert "data.hasQingyunSword" in UI_SOURCE
+
+
+def test_qingyun_ui_shows_round_and_completion_rewards():
+    for token in (
+        "data.qingyunRound",
+        "data.lastQingyunExperience",
+        "data.lastQingyunCoins",
+        "data.lastQingyunItems",
+        "data.lastQingyunSword",
+    ):
+        assert token in UI_SOURCE
+
+
+def test_app_distinguishes_energy_and_stamina_recovery():
+    runtime_source = source_between(
+        APP_SOURCE,
+        "void GameApp::update",
+        "void GameApp::processInput",
+    )
+    assert "const uint8_t oldStamina" in runtime_source
+    assert "state_.data().stamina > oldStamina" in runtime_source
+    assert 'ui_.notify("体力恢复");' in runtime_source
 
 
 def test_firmware_exposes_qingyun_adventure_and_event_api():

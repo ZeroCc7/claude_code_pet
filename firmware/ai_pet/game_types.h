@@ -105,6 +105,9 @@ struct PetSaveData {
   EventResult currentEventResult;
   uint8_t qingyunBossWins;
   uint8_t qingyunBossDefeated;
+  uint16_t qingyunRound;
+  uint8_t qingyunMisses;
+  uint8_t hasQingyunSword;
   uint8_t bossHp;
   uint8_t bossMaxHp;
   uint8_t inBattle;
@@ -114,6 +117,11 @@ struct PetSaveData {
   BattleResult lastBattleResult;
   uint32_t playSeconds;
   uint16_t energyRecoverySeconds;
+  uint16_t staminaRecoverySeconds;
+  uint16_t lastQingyunExperience;
+  uint16_t lastQingyunCoins;
+  uint8_t lastQingyunItems[4];
+  uint8_t lastQingyunSword;
   InventoryData inventory;
   AiTaskRecord aiTaskRecords[10];
   uint8_t aiTaskRecordIndex;
