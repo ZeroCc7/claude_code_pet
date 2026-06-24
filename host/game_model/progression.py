@@ -116,6 +116,14 @@ class GameState:
     qingyun_boss_unlocked: bool = False
     qingyun_boss_defeated: bool = False
     qingyun_boss_wins: int = 0
+    qingyun_round: int = 1
+    qingyun_misses: int = 0
+    has_qingyun_sword: bool = False
+    stamina_recovery_seconds: int = 0
+    last_qingyun_experience: int = 0
+    last_qingyun_coins: int = 0
+    last_qingyun_items: list[int] = field(default_factory=lambda: [0] * 4)
+    last_qingyun_sword: bool = False
     battle_round: int = 0
     battle_attack_talisman: bool = False
     battle_guard_talisman: bool = False
@@ -141,15 +149,28 @@ class GameState:
         changed = False
         if self.energy >= 20:
             self.energy_recovery_seconds = 0
-            return changed
+        else:
+            self.energy_recovery_seconds += seconds
+            while self.energy_recovery_seconds >= 300 and self.energy < 20:
+                self.energy_recovery_seconds -= 300
+                self.energy += 1
+                changed = True
+            if self.energy >= 20:
+                self.energy_recovery_seconds = 0
 
-        self.energy_recovery_seconds += seconds
-        while self.energy_recovery_seconds >= 300 and self.energy < 20:
-            self.energy_recovery_seconds -= 300
-            self.energy += 1
-            changed = True
-        if self.energy >= 20:
-            self.energy_recovery_seconds = 0
+        if self.stamina >= 100:
+            self.stamina_recovery_seconds = 0
+        else:
+            self.stamina_recovery_seconds += seconds
+            while (
+                self.stamina_recovery_seconds >= 300
+                and self.stamina < 100
+            ):
+                self.stamina_recovery_seconds -= 300
+                self.stamina = min(100, self.stamina + 5)
+                changed = True
+            if self.stamina >= 100:
+                self.stamina_recovery_seconds = 0
         return changed
 
     def region_unlocked(self, region: int) -> bool:
@@ -240,7 +261,9 @@ class GameState:
                 self.coins += 5
                 result = EventResult.REWARD_GAINED
             else:
-                self.stamina = max(0, self.stamina - 12)
+                self.stamina = max(
+                    0, self.stamina - self._qingyun_event_damage(12)
+                )
                 result = EventResult.STAMINA_LOST
         elif (
             self.current_event == QingyunEvent.WOUNDED_CULTIVATOR
@@ -272,7 +295,9 @@ class GameState:
                     )
                     result = EventResult.PROGRESS_GAINED
                 else:
-                    self.stamina = max(0, self.stamina - 10)
+                    self.stamina = max(
+                        0, self.stamina - self._qingyun_event_damage(10)
+                    )
                     result = EventResult.STAMINA_LOST
             else:
                 self.qingyun_progress = min(100, self.qingyun_progress + 3)
@@ -312,7 +337,7 @@ class GameState:
         ):
             return False
         self.in_battle = True
-        self.boss_max_hp = 48
+        self.boss_max_hp = self.qingyun_boss_max_hp()
         self.boss_hp = self.boss_max_hp
         self.battle_round = 0
         self.last_battle_result = BattleResult.CONTINUE
@@ -346,6 +371,8 @@ class GameState:
             damage *= 2
         if self.battle_attack_talisman:
             damage = damage * 120 // 100
+        if self.has_qingyun_sword:
+            damage = damage * 110 // 100
         return max(1, damage)
 
     def qingyun_incoming_damage(self, seed: int) -> int:
@@ -359,6 +386,9 @@ class GameState:
             damage = max(1, damage - 2)
         if self.battle_guard_talisman:
             damage = max(1, damage * 80 // 100)
+        damage = max(1, damage * self._qingyun_damage_percent() // 100)
+        if self.has_qingyun_sword:
+            damage = max(1, damage * 90 // 100)
         return damage
 
     def tick_qingyun_wolf_battle(self, seed: int) -> BattleResult:
@@ -367,6 +397,7 @@ class GameState:
         self.energy -= 1
         self.battle_round += 1
         if self.energy == 0:
+            self._reset_qingyun_run()
             self._finish_qingyun_battle(BattleResult.ENERGY_DEPLETED)
             return BattleResult.ENERGY_DEPLETED
 
@@ -374,12 +405,18 @@ class GameState:
             0, self.boss_hp - self.qingyun_attack_damage(seed)
         )
         if self.boss_hp == 0:
-            experience_reward = max(1, 30 >> min(15, self.qingyun_boss_wins))
-            coin_reward = max(1, 25 >> min(15, self.qingyun_boss_wins))
+            experience_reward = self.qingyun_completion_experience()
+            coin_reward = self.qingyun_completion_coins()
+            self.last_qingyun_experience = experience_reward
+            self.last_qingyun_coins = coin_reward
+            self._grant_qingyun_items(seed)
+            self._roll_qingyun_sword(seed)
             self.qingyun_boss_wins += 1
             self.qingyun_boss_defeated = True
             self.gain_experience(experience_reward)
-            self.coins += coin_reward
+            self.coins = min(65535, self.coins + coin_reward)
+            self.qingyun_round = min(65535, self.qingyun_round + 1)
+            self._reset_qingyun_run()
             self._finish_qingyun_battle(BattleResult.VICTORY, reset_hp=False)
             return BattleResult.VICTORY
 
@@ -393,6 +430,7 @@ class GameState:
             self.stamina = min(100, self.stamina + 2)
         if self.stamina == 0:
             self.stamina = 30
+            self._reset_qingyun_run()
             self._finish_qingyun_battle(BattleResult.DEFEAT)
             return BattleResult.DEFEAT
         self.last_battle_result = BattleResult.CONTINUE
@@ -401,7 +439,79 @@ class GameState:
     def retreat_qingyun_wolf(self) -> None:
         if not self.in_battle:
             return
+        self._reset_qingyun_run()
         self._finish_qingyun_battle(BattleResult.RETREATED)
+
+    def qingyun_boss_max_hp(self) -> int:
+        return 48 * self._qingyun_health_percent() // 100
+
+    def qingyun_completion_experience(self) -> int:
+        round_number = min(50, max(1, self.qingyun_round))
+        return (
+            6
+            + min(round_number, 10)
+            + max(0, round_number - 10) // 5
+        )
+
+    def qingyun_completion_coins(self) -> int:
+        round_number = min(50, max(1, self.qingyun_round))
+        return (
+            15
+            + 2 * min(round_number, 10)
+            + max(0, round_number - 10)
+        )
+
+    def _qingyun_health_percent(self) -> int:
+        round_number = min(50, max(1, self.qingyun_round))
+        return (
+            100
+            + min(round_number - 1, 9) * 15
+            + max(0, round_number - 10) * 3
+        )
+
+    def _qingyun_damage_percent(self) -> int:
+        round_number = min(50, max(1, self.qingyun_round))
+        return (
+            100
+            + min(round_number - 1, 9) * 8
+            + max(0, round_number - 10) * 2
+        )
+
+    def _qingyun_event_damage(self, base_damage: int) -> int:
+        return max(1, base_damage * self._qingyun_damage_percent() // 100)
+
+    def _grant_qingyun_items(self, seed: int) -> None:
+        self.last_qingyun_items = [0] * 4
+        reward_count = 1 + seed % 2
+        quantity = 1 + min(4, (max(1, self.qingyun_round) - 1) // 10)
+        first = (seed // 2) % 4
+        reward_types = [first]
+        if reward_count == 2:
+            reward_types.append((first + 1 + (seed // 8) % 3) % 4)
+        for item in reward_types:
+            self.last_qingyun_items[item] = quantity
+            self.items[item] = min(65535, self.items[item] + quantity)
+
+    def _roll_qingyun_sword(self, seed: int) -> None:
+        self.last_qingyun_sword = False
+        if self.has_qingyun_sword:
+            self.qingyun_misses = 0
+            return
+        chance = min(10, max(1, self.qingyun_round))
+        if self.qingyun_misses >= 19 or seed % 100 < chance:
+            self.has_qingyun_sword = True
+            self.last_qingyun_sword = True
+            self.qingyun_misses = 0
+        else:
+            self.qingyun_misses = min(255, self.qingyun_misses + 1)
+
+    def _reset_qingyun_run(self) -> None:
+        self.qingyun_progress = 0
+        self.qingyun_event_mask = 0
+        self.qingyun_boss_unlocked = False
+        self.adventure_phase = AdventurePhase.IDLE
+        self.current_event = QingyunEvent.NONE
+        self.current_event_result = EventResult.NONE
 
     def _finish_qingyun_battle(
         self,

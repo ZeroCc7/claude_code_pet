@@ -20,6 +20,8 @@ def test_new_game_has_safe_defaults():
     assert state.coins == 30
     assert state.energy == 10
     assert state.items == [0, 0, 0, 0, 0]
+    assert state.qingyun_round == 1
+    assert not state.has_qingyun_sword
 
 
 def test_v1_1_state_has_no_care_actions():
@@ -161,6 +163,8 @@ def test_wounded_cultivator_can_award_qingyun_token_and_unlock_boss():
 def test_abandoning_event_ends_adventure_without_extra_cost():
     state = GameState(
         energy=7,
+        qingyun_progress=45,
+        qingyun_event_mask=0b0011,
         adventure_phase=AdventurePhase.CHOOSING,
         current_event=QingyunEvent.DEMON_BEAST,
     )
@@ -169,6 +173,8 @@ def test_abandoning_event_ends_adventure_without_extra_cost():
 
     assert state.energy == 7
     assert state.adventure_phase == AdventurePhase.IDLE
+    assert state.qingyun_progress == 45
+    assert state.qingyun_event_mask == 0b0011
 
 
 def test_event_item_rewards_saturate_at_uint16_max():
@@ -207,7 +213,12 @@ def test_auto_battle_consumes_one_energy_each_round():
 
 
 def test_zero_energy_retreats_and_resets_boss_hp():
-    state = GameState(energy=1, qingyun_boss_unlocked=True)
+    state = GameState(
+        energy=1,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
+        qingyun_boss_unlocked=True,
+    )
     assert not state.start_qingyun_wolf_battle(False, False)
     state.energy = 5
     assert state.start_qingyun_wolf_battle(False, False)
@@ -219,12 +230,17 @@ def test_zero_energy_retreats_and_resets_boss_hp():
     )
     assert not state.in_battle
     assert state.boss_hp == state.boss_max_hp
+    assert state.qingyun_progress == 0
+    assert state.qingyun_event_mask == 0
+    assert state.qingyun_round == 1
 
 
 def test_manual_retreat_resets_boss_without_other_penalty():
     state = GameState(
         energy=8,
         stamina=67,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
         qingyun_boss_unlocked=True,
     )
     assert state.start_qingyun_wolf_battle(False, False)
@@ -235,6 +251,9 @@ def test_manual_retreat_resets_boss_without_other_penalty():
     assert not state.in_battle
     assert state.stamina == 67
     assert state.boss_hp == state.boss_max_hp
+    assert state.qingyun_progress == 0
+    assert state.qingyun_event_mask == 0
+    assert state.qingyun_round == 1
 
 
 def test_attack_tendency_improves_damage_with_diminishing_returns():
@@ -263,28 +282,112 @@ def test_talismans_are_consumed_at_battle_start_and_modify_one_battle():
     assert state.battle_guard_talisman
 
 
-def test_qingyun_wolf_victory_marks_defeat_and_halves_repeat_rewards():
+def test_qingyun_difficulty_scales_quickly_then_slowly_and_caps():
+    assert GameState(qingyun_round=1).qingyun_boss_max_hp() == 48
+    assert GameState(qingyun_round=10).qingyun_boss_max_hp() == 112
+    assert GameState(qingyun_round=11).qingyun_boss_max_hp() == 114
+    assert (
+        GameState(qingyun_round=100).qingyun_boss_max_hp()
+        == GameState(qingyun_round=50).qingyun_boss_max_hp()
+    )
+
+
+def test_qingyun_event_stamina_loss_scales_with_round():
+    early = GameState(
+        stamina=100,
+        energy=0,
+        qingyun_round=1,
+        adventure_phase=AdventurePhase.CHOOSING,
+        current_event=QingyunEvent.SHORTCUT,
+    )
+    later = GameState(
+        stamina=100,
+        energy=0,
+        qingyun_round=10,
+        adventure_phase=AdventurePhase.CHOOSING,
+        current_event=QingyunEvent.SHORTCUT,
+    )
+
+    early.resolve_qingyun_event(choice=0, seed=0)
+    later.resolve_qingyun_event(choice=0, seed=0)
+
+    assert early.stamina == 90
+    assert later.stamina == 83
+
+
+def test_qingyun_completion_experience_is_small_and_capped():
+    rewards = [
+        GameState(qingyun_round=round_number).qingyun_completion_experience()
+        for round_number in (1, 10, 20, 50, 100)
+    ]
+
+    assert rewards == [7, 16, 18, 24, 24]
+
+
+def test_qingyun_victory_advances_round_and_grants_distinct_item_rewards():
     state = GameState(
         level=30,
         energy=20,
         stamina=100,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
         qingyun_boss_unlocked=True,
     )
-    rewards = []
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp = 1
 
-    for _ in range(3):
-        assert state.start_qingyun_wolf_battle(False, False)
-        state.boss_hp = 1
-        before = (state.experience, state.coins)
-        assert (
-            state.tick_qingyun_wolf_battle(seed=50)
-            == BattleResult.VICTORY
-        )
-        rewards.append(
-            (state.experience - before[0], state.coins - before[1])
-        )
+    assert state.tick_qingyun_wolf_battle(seed=51) == BattleResult.VICTORY
 
-    assert rewards == [(30, 25), (15, 12), (7, 6)]
+    assert state.qingyun_round == 2
+    assert state.qingyun_progress == 0
+    assert state.qingyun_event_mask == 0
+    assert state.last_qingyun_experience == 7
+    assert state.last_qingyun_coins == 17
+    rewarded = [
+        quantity
+        for quantity in state.last_qingyun_items
+        if quantity > 0
+    ]
+    assert rewarded == [1, 1]
+
+
+def test_qingyun_sword_drops_on_twentieth_miss_and_only_once():
+    state = GameState(
+        level=30,
+        energy=20,
+        stamina=100,
+        qingyun_progress=100,
+        qingyun_boss_unlocked=True,
+        qingyun_misses=19,
+    )
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp = 1
+
+    assert state.tick_qingyun_wolf_battle(seed=99) == BattleResult.VICTORY
+    assert state.has_qingyun_sword
+    assert state.last_qingyun_sword
+    assert state.qingyun_misses == 0
+
+    state.energy = 20
+    state.qingyun_progress = 100
+    state.qingyun_boss_unlocked = True
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp = 1
+    assert state.tick_qingyun_wolf_battle(seed=0) == BattleResult.VICTORY
+    assert not state.last_qingyun_sword
+    assert state.qingyun_misses == 0
+
+
+def test_qingyun_sword_increases_damage_and_reduces_incoming_damage():
+    ordinary = GameState(level=8)
+    sword = GameState(level=8, has_qingyun_sword=True)
+
+    assert sword.qingyun_attack_damage(seed=50) == (
+        ordinary.qingyun_attack_damage(seed=50) * 110 // 100
+    )
+    assert sword.qingyun_incoming_damage(seed=5000) == max(
+        1, ordinary.qingyun_incoming_damage(seed=5000) * 90 // 100
+    )
 
 
 def test_failed_task_grants_reduced_experience():
@@ -423,7 +526,7 @@ def test_level_twelve_evolves_to_matching_final_form():
 
 
 def test_runtime_recovers_one_energy_every_five_minutes():
-    state = GameState(energy=10)
+    state = GameState(energy=10, stamina=100)
 
     assert not state.tick_runtime(299)
     assert state.energy == 10
@@ -432,7 +535,7 @@ def test_runtime_recovers_one_energy_every_five_minutes():
 
 
 def test_passive_recovery_never_exceeds_twenty_or_banks_ticks():
-    state = GameState(energy=20)
+    state = GameState(energy=20, stamina=100)
 
     assert not state.tick_runtime(900)
     assert state.energy == 20
@@ -440,6 +543,29 @@ def test_passive_recovery_never_exceeds_twenty_or_banks_ticks():
     assert not state.tick_runtime(299)
     assert state.tick_runtime(1)
     assert state.energy == 20
+
+
+def test_runtime_recovers_five_stamina_every_five_minutes():
+    state = GameState(energy=20, stamina=84)
+
+    assert not state.tick_runtime(299)
+    assert state.stamina == 84
+    assert state.tick_runtime(1)
+    assert state.stamina == 89
+
+
+def test_stamina_recovery_caps_at_one_hundred_without_banking_time():
+    state = GameState(energy=20, stamina=98)
+
+    assert state.tick_runtime(300)
+    assert state.stamina == 100
+    assert state.stamina_recovery_seconds == 0
+    assert not state.tick_runtime(900)
+    state.stamina = 95
+    assert not state.tick_runtime(299)
+    assert state.stamina == 95
+    assert state.tick_runtime(1)
+    assert state.stamina == 100
 
 
 def test_task_rewards_respect_energy_cap():
