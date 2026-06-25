@@ -287,7 +287,7 @@ def test_pet_effect_frames_keep_using_the_offscreen_pet_canvas():
 
 def test_operation_pages_are_composited_before_one_display_write():
     assert "GFXcanvas16 menuCanvas_" in UI_HEADER
-    assert "drawMenuFrame(state.data());" in UI_SOURCE
+    assert "drawMenuFrame(state);" in UI_SOURCE
     assert "tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer()" in UI_SOURCE
 
 
@@ -355,7 +355,7 @@ def test_game_app_ticks_adventure_and_battle_separately():
     assert "tickExploration(" not in APP_SOURCE
 
 
-def test_qingyun_ui_keeps_boss_as_geometric_placeholder():
+def test_qingyun_ui_renders_boss_with_sprite():
     for signature in (
         "void drawQingyunAdventure",
         "void drawQingyunEvent",
@@ -364,8 +364,9 @@ def test_qingyun_ui_keeps_boss_as_geometric_placeholder():
         "void drawQingyunScene",
     ):
         assert signature in UI_HEADER
-    assert "fillTriangle(" in UI_SOURCE
-    assert "fillCircle(" in UI_SOURCE
+    assert '#include "assets/qingyun_boss.h"' in UI_HEADER
+    assert "kQingyunBossWidth" in UI_SOURCE
+    assert "kQingyunBossFrameCount" in UI_SOURCE
     assert "qingyun_wolf" not in UI_SOURCE
 
 
@@ -580,7 +581,7 @@ def test_serial_preview_command_supports_all_forms_and_off():
 
 def test_preview_command_does_not_mutate_or_save_game_state():
     start = APP_SOURCE.index("void GameApp::processPreviewCommand")
-    end = APP_SOURCE.index("void GameApp::processAiEvent", start)
+    end = APP_SOURCE.index("void GameApp::processSetCommand", start)
     preview_source = APP_SOURCE[start:end]
     assert "mutableData" not in preview_source
     assert "requestSave" not in preview_source

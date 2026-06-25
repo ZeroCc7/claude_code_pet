@@ -6,7 +6,6 @@ namespace {
 
 constexpr uint32_t kSaveMagic = 0x50455431;
 constexpr uint16_t kSaveVersion = 7;
-constexpr uint16_t kMaxEnergy = 20;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
 
 }  // namespace
@@ -37,7 +36,7 @@ void GameState::load(const PetSaveData& data) {
   data_ = data;
   data_.mood = clampPercent(data_.mood);
   data_.stamina = clampPercent(data_.stamina);
-  data_.energy = min<uint16_t>(kMaxEnergy, data_.energy);
+  data_.energy = min<uint16_t>(maxEnergy(data_.form), data_.energy);
   data_.qingyunRound = max<uint16_t>(1, data_.qingyunRound);
 }
 
@@ -56,10 +55,10 @@ bool GameState::useItem(ItemType item) {
     return false;
   }
   if (item == ItemType::SpiritHerb) {
-    if (data_.energy >= kMaxEnergy) {
+    if (data_.energy >= maxEnergy(data_.form)) {
       return false;
     }
-    data_.energy = min<uint16_t>(kMaxEnergy, data_.energy + 3);
+    data_.energy = min<uint16_t>(maxEnergy(data_.form), data_.energy + 3);
   } else if (item == ItemType::RecoveryPill) {
     if (data_.stamina >= 100) {
       return false;
@@ -73,9 +72,15 @@ bool GameState::useItem(ItemType item) {
 }
 
 bool GameState::startQingyunAdventure() {
-  if ((data_.adventurePhase != AdventurePhase::Idle &&
-       data_.adventurePhase != AdventurePhase::BossReady) ||
-      data_.energy < 3) {
+  if (data_.adventurePhase == AdventurePhase::BossReady) {
+    data_.qingyunProgress = 0;
+    data_.qingyunEventMask = 0;
+    data_.adventurePhase = AdventurePhase::Advancing;
+    data_.currentEvent = QingyunEvent::None;
+    data_.currentEventResult = EventResult::None;
+    return true;
+  }
+  if (data_.adventurePhase != AdventurePhase::Idle || data_.energy < 3) {
     return false;
   }
   data_.energy -= 3;
@@ -197,10 +202,12 @@ void GameState::acknowledgeAdventureResult() {
   }
   data_.currentEvent = QingyunEvent::None;
   data_.currentEventResult = EventResult::None;
-  data_.adventurePhase =
-      data_.qingyunBossUnlocked || data_.qingyunProgress >= 100
-          ? AdventurePhase::BossReady
-          : AdventurePhase::Advancing;
+  if (data_.qingyunProgress >= 100) {
+    data_.qingyunBossUnlocked = 1;
+  }
+  data_.adventurePhase = data_.qingyunBossUnlocked
+                             ? AdventurePhase::BossReady
+                             : AdventurePhase::Advancing;
 }
 
 void GameState::abandonQingyunEvent() {
@@ -294,7 +301,8 @@ BattleResult GameState::tickQingyunWolfBattle(uint32_t seed) {
   data_.energy--;
   data_.battleRound++;
   if (data_.energy == 0) {
-    resetQingyunRun();
+    data_.qingyunProgress = 0;
+    data_.adventurePhase = AdventurePhase::Idle;
     finishQingyunBattle(BattleResult::EnergyDepleted);
     return BattleResult::EnergyDepleted;
   }
@@ -316,7 +324,8 @@ BattleResult GameState::tickQingyunWolfBattle(uint32_t seed) {
     if (data_.qingyunRound < 0xFFFFU) {
       data_.qingyunRound++;
     }
-    resetQingyunRun();
+    data_.qingyunProgress = 0;
+    data_.adventurePhase = AdventurePhase::Idle;
     finishQingyunBattle(BattleResult::Victory, false);
     return BattleResult::Victory;
   }
@@ -330,7 +339,8 @@ BattleResult GameState::tickQingyunWolfBattle(uint32_t seed) {
   }
   if (data_.stamina == 0) {
     data_.stamina = 30;
-    resetQingyunRun();
+    data_.qingyunProgress = 0;
+    data_.adventurePhase = AdventurePhase::Idle;
     finishQingyunBattle(BattleResult::Defeat);
     return BattleResult::Defeat;
   }
@@ -340,7 +350,8 @@ BattleResult GameState::tickQingyunWolfBattle(uint32_t seed) {
 
 void GameState::retreatQingyunWolf() {
   if (data_.inBattle) {
-    resetQingyunRun();
+    data_.qingyunProgress = 0;
+    data_.adventurePhase = AdventurePhase::Idle;
     finishQingyunBattle(BattleResult::Retreated);
   }
 }
@@ -383,7 +394,6 @@ uint8_t GameState::qingyunEventDamage(uint8_t baseDamage) const {
 void GameState::resetQingyunRun() {
   data_.qingyunProgress = 0;
   data_.qingyunEventMask = 0;
-  data_.qingyunBossUnlocked = 0;
   data_.adventurePhase = AdventurePhase::Idle;
   data_.currentEvent = QingyunEvent::None;
   data_.currentEventResult = EventResult::None;
@@ -433,9 +443,39 @@ void GameState::finishQingyunBattle(BattleResult result, bool resetHp) {
   data_.battleGuardTalisman = 0;
 }
 
+uint16_t GameState::maxEnergy(PetForm form) {
+  if (form >= PetForm::FinalA1) {
+    return 80;
+  }
+  if (form >= PetForm::RookieA) {
+    return 40;
+  }
+  return 20;
+}
+
+uint16_t GameState::experienceForLevel(uint8_t level) {
+  if (level <= 2) {
+    return 20;
+  }
+  if (level <= 11) {
+    return 50;
+  }
+  return 100;
+}
+
 void GameState::gainExperience(uint16_t amount) {
   data_.experience += amount;
-  data_.level = min<uint8_t>(30, data_.experience / 20 + 1);
+  uint16_t xp = data_.experience;
+  uint8_t level = 1;
+  while (level < 30) {
+    const uint16_t need = experienceForLevel(level);
+    if (xp < need) {
+      break;
+    }
+    xp -= need;
+    ++level;
+  }
+  data_.level = level;
   updateEvolution();
 }
 
@@ -453,7 +493,7 @@ void GameState::applyTask(uint32_t durationSeconds, bool success,
     gainExperience(expGain);
     data_.coins += coinGain;
     data_.energy =
-        min<uint16_t>(kMaxEnergy,
+        min<uint16_t>(maxEnergy(data_.form),
                       data_.energy + max<uint16_t>(1, minutes / 2));
   } else {
     gainExperience(max<uint16_t>(1, (minutes + 1) / 2));
@@ -483,17 +523,17 @@ void GameState::completeAiTask(const char* source, uint32_t durationSeconds,
 
 bool GameState::tickRuntime(uint32_t seconds) {
   bool changed = false;
-  if (data_.energy >= kMaxEnergy) {
+  if (data_.energy >= maxEnergy(data_.form)) {
     data_.energyRecoverySeconds = 0;
   } else {
     data_.energyRecoverySeconds += seconds;
     while (data_.energyRecoverySeconds >= kPassiveRecoverySeconds &&
-           data_.energy < kMaxEnergy) {
+           data_.energy < maxEnergy(data_.form)) {
       data_.energyRecoverySeconds -= kPassiveRecoverySeconds;
       data_.energy++;
       changed = true;
     }
-    if (data_.energy >= kMaxEnergy) {
+    if (data_.energy >= maxEnergy(data_.form)) {
       data_.energyRecoverySeconds = 0;
     }
   }

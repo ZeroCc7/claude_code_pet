@@ -22,6 +22,10 @@ class GameState {
                               bool useGuardTalisman);
   BattleResult tickQingyunWolfBattle(uint32_t seed);
   void retreatQingyunWolf();
+  static uint16_t maxEnergy(PetForm form);
+  static uint16_t experienceForLevel(uint8_t level);
+  uint8_t qingyunBossMaxHp() const;
+  uint16_t qingyunDamagePercent() const;
   void gainExperience(uint16_t amount);
   void applyTask(uint32_t durationSeconds, bool success, bool halved = false);
   void completeAiTask(const char* source, uint32_t durationSeconds,
@@ -32,11 +36,9 @@ class GameState {
   void addItem(ItemType item);
   uint8_t qingyunAttackDamage(uint32_t seed) const;
   uint8_t qingyunIncomingDamage(uint32_t seed) const;
-  uint8_t qingyunBossMaxHp() const;
+  uint16_t qingyunHealthPercent() const;
   uint16_t qingyunCompletionExperience() const;
   uint16_t qingyunCompletionCoins() const;
-  uint16_t qingyunHealthPercent() const;
-  uint16_t qingyunDamagePercent() const;
   uint8_t qingyunEventDamage(uint8_t baseDamage) const;
   void resetQingyunRun();
   void grantQingyunItems(uint32_t seed);

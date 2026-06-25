@@ -413,6 +413,35 @@ PREVIEW OFF
 STATUS level=15 form=3 preview=1 preview_form=1 ...
 ```
 
+### 修改存档数据（测试用）
+
+在串口监视器中发送 `SET` 命令直接修改存档字段，修改后自动写入 Flash：
+
+```text
+SET level 15        # 等级
+SET form 3          # 形态（0=灵卵 1-6=进化形态）
+SET xp 200          # 经验值
+SET energy 50       # 灵力
+SET stamina 80      # 体力
+SET mood 60         # 心境
+SET coins 999       # 灵石
+SET t0 20           # 剑倾向（t0=剑 t1=丹 t2=体 t3=灵）
+SET progress 90     # 山道进度
+SET boss 1          # 解锁妖狼（0/1）
+SET round 5         # 青云轮次
+SET sword 1         # 青云剑（0/1）
+SET item0 5         # 灵草数量（item0-item4）
+SET phase 0         # 历练阶段（0=空闲 1=前进 2=选择 3=结算 4=首领）
+```
+
+每条命令返回 `SET xxx=yyy ok`。发送 `RESET` 可重置全部存档：
+
+```text
+RESET
+```
+
+返回 `RESET ok`，宠物回到初始状态。
+
 ## 项目结构
 
 ```text

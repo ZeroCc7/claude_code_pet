@@ -129,13 +129,20 @@ class GameState:
     battle_guard_talisman: bool = False
     last_battle_result: BattleResult = BattleResult.INACTIVE
 
+    def max_energy(self) -> int:
+        if self.form >= PetForm.FINAL_A1:
+            return 80
+        if self.form >= PetForm.ROOKIE_A:
+            return 40
+        return 20
+
     def use_item(self, item: ItemType) -> bool:
         if self.items[item] == 0:
             return False
         if item == ItemType.SPIRIT_HERB:
-            if self.energy >= 20:
+            if self.energy >= self.max_energy():
                 return False
-            self.energy = min(20, self.energy + 3)
+            self.energy = min(self.max_energy(), self.energy + 3)
         elif item == ItemType.RECOVERY_PILL:
             if self.stamina >= 100:
                 return False
@@ -147,15 +154,15 @@ class GameState:
 
     def tick_runtime(self, seconds: int) -> bool:
         changed = False
-        if self.energy >= 20:
+        if self.energy >= self.max_energy():
             self.energy_recovery_seconds = 0
         else:
             self.energy_recovery_seconds += seconds
-            while self.energy_recovery_seconds >= 300 and self.energy < 20:
+            while self.energy_recovery_seconds >= 300 and self.energy < self.max_energy():
                 self.energy_recovery_seconds -= 300
                 self.energy += 1
                 changed = True
-            if self.energy >= 20:
+            if self.energy >= self.max_energy():
                 self.energy_recovery_seconds = 0
 
         if self.stamina >= 100:
@@ -188,10 +195,13 @@ class GameState:
         return True
 
     def start_qingyun_adventure(self) -> bool:
-        if self.adventure_phase not in (
-            AdventurePhase.IDLE,
-            AdventurePhase.BOSS_READY,
-        ):
+        if self.adventure_phase == AdventurePhase.BOSS_READY:
+            self.qingyun_progress = 0
+            self.qingyun_event_mask = 0
+            self.adventure_phase = AdventurePhase.ADVANCING
+            self.current_event = QingyunEvent.NONE
+            return True
+        if self.adventure_phase != AdventurePhase.IDLE:
             return False
         if self.energy < 3:
             return False
@@ -311,9 +321,11 @@ class GameState:
             return
         self.current_event = QingyunEvent.NONE
         self.current_event_result = EventResult.NONE
+        if self.qingyun_progress >= 100:
+            self.qingyun_boss_unlocked = True
         self.adventure_phase = (
             AdventurePhase.BOSS_READY
-            if self.qingyun_boss_unlocked or self.qingyun_progress >= 100
+            if self.qingyun_boss_unlocked
             else AdventurePhase.ADVANCING
         )
 
@@ -397,7 +409,7 @@ class GameState:
         self.energy -= 1
         self.battle_round += 1
         if self.energy == 0:
-            self._reset_qingyun_run()
+            self.qingyun_progress = 0
             self._finish_qingyun_battle(BattleResult.ENERGY_DEPLETED)
             return BattleResult.ENERGY_DEPLETED
 
@@ -416,7 +428,7 @@ class GameState:
             self.gain_experience(experience_reward)
             self.coins = min(65535, self.coins + coin_reward)
             self.qingyun_round = min(65535, self.qingyun_round + 1)
-            self._reset_qingyun_run()
+            self.qingyun_progress = 0
             self._finish_qingyun_battle(BattleResult.VICTORY, reset_hp=False)
             return BattleResult.VICTORY
 
@@ -430,7 +442,7 @@ class GameState:
             self.stamina = min(100, self.stamina + 2)
         if self.stamina == 0:
             self.stamina = 30
-            self._reset_qingyun_run()
+            self.qingyun_progress = 0
             self._finish_qingyun_battle(BattleResult.DEFEAT)
             return BattleResult.DEFEAT
         self.last_battle_result = BattleResult.CONTINUE
@@ -439,7 +451,7 @@ class GameState:
     def retreat_qingyun_wolf(self) -> None:
         if not self.in_battle:
             return
-        self._reset_qingyun_run()
+        self.qingyun_progress = 0
         self._finish_qingyun_battle(BattleResult.RETREATED)
 
     def qingyun_boss_max_hp(self) -> int:
@@ -508,7 +520,6 @@ class GameState:
     def _reset_qingyun_run(self) -> None:
         self.qingyun_progress = 0
         self.qingyun_event_mask = 0
-        self.qingyun_boss_unlocked = False
         self.adventure_phase = AdventurePhase.IDLE
         self.current_event = QingyunEvent.NONE
         self.current_event_result = EventResult.NONE
@@ -521,6 +532,7 @@ class GameState:
     ) -> None:
         self.in_battle = False
         self.last_battle_result = result
+        self.adventure_phase = AdventurePhase.IDLE
         if reset_hp:
             self.boss_hp = self.boss_max_hp
         self.battle_attack_talisman = False
@@ -596,9 +608,25 @@ class GameState:
             self.in_battle = False
             self.stamina = 30
 
+    @staticmethod
+    def experience_for_level(level: int) -> int:
+        if level <= 2:
+            return 20
+        if level <= 11:
+            return 50
+        return 100
+
     def gain_experience(self, amount: int) -> None:
         self.experience += amount
-        self.level = min(30, self.experience // 20 + 1)
+        xp = self.experience
+        level = 1
+        while level < 30:
+            need = self.experience_for_level(level)
+            if xp < need:
+                break
+            xp -= need
+            level += 1
+        self.level = level
         self.update_evolution()
 
     def update_evolution(self) -> None:
@@ -631,7 +659,7 @@ class GameState:
                 coin_gain = max(1, coin_gain // 2)
             self.gain_experience(exp_gain)
             self.coins += coin_gain
-            self.energy = min(20, self.energy + max(1, minutes // 2))
+            self.energy = min(self.max_energy(), self.energy + max(1, minutes // 2))
         else:
             self.gain_experience(max(1, (minutes + 1) // 2))
 

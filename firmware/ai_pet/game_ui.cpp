@@ -69,7 +69,20 @@ void GameUi::handle(InputAction action, GameState& state) {
     }
   } else if (page_ == UiPage::Cultivation && action == InputAction::Back) {
     cultivationExitRequested_ = true;
-    clearAiCultivation(0);
+    aiActive_ = false;
+    aiResultActive_ = false;
+    dirty_ = true;
+  } else if (page_ == UiPage::Status) {
+    if (action == InputAction::Up) {
+      statusPage_ = (statusPage_ + 1) % 3;
+      dirty_ = true;
+    } else if (action == InputAction::Down) {
+      statusPage_ = (statusPage_ + 2) % 3;
+      dirty_ = true;
+    } else if (action == InputAction::Back) {
+      statusPage_ = 0;
+      page_ = UiPage::Home;
+    }
   } else if (action == InputAction::Back && page_ != UiPage::Adventure &&
              page_ != UiPage::Battle) {
     page_ = UiPage::Home;
@@ -132,12 +145,6 @@ void GameUi::handle(InputAction action, GameState& state) {
         state.stopQingyunAdventure();
         startNotice("结束历练");
       }
-    } else if (phase == AdventurePhase::BossReady &&
-               action == InputAction::Confirm) {
-      page_ = UiPage::Battle;
-      battlePrompt_ = true;
-      useAttackTalisman_ = false;
-      useGuardTalisman_ = false;
     } else if (action == InputAction::Confirm) {
       if (state.startQingyunAdventure()) {
         startNotice("踏上山道");
@@ -168,8 +175,10 @@ void GameUi::handle(InputAction action, GameState& state) {
                                          useGuardTalisman_)) {
           battlePrompt_ = false;
           startNotice("自动交锋");
-        } else {
+        } else if (state.data().energy < 5) {
           startNotice("至少需五灵力");
+        } else {
+          startNotice("妖狼未现");
         }
       } else if (action == InputAction::Back) {
         page_ = UiPage::Adventure;
@@ -246,7 +255,7 @@ void GameUi::draw(const GameState& state, uint32_t now, bool force) {
   }
 
   if (redrawMenu) {
-    drawMenuFrame(state.data());
+    drawMenuFrame(state);
   } else if (fullRedraw) {
     drawHomeFrame(state.data(), now);
   } else if (page_ == UiPage::Home) {
@@ -446,7 +455,8 @@ void GameUi::drawHomeFrame(const PetSaveData& data, uint32_t now) {
   tft.drawRGBBitmap(0, 0, menuCanvas_.getBuffer(), 128, 160);
 }
 
-void GameUi::drawMenuFrame(const PetSaveData& data) {
+void GameUi::drawMenuFrame(const GameState& state) {
+  const PetSaveData& data = state.data();
   uint16_t* frame = menuCanvas_.getBuffer();
   if (!frame) {
     return;
@@ -475,7 +485,7 @@ void GameUi::drawMenuFrame(const PetSaveData& data) {
       drawStatus(data);
       break;
     case UiPage::Battle:
-      drawBattle(data);
+      drawBattle(state);
       break;
     case UiPage::Cultivation:
       drawCultivation(data, millis());
@@ -593,7 +603,7 @@ void GameUi::drawFooterHints(const char* left, const char* right) {
   Adafruit_GFX& tft = target();
   tft.fillRect(0, 144, 128, 16, kInkBlue);
   tft.drawFastHLine(0, 144, 128, kDarkGold);
-  text().color(kMutedCyan);
+  text().color(kWarmWhite);
   text().draw(5, 157, left);
   const int16_t width = utf8GlyphCount(right) * 12;
   text().draw(max<int16_t>(68, 123 - width), 157, right);
@@ -1015,10 +1025,6 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
     text().color(kBrightGold);
     text().draw(35, 136, "自动前行");
     drawFooterHints("自动前行", "K4结束");
-  } else if (data.adventurePhase == AdventurePhase::BossReady) {
-    text().color(kCinnabar);
-    text().draw(23, 136, "青云妖狼已现");
-    drawFooterHints("K1挑战", "K4返回");
   } else {
     text().color(kWarmWhite);
     text().draw(35, 136, "整装待发");
@@ -1060,50 +1066,78 @@ void GameUi::drawQingyunEventResult(const PetSaveData& data) {
   drawFooterHints("K1继续", "K4结束");
 }
 
-void GameUi::drawQingyunBossPrompt(const PetSaveData& data) {
+void GameUi::drawQingyunBossPrompt(const GameState& state) {
+  const PetSaveData& data = state.data();
   Adafruit_GFX& tft = target();
-  drawTitlePlaque("青云妖狼", kCinnabar);
-  tft.setTextColor(kMutedCyan);
-  tft.setTextSize(1);
-  tft.setCursor(101, 24);
+
+  tft.fillRoundRect(14, 8, 100, 30, 4, kPanelBlue);
+  tft.drawRoundRect(14, 8, 100, 30, 4, kDarkGold);
+  tft.drawFastHLine(23, 10, 82, kCinnabar);
+  text().color(kCinnabar);
+  text().draw(36, 23, "青云妖狼");
+  text().color(kMutedCyan);
+  tft.setCursor(18, 28);
+  tft.printf("LV%u", data.level);
+  tft.setCursor(97, 28);
   tft.printf("R%u", data.qingyunRound);
-  tft.fillRoundRect(48, 43, 34, 24, 7, 0x632C);
-  tft.fillTriangle(50, 47, 56, 35, 62, 47, 0x632C);
-  tft.fillTriangle(68, 47, 76, 35, 80, 48, 0x632C);
-  tft.fillCircle(58, 52, 2, kCinnabar);
-  tft.fillCircle(72, 52, 2, kCinnabar);
-  drawPanel(8, 75, 112, 27, useAttackTalisman_);
-  drawPanel(8, 105, 112, 27, useGuardTalisman_);
+
+  tft.fillRect(0, 38, 128, 68, 0x0841);
+  tft.drawRGBBitmap(28, 34, kQingyunBossLargePixels,
+                    kQingyunBossLargeMask,
+                    kQingyunBossLargeWidth, kQingyunBossLargeHeight);
+
+  tft.fillRect(0, 106, 128, 11, 0x0841);
+  text().color(kMutedCyan);
+  tft.setCursor(20, 109);
+  tft.printf("HP:%u", state.qingyunBossMaxHp());
+  tft.setCursor(76, 109);
+  tft.printf("ATK:%u", 8 * state.qingyunDamagePercent() / 100);
+
+  drawPanel(8, 118, 52, 22, useAttackTalisman_);
+  drawQingyunIcon(11, 120, kQingyunIconAttackTalisman);
   text().color(useAttackTalisman_ ? kBrightGold : kWarmWhite);
-  text().draw(14, 91, "K2 攻击符");
-  text().color(useGuardTalisman_ ? kBrightGold : kWarmWhite);
-  text().draw(14, 121, "K3 护身符");
-  tft.setTextColor(kMutedCyan);
-  tft.setTextSize(1);
-  tft.setCursor(94, 83);
-  tft.print(data.inventory.items[
+  tft.setCursor(34, 124);
+  tft.printf("x%u", data.inventory.items[
       static_cast<uint8_t>(ItemType::AttackTalisman)]);
-  tft.setCursor(94, 113);
-  tft.print(data.inventory.items[
+
+  drawPanel(68, 118, 52, 22, useGuardTalisman_);
+  drawQingyunIcon(71, 120, kQingyunIconGuardTalisman);
+  text().color(useGuardTalisman_ ? kBrightGold : kWarmWhite);
+  tft.setCursor(94, 124);
+  tft.printf("x%u", data.inventory.items[
       static_cast<uint8_t>(ItemType::GuardTalisman)]);
-  drawFooterHints("K1开战 需5灵力", "K4返回");
+
+  drawQingyunIcon(46, 143, kQingyunIconEnergy);
+  text().color(kMutedCyan);
+  tft.setCursor(68, 147);
+  tft.printf("%u/5", data.energy);
+
+  drawFooterHints("开战", "返回");
 }
 
-void GameUi::drawBattle(const PetSaveData& data) {
+void GameUi::drawBattle(const GameState& state) {
+  const PetSaveData& data = state.data();
   Adafruit_GFX& tft = target();
   if (!data.inBattle && battlePrompt_) {
-    drawQingyunBossPrompt(data);
+    drawQingyunBossPrompt(state);
     return;
   }
-  drawTitlePlaque("青云妖狼", kCinnabar);
-  tft.setTextColor(kMutedCyan);
+
+  tft.fillRoundRect(14, 8, 100, 30, 4, kPanelBlue);
+  tft.drawRoundRect(14, 8, 100, 30, 4, kDarkGold);
+  tft.drawFastHLine(23, 10, 82, kCinnabar);
+  text().color(kCinnabar);
+  text().draw(36, 23, "青云妖狼");
+  text().color(kMutedCyan);
   tft.setTextSize(1);
-  tft.setCursor(101, 24);
+  tft.setCursor(18, 28);
+  tft.printf("LV%u", data.level);
   const uint16_t displayRound =
       !data.inBattle && data.lastBattleResult == BattleResult::Victory &&
               data.qingyunRound > 1
           ? data.qingyunRound - 1
           : data.qingyunRound;
+  tft.setCursor(97, 28);
   tft.printf("R%u", displayRound);
 
   if (!data.inBattle && data.lastBattleResult == BattleResult::Victory) {
@@ -1137,36 +1171,34 @@ void GameUi::drawBattle(const PetSaveData& data) {
     return;
   }
 
-  tft.fillRect(0, 35, 128, 43, 0x11E5);
-  const int16_t wolfOffset =
-      data.inBattle ? static_cast<int16_t>((millis() / 250) % 2) : 0;
-  tft.fillRoundRect(84 - wolfOffset, 49, 32, 18, 5, 0x632C);
-  tft.fillTriangle(86 - wolfOffset, 51, 92 - wolfOffset, 40,
-                   98 - wolfOffset, 51, 0x632C);
-  tft.fillTriangle(104 - wolfOffset, 51, 111 - wolfOffset, 40,
-                   115 - wolfOffset, 52, 0x632C);
-  tft.fillCircle(96 - wolfOffset, 56, 1, kCinnabar);
-  tft.fillCircle(107 - wolfOffset, 56, 1, kCinnabar);
-  pet_.draw(tft, data.form, 9 + wolfOffset, 31, millis());
+  tft.fillRect(0, 40, 128, 48, 0x11E5);
+  const uint8_t bossFrame =
+      data.inBattle
+          ? static_cast<uint8_t>((millis() / 200) % kQingyunBossFrameCount)
+          : 0;
+  tft.drawRGBBitmap(80, 42, kQingyunBossPixels[bossFrame],
+                    kQingyunBossMasks[bossFrame],
+                    kQingyunBossWidth, kQingyunBossHeight);
+  pet_.draw(tft, data.form, 5, 50, millis());
 
-  drawPanel(7, 81, 114, 28, false);
+  drawPanel(7, 90, 114, 22, false);
   text().color(kCinnabar);
-  text().draw(13, 94, "敌方气血");
-  drawProgressBar(13, 99, 82, data.bossHp, data.bossMaxHp, kCinnabar);
+  text().draw(13, 93, "敌方气血");
+  drawProgressBar(13, 100, 70, data.bossHp, data.bossMaxHp, kCinnabar);
   tft.setTextColor(kWarmWhite);
   tft.setTextSize(1);
-  tft.setCursor(99, 95);
+  tft.setCursor(99, 94);
   tft.print(data.bossHp);
 
-  drawPanel(7, 112, 114, 26, false);
+  drawPanel(7, 114, 114, 20, false);
   text().color(kMutedCyan);
-  text().draw(13, 125, "己方体力");
-  drawProgressBar(13, 130, 54, data.stamina, 100, 0x6E8D);
-  text().draw(72, 125, "灵力");
+  text().draw(13, 117, "己方体力");
+  drawProgressBar(13, 124, 50, data.stamina, 100, 0x6E8D);
+  text().draw(68, 117, "灵力");
   tft.setTextColor(kWarmWhite);
-  tft.setCursor(99, 117);
+  tft.setCursor(99, 118);
   tft.print(data.energy);
-  tft.setCursor(99, 129);
+  tft.setCursor(99, 128);
   tft.printf("R%u", data.battleRound);
   if (data.inBattle) {
     drawFooterHints("自动交锋", "K4撤退");
@@ -1176,7 +1208,7 @@ void GameUi::drawBattle(const PetSaveData& data) {
     text().color(data.lastBattleResult == BattleResult::Victory
                      ? kBrightGold
                      : kWarmWhite);
-    text().draw(42, 76,
+    text().draw(42, 90,
                 results[static_cast<uint8_t>(data.lastBattleResult)]);
     drawFooterHints("K1返回山道", "战斗结束");
   }
@@ -1184,56 +1216,147 @@ void GameUi::drawBattle(const PetSaveData& data) {
 
 void GameUi::drawStatus(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
-  drawTitlePlaque("仙宠状态", kBrightGold);
-  const char* forms[] = {"混沌灵卵", "凌霄麒麟", "镇岳麒麟", "太虚剑仙",
-                         "九转丹仙", "不灭武仙", "万灵仙尊"};
+  const char* titles[] = {"仙宠状态", "战斗属性", "修为资源"};
+  drawTitlePlaque(titles[statusPage_], kBrightGold);
 
-  drawPanel(7, 47, 114, 38, false);
-  text().color(kMutedCyan);
-  text().draw(13, 62, "形态");
-  text().color(kWarmWhite);
-  text().draw(43, 62,
-              forms[static_cast<unsigned>(displayForm(data.form))]);
-  text().color(kMutedCyan);
-  text().draw(13, 79, "境界");
-  text().color(kBrightGold);
-  if (data.level < 3) {
-    text().draw(43, 79, "三级初醒");
-  } else if (data.level < 12) {
-    text().draw(43, 79, "十二级化形");
-  } else {
-    text().draw(43, 79, "已臻化境");
+  // Page indicator dots at y=146
+  for (uint8_t i = 0; i < 3; ++i) {
+    tft.fillRect(55 + i * 8, 146, 5, 3,
+                 i == statusPage_ ? kBrightGold : 0x4208);
   }
-  tft.setTextColor(kWarmWhite);
-  tft.setTextSize(1);
-  tft.setCursor(91, 51);
-  tft.printf("LV%u", data.level);
 
-  drawPanel(7, 89, 114, 51, false);
-  const char* labels[] = {"剑", "丹", "体", "灵"};
-  const uint16_t colors[] = {0x7DFF, 0xD41F, kCinnabar, 0x6E8D};
-  uint16_t maximum = 10;
-  uint8_t strongest = 0;
-  for (uint8_t i = 0; i < 4; ++i) {
-    if (data.tendencies[i] > maximum) {
-      maximum = data.tendencies[i];
+  if (statusPage_ == 0) {
+    // ── Page 1: Base (form, realm, tendencies) ──
+    const char* forms[] = {"混沌灵卵", "凌霄麒麟", "镇岳麒麟", "太虚剑仙",
+                           "九转丹仙", "不灭武仙", "万灵仙尊"};
+    drawPanel(7, 47, 114, 38, false);
+    text().color(kMutedCyan);
+    text().draw(13, 62, "形态");
+    text().color(kWarmWhite);
+    text().draw(43, 62,
+                forms[static_cast<unsigned>(displayForm(data.form))]);
+    text().color(kMutedCyan);
+    text().draw(13, 79, "境界");
+    text().color(kBrightGold);
+    if (data.level < 3) {
+      text().draw(43, 79, "三级初醒");
+    } else if (data.level < 12) {
+      text().draw(43, 79, "十二级化形");
+    } else {
+      text().draw(43, 79, "已臻化境");
     }
-    if (data.tendencies[i] > data.tendencies[strongest]) {
-      strongest = i;
-    }
-  }
-  for (uint8_t i = 0; i < 4; ++i) {
-    const int16_t y = 99 + i * 10;
-    text().color(i == strongest ? kBrightGold : kWarmWhite);
-    text().draw(13, y + 6, labels[i]);
-    drawProgressBar(30, y, 70, data.tendencies[i], maximum,
-                    i == strongest ? kBrightGold : colors[i]);
     tft.setTextColor(kWarmWhite);
     tft.setTextSize(1);
-    tft.setCursor(104, y);
-    tft.print(data.tendencies[i]);
+    tft.setCursor(91, 51);
+    tft.printf("LV%u", data.level);
+
+    drawPanel(7, 89, 114, 51, false);
+    const char* labels[] = {"剑", "丹", "体", "灵"};
+    const uint16_t colors[] = {0x7DFF, 0xD41F, kCinnabar, 0x6E8D};
+    uint16_t maximum = 10;
+    uint8_t strongest = 0;
+    for (uint8_t i = 0; i < 4; ++i) {
+      if (data.tendencies[i] > maximum) {
+        maximum = data.tendencies[i];
+      }
+      if (data.tendencies[i] > data.tendencies[strongest]) {
+        strongest = i;
+      }
+    }
+    for (uint8_t i = 0; i < 4; ++i) {
+      const int16_t y = 99 + i * 10;
+      text().color(i == strongest ? kBrightGold : kWarmWhite);
+      text().draw(13, y + 6, labels[i]);
+      drawProgressBar(30, y, 70, data.tendencies[i], maximum,
+                      i == strongest ? kBrightGold : colors[i]);
+      tft.setTextColor(kWarmWhite);
+      tft.setTextSize(1);
+      tft.setCursor(104, y);
+      tft.print(data.tendencies[i]);
+    }
+    drawFooterHints("K2翻页", "K4返回");
+
+  } else if (statusPage_ == 1) {
+    // ── Page 2: Battle Stats ──
+    const uint16_t atkBase = 4 + data.level +
+        min<uint16_t>(8, data.tendencies[0] / 5) +
+        min<uint16_t>(10, data.tendencies[1] / 4);
+    uint16_t atk = atkBase;
+    if (data.form == PetForm::RookieA || data.form == PetForm::FinalA1) {
+      atk++;
+    } else if (data.form == PetForm::FinalA2) {
+      atk += 2;
+    }
+    const uint8_t critRate =
+        5 + min<uint16_t>(15, data.tendencies[0] / 4);
+    const uint8_t def =
+        max<int16_t>(1, 8 - min<uint16_t>(5, data.tendencies[2] / 8));
+    const uint8_t dodgeRate =
+        5 + min<uint16_t>(15, data.tendencies[2] / 4);
+
+    drawPanel(7, 47, 114, 38, false);
+    text().color(kMutedCyan);
+    text().draw(13, 62, "攻击");
+    text().color(kBrightGold);
+    tft.setCursor(55, 55);
+    tft.printf("%u", atk);
+    text().color(kMutedCyan);
+    text().draw(13, 79, "暴击率");
+    text().color(kCinnabar);
+    tft.setCursor(70, 72);
+    tft.printf("%u%%", critRate);
+
+    drawPanel(7, 89, 114, 38, false);
+    text().color(kMutedCyan);
+    text().draw(13, 104, "防御");
+    text().color(kBrightGold);
+    tft.setCursor(55, 97);
+    tft.printf("%u", def);
+    text().color(kMutedCyan);
+    text().draw(13, 121, "闪避率");
+    text().color(kCinnabar);
+    tft.setCursor(70, 114);
+    tft.printf("%u%%", dodgeRate);
+
+    if (data.hasQingyunSword) {
+      drawPanel(7, 131, 114, 12, false);
+      text().color(kBrightGold);
+      text().draw(13, 140, "青云剑 攻+10% 防+10%");
+    }
+
+    drawFooterHints("K2翻页", "K3上页");
+
+  } else {
+    // ── Page 3: Vitals & Resources ──
+    drawPanel(7, 47, 114, 66, false);
+
+    text().color(kMutedCyan);
+    text().draw(13, 62, "灵力");
+    text().color(0x7DFF);
+    tft.setCursor(55, 55);
+    tft.printf("%u/%u", data.energy,
+               GameState::maxEnergy(data.form));
+
+    text().color(kMutedCyan);
+    text().draw(13, 78, "体力");
+    text().color(kWarmWhite);
+    tft.setCursor(55, 71);
+    tft.printf("%u", data.stamina);
+
+    text().color(kMutedCyan);
+    text().draw(13, 94, "心境");
+    text().color(data.mood < 25 ? kCinnabar : kWarmWhite);
+    tft.setCursor(55, 87);
+    tft.printf("%u", data.mood);
+
+    text().color(kMutedCyan);
+    text().draw(13, 110, "灵石");
+    text().color(kBrightGold);
+    tft.setCursor(55, 103);
+    tft.printf("%u", data.coins);
+
+    drawFooterHints("K2翻页", "K3上页");
   }
-  drawFooterHints("修炼有时", "K4返回");
 }
 
 void GameUi::drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color) {

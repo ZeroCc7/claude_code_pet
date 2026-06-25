@@ -6,5 +6,5 @@ __pycache__/
 *.uf2
 *.elf
 *.bin
-.superpowers/**/server.pid
+.superpowers/
 .worktrees/

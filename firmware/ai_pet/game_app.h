@@ -17,6 +17,7 @@ class GameApp {
   void processSerial(uint32_t now);
   void printStatus();
   void processPreviewCommand(const String& command, uint32_t now);
+  void processSetCommand(const String& command);
   void processAiEvent(const AiEvent& event, uint32_t now);
   void completeAiTask(uint32_t now, bool halved, bool acknowledge);
   void printAck(const char* status,

@@ -40,14 +40,7 @@ void GameApp::update(uint32_t now) {
   processInput(now);
 
   if (ui_.consumeCultivationExit() && aiTaskActive_) {
-    const uint32_t elapsedSeconds = (now - aiTaskStartedAt_) / 1000;
-    const uint32_t duration = constrain(elapsedSeconds, 60U, 1800U);
-    state_.completeAiTask(aiTaskSource_, duration, true);
-    aiTaskActive_ = false;
-    aiTaskSource_[0] = '\0';
-    aiTaskStartedAt_ = 0;
-    requestSave();
-    Serial.println("{\"type\":\"ack\",\"status\":\"cancelled\"}");
+    completeAiTask(now, true, true);
   }
 
   if (now - lastTickAt_ >= 1000) {
@@ -159,6 +152,12 @@ void GameApp::processSerial(uint32_t now) {
         printStatus();
       } else if (serialCommand_.startsWith("PREVIEW ")) {
         processPreviewCommand(serialCommand_, now);
+      } else if (serialCommand_.startsWith("SET ")) {
+        processSetCommand(serialCommand_);
+      } else if (serialCommand_ == "RESET") {
+        state_.reset();
+        requestSave();
+        Serial.println("RESET ok");
       } else if (serialCommand_.startsWith("{")) {
         AiEvent event{};
         const char* error = nullptr;
@@ -199,6 +198,45 @@ void GameApp::processPreviewCommand(const String& command, uint32_t now) {
   ui_.setPreviewForm(static_cast<PetForm>(form));
   ui_.draw(state_, now, true);
   Serial.printf("PREVIEW form=%u\n", form);
+}
+
+void GameApp::processSetCommand(const String& command) {
+  const int space1 = command.indexOf(' ', 4);
+  if (space1 < 0) {
+    Serial.println("SET error: need field and value");
+    return;
+  }
+  const String field = command.substring(4, space1);
+  const long value = command.substring(space1 + 1).toInt();
+  PetSaveData& d = state_.mutableData();
+
+  if (field == "level") d.level = static_cast<uint8_t>(value);
+  else if (field == "form") d.form = static_cast<PetForm>(value);
+  else if (field == "xp") d.experience = static_cast<uint16_t>(value);
+  else if (field == "energy") d.energy = static_cast<uint16_t>(value);
+  else if (field == "stamina") d.stamina = static_cast<uint8_t>(value);
+  else if (field == "mood") d.mood = static_cast<uint8_t>(value);
+  else if (field == "coins") d.coins = static_cast<uint16_t>(value);
+  else if (field == "t0") d.tendencies[0] = static_cast<uint16_t>(value);
+  else if (field == "t1") d.tendencies[1] = static_cast<uint16_t>(value);
+  else if (field == "t2") d.tendencies[2] = static_cast<uint16_t>(value);
+  else if (field == "t3") d.tendencies[3] = static_cast<uint16_t>(value);
+  else if (field == "progress") d.qingyunProgress = static_cast<uint8_t>(value);
+  else if (field == "boss") d.qingyunBossUnlocked = static_cast<uint8_t>(value);
+  else if (field == "round") d.qingyunRound = static_cast<uint16_t>(value);
+  else if (field == "sword") d.hasQingyunSword = static_cast<uint8_t>(value);
+  else if (field == "item0") d.inventory.items[0] = static_cast<uint16_t>(value);
+  else if (field == "item1") d.inventory.items[1] = static_cast<uint16_t>(value);
+  else if (field == "item2") d.inventory.items[2] = static_cast<uint16_t>(value);
+  else if (field == "item3") d.inventory.items[3] = static_cast<uint16_t>(value);
+  else if (field == "item4") d.inventory.items[4] = static_cast<uint16_t>(value);
+  else if (field == "phase") d.adventurePhase = static_cast<AdventurePhase>(value);
+  else {
+    Serial.printf("SET error: unknown field '%s'\n", field.c_str());
+    return;
+  }
+  requestSave();
+  Serial.printf("SET %s=%ld ok\n", field.c_str(), value);
 }
 
 void GameApp::processAiEvent(const AiEvent& event, uint32_t now) {

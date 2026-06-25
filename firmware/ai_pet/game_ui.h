@@ -11,6 +11,7 @@
 #include "assets/qingyun_scene.h"
 #include "assets/qingyun_ui_icons.h"
 #include "assets/qingyun_pets.h"
+#include "assets/qingyun_boss.h"
 
 class GameUi {
  public:
@@ -51,7 +52,7 @@ class GameUi {
   void drawHomeHeader(const PetSaveData& data);
   void drawInkBackground(int16_t fillStartY = 112);
   void drawHomeFrame(const PetSaveData& data, uint32_t now);
-  void drawMenuFrame(const PetSaveData& data);
+  void drawMenuFrame(const GameState& state);
   void drawTitlePlaque(const char* title, uint16_t accent);
   void drawPanel(int16_t x, int16_t y, int16_t width, int16_t height,
                  bool selected);
@@ -86,10 +87,10 @@ class GameUi {
   void drawQingyunAdventure(const PetSaveData& data, uint32_t now);
   void drawQingyunEvent(const PetSaveData& data);
   void drawQingyunEventResult(const PetSaveData& data);
-  void drawQingyunBossPrompt(const PetSaveData& data);
+  void drawQingyunBossPrompt(const GameState& state);
   void drawQingyunScene(const PetSaveData& data, uint32_t now);
   void drawQingyunEventSubject(QingyunEvent event);
-  void drawBattle(const PetSaveData& data);
+  void drawBattle(const GameState& state);
   void drawStatus(const PetSaveData& data);
   void drawCultivation(const PetSaveData& data, uint32_t now);
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
@@ -112,6 +113,7 @@ class GameUi {
   uint8_t selection_ = 0;
   uint8_t inventoryTab_ = 0;
   uint8_t meritPage_ = 0;
+  uint8_t statusPage_ = 0;
   bool battlePrompt_ = true;
   bool useAttackTalisman_ = false;
   bool useGuardTalisman_ = false;
