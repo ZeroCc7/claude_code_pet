@@ -32,6 +32,11 @@ class GameUi {
   const char* aiSource() const { return aiSource_; }
   uint32_t aiLastEventAt() const { return aiLastEventAt_; }
   void clearAiCultivation(uint32_t now);
+  bool consumeCultivationExit() {
+    const bool v = cultivationExitRequested_;
+    cultivationExitRequested_ = false;
+    return v;
+  }
 
  private:
   enum class Feedback : uint8_t {
@@ -128,6 +133,7 @@ class GameUi {
   uint16_t aiExperienceGain_ = 0;
   uint16_t aiCoinGain_ = 0;
   bool aiEvolved_ = false;
+  bool cultivationExitRequested_ = false;
   bool previewEnabled_ = false;
   PetForm previewForm_ = PetForm::Egg;
 };

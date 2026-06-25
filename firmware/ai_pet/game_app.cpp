@@ -39,6 +39,17 @@ void GameApp::update(uint32_t now) {
   buttons_.update(now);
   processInput(now);
 
+  if (ui_.consumeCultivationExit() && aiTaskActive_) {
+    const uint32_t elapsedSeconds = (now - aiTaskStartedAt_) / 1000;
+    const uint32_t duration = constrain(elapsedSeconds, 60U, 1800U);
+    state_.completeAiTask(aiTaskSource_, duration, true);
+    aiTaskActive_ = false;
+    aiTaskSource_[0] = '\0';
+    aiTaskStartedAt_ = 0;
+    requestSave();
+    Serial.println("{\"type\":\"ack\",\"status\":\"cancelled\"}");
+  }
+
   if (now - lastTickAt_ >= 1000) {
     const uint32_t seconds = (now - lastTickAt_) / 1000;
     const uint16_t oldEnergy = state_.data().energy;

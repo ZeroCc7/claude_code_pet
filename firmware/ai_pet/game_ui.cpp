@@ -67,8 +67,11 @@ void GameUi::handle(InputAction action, GameState& state) {
     } else if (action == InputAction::Back) {
       page_ = UiPage::Status;
     }
+  } else if (page_ == UiPage::Cultivation && action == InputAction::Back) {
+    cultivationExitRequested_ = true;
+    clearAiCultivation(0);
   } else if (action == InputAction::Back && page_ != UiPage::Adventure &&
-             page_ != UiPage::Battle && page_ != UiPage::Cultivation) {
+             page_ != UiPage::Battle) {
     page_ = UiPage::Home;
   } else if (page_ == UiPage::MeritLog) {
     if (action == InputAction::Up) {
@@ -293,6 +296,7 @@ void GameUi::showAiActive(const char* source, uint32_t now) {
   aiTaskStartedAt_ = now;
   aiLastEventAt_ = now;
   aiResultActive_ = false;
+  cultivationExitRequested_ = false;
   page_ = UiPage::Cultivation;
   startPetEffect(PetEffect::AiComplete, now);
   dirty_ = true;
