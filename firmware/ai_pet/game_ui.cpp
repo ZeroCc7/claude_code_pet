@@ -124,7 +124,16 @@ void GameUi::handle(InputAction action, GameState& state) {
     }
   } else if (page_ == UiPage::Adventure) {
     const AdventurePhase phase = state.data().adventurePhase;
-    if (phase == AdventurePhase::Choosing) {
+    if (phase == AdventurePhase::BossReady) {
+      if (action == InputAction::Confirm) {
+        page_ = UiPage::Battle;
+        battlePrompt_ = true;
+        useAttackTalisman_ = false;
+        useGuardTalisman_ = false;
+      } else if (action == InputAction::Back) {
+        page_ = UiPage::Home;
+      }
+    } else if (phase == AdventurePhase::Choosing) {
       if (action == InputAction::Up || action == InputAction::Down) {
         selection_ = selection_ == 0 ? 1 : 0;
       } else if (action == InputAction::Confirm) {
@@ -1025,6 +1034,10 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
     text().color(kBrightGold);
     text().draw(35, 136, "自动前行");
     drawFooterHints("自动前行", "K4结束");
+  } else if (data.adventurePhase == AdventurePhase::BossReady) {
+    text().color(kCinnabar);
+    text().draw(35, 136, "妖狼现身");
+    drawFooterHints("K1挑战", "K4返回");
   } else {
     text().color(kWarmWhite);
     text().draw(35, 136, "整装待发");

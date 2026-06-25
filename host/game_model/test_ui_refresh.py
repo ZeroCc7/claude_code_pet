@@ -355,6 +355,22 @@ def test_game_app_ticks_adventure_and_battle_separately():
     assert "tickExploration(" not in APP_SOURCE
 
 
+def test_boss_ready_confirm_opens_battle_prompt_instead_of_restarting_adventure():
+    adventure_input = source_between(
+        UI_SOURCE,
+        "} else if (page_ == UiPage::Adventure) {",
+        "} else if (page_ == UiPage::Battle) {",
+    )
+    boss_ready_branch = source_between(
+        adventure_input,
+        "if (phase == AdventurePhase::BossReady)",
+        "} else if (phase == AdventurePhase::Choosing) {",
+    )
+    assert "page_ = UiPage::Battle;" in boss_ready_branch
+    assert "battlePrompt_ = true;" in boss_ready_branch
+    assert "startQingyunAdventure()" not in boss_ready_branch
+
+
 def test_qingyun_ui_renders_boss_with_sprite():
     for signature in (
         "void drawQingyunAdventure",

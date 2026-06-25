@@ -145,11 +145,12 @@ def test_collecting_spirit_herb_adds_inventory_and_resumes():
     assert state.adventure_phase == AdventurePhase.ADVANCING
 
 
-def test_wounded_cultivator_can_award_qingyun_token_and_unlock_boss():
+def test_wounded_cultivator_can_award_qingyun_token_without_unlocking_boss():
     state = GameState(
         level=12,
         stamina=100,
         tendencies=[0, 0, 0, 20],
+        qingyun_progress=65,
         adventure_phase=AdventurePhase.CHOOSING,
         current_event=QingyunEvent.WOUNDED_CULTIVATOR,
     )
@@ -157,7 +158,9 @@ def test_wounded_cultivator_can_award_qingyun_token_and_unlock_boss():
     state.resolve_qingyun_event(choice=0, seed=0)
 
     assert state.items[ItemType.QINGYUN_TOKEN] == 1
-    assert state.qingyun_boss_unlocked
+    assert not state.qingyun_boss_unlocked
+    state.acknowledge_adventure_result()
+    assert state.adventure_phase == AdventurePhase.ADVANCING
 
 
 def test_abandoning_event_ends_adventure_without_extra_cost():
@@ -208,10 +211,12 @@ def test_shortcut_event_reaching_progress_100_unlocks_boss():
 
 def test_qingyun_wolf_requires_unlock_and_five_energy():
     locked = GameState(energy=20)
-    ready = GameState(energy=4, qingyun_boss_unlocked=True)
-    capable = GameState(energy=5, qingyun_boss_unlocked=True)
+    early = GameState(energy=20, qingyun_progress=99, qingyun_boss_unlocked=True)
+    ready = GameState(energy=4, qingyun_progress=100, qingyun_boss_unlocked=True)
+    capable = GameState(energy=5, qingyun_progress=100, qingyun_boss_unlocked=True)
 
     assert not locked.start_qingyun_wolf_battle(False, False)
+    assert not early.start_qingyun_wolf_battle(False, False)
     assert not ready.start_qingyun_wolf_battle(False, False)
     assert capable.start_qingyun_wolf_battle(False, False)
     assert capable.in_battle
@@ -219,7 +224,11 @@ def test_qingyun_wolf_requires_unlock_and_five_energy():
 
 
 def test_auto_battle_consumes_one_energy_each_round():
-    state = GameState(energy=6, qingyun_boss_unlocked=True)
+    state = GameState(
+        energy=6,
+        qingyun_progress=100,
+        qingyun_boss_unlocked=True,
+    )
     assert state.start_qingyun_wolf_battle(False, False)
 
     result = state.tick_qingyun_wolf_battle(seed=50)
@@ -248,9 +257,9 @@ def test_zero_energy_retreats_and_resets_boss_hp():
     assert not state.in_battle
     assert state.boss_hp == state.boss_max_hp
     assert state.qingyun_progress == 0
-    assert state.qingyun_event_mask == 0b1111
+    assert state.qingyun_event_mask == 0
     assert state.qingyun_round == 1
-    assert state.qingyun_boss_unlocked
+    assert not state.qingyun_boss_unlocked
     assert state.adventure_phase == AdventurePhase.IDLE
 
 
@@ -271,9 +280,9 @@ def test_manual_retreat_resets_boss_without_other_penalty():
     assert state.stamina == 67
     assert state.boss_hp == state.boss_max_hp
     assert state.qingyun_progress == 0
-    assert state.qingyun_event_mask == 0b1111
+    assert state.qingyun_event_mask == 0
     assert state.qingyun_round == 1
-    assert state.qingyun_boss_unlocked
+    assert not state.qingyun_boss_unlocked
     assert state.adventure_phase == AdventurePhase.IDLE
 
 
@@ -292,9 +301,9 @@ def test_stamina_defeat_resets_current_run_without_losing_round():
 
     assert state.stamina == 30
     assert state.qingyun_progress == 0
-    assert state.qingyun_event_mask == 0b1111
+    assert state.qingyun_event_mask == 0
     assert state.qingyun_round == 8
-    assert state.qingyun_boss_unlocked
+    assert not state.qingyun_boss_unlocked
     assert state.adventure_phase == AdventurePhase.IDLE
 
 
@@ -313,6 +322,7 @@ def test_attack_tendency_improves_damage_with_diminishing_returns():
 def test_talismans_are_consumed_at_battle_start_and_modify_one_battle():
     state = GameState(
         energy=10,
+        qingyun_progress=100,
         qingyun_boss_unlocked=True,
         items=[0, 0, 1, 1, 0],
     )
@@ -382,8 +392,8 @@ def test_qingyun_victory_advances_round_and_grants_distinct_item_rewards():
 
     assert state.qingyun_round == 2
     assert state.qingyun_progress == 0
-    assert state.qingyun_event_mask == 0b1111
-    assert state.qingyun_boss_unlocked
+    assert state.qingyun_event_mask == 0
+    assert not state.qingyun_boss_unlocked
     assert state.adventure_phase == AdventurePhase.IDLE
     assert state.last_qingyun_experience == 7
     assert state.last_qingyun_coins == 17
@@ -411,9 +421,11 @@ def test_qingyun_sword_drops_on_twentieth_miss_and_only_once():
     assert state.has_qingyun_sword
     assert state.last_qingyun_sword
     assert state.qingyun_misses == 0
-    assert state.qingyun_boss_unlocked
+    assert not state.qingyun_boss_unlocked
 
     state.energy = 20
+    state.qingyun_progress = 100
+    state.qingyun_boss_unlocked = True
     assert state.start_qingyun_wolf_battle(False, False)
     state.boss_hp = 1
     assert state.tick_qingyun_wolf_battle(seed=0) == BattleResult.VICTORY
@@ -421,7 +433,7 @@ def test_qingyun_sword_drops_on_twentieth_miss_and_only_once():
     assert state.qingyun_misses == 0
 
 
-def test_boss_stays_unlocked_for_rechallenge_after_battle_end():
+def test_boss_requires_new_full_progress_after_battle_end():
     state = GameState(
         level=30,
         energy=20,
@@ -435,11 +447,12 @@ def test_boss_stays_unlocked_for_rechallenge_after_battle_end():
     assert state.tick_qingyun_wolf_battle(seed=51) == BattleResult.VICTORY
 
     state.energy = 15
-    assert state.start_qingyun_wolf_battle(False, False)
-    assert state.in_battle
+    assert not state.start_qingyun_wolf_battle(False, False)
+    assert state.qingyun_progress == 0
+    assert not state.qingyun_boss_unlocked
 
 
-def test_starting_adventure_from_boss_ready_resets_for_fresh_run():
+def test_starting_adventure_from_boss_ready_does_not_reset_pending_boss():
     state = GameState(
         energy=20,
         qingyun_progress=100,
@@ -447,11 +460,11 @@ def test_starting_adventure_from_boss_ready_resets_for_fresh_run():
         qingyun_boss_unlocked=True,
         adventure_phase=AdventurePhase.BOSS_READY,
     )
-    assert state.start_qingyun_adventure()
+    assert not state.start_qingyun_adventure()
     assert state.energy == 20
-    assert state.qingyun_progress == 0
-    assert state.qingyun_event_mask == 0
-    assert state.adventure_phase == AdventurePhase.ADVANCING
+    assert state.qingyun_progress == 100
+    assert state.qingyun_event_mask == 0b1111
+    assert state.adventure_phase == AdventurePhase.BOSS_READY
 
 
 def test_qingyun_sword_increases_damage_and_reduces_incoming_damage():
