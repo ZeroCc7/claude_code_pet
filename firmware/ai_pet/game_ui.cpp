@@ -41,6 +41,14 @@ uint8_t utf8GlyphCount(const char* value) {
   return count;
 }
 
+uint16_t cumulativeXpBeforeLevel(uint8_t level) {
+  uint16_t total = 0;
+  for (uint8_t lv = 1; lv < level; ++lv) {
+    total += GameState::experienceForLevel(lv);
+  }
+  return total;
+}
+
 }  // namespace
 
 void GameUi::begin(DisplayDevice& display) {
@@ -396,7 +404,8 @@ void GameUi::drawHomeHeader(const PetSaveData& data) {
   tft.printf("Lv%u", data.level);
 
   // Middle column: XP bar (compact diamond frame)
-  const uint8_t currentExperience = data.experience % 20;
+  const uint16_t xpThreshold = GameState::experienceForLevel(data.level);
+  const uint16_t levelXp = data.experience - cumulativeXpBeforeLevel(data.level);
   tft.fillRect(52, 1, 42, 11, kInkBlue);
   tft.drawFastHLine(55, 0, 36, kBrightGold);
   tft.drawFastHLine(55, 12, 36, kDarkGold);
@@ -404,14 +413,11 @@ void GameUi::drawHomeHeader(const PetSaveData& data) {
   tft.drawFastVLine(94, 4, 5, kDarkGold);
   tft.fillTriangle(51, 6, 55, 2, 55, 10, kDarkGold);
   tft.fillTriangle(95, 6, 91, 2, 91, 10, kDarkGold);
-  const int16_t xpFill = currentExperience * 34 / 20;
+  const int16_t xpFill = xpThreshold > 0 ? levelXp * 34 / xpThreshold : 0;
   if (xpFill > 0) {
     tft.fillRect(56, 3, xpFill, 3, kBrightGold);
     tft.fillRect(56, 6, xpFill, 3, 0xDD45);
   }
-  tft.setTextColor(kWarmWhite);
-  tft.setCursor(66, 4);
-  tft.printf("%u/20", currentExperience);
 
   // Right column: status icon (replace text with icon)
   if (!aiActive_) {
@@ -612,10 +618,15 @@ void GameUi::drawFooterHints(const char* left, const char* right) {
   Adafruit_GFX& tft = target();
   tft.fillRect(0, 144, 128, 16, kInkBlue);
   tft.drawFastHLine(0, 144, 128, kDarkGold);
+  tft.fillTriangle(2, 155, 6, 155, 4, 148, kDarkGold);
+  tft.fillTriangle(9, 148, 13, 148, 11, 155, kDarkGold);
   text().color(kWarmWhite);
-  text().draw(5, 157, left);
+  text().draw(16, 157, left);
   const int16_t width = utf8GlyphCount(right) * 12;
-  text().draw(max<int16_t>(68, 123 - width), 157, right);
+  const int16_t rightX = max<int16_t>(68, 123 - width);
+  tft.fillTriangle(rightX - 7, 151, rightX - 2, 148, rightX - 2, 155,
+                   kDarkGold);
+  text().draw(rightX, 157, right);
 }
 
 void GameUi::drawProgressBar(int16_t x, int16_t y, int16_t width,
@@ -916,7 +927,7 @@ void GameUi::drawMeritLog(const PetSaveData& data) {
   tft.setTextColor(kWarmWhite);
   tft.setCursor(96, 133);
   tft.printf("%u/5", meritPage_ + 1);
-  drawFooterHints("K2K3翻页", "K4返回");
+  drawFooterHints("翻页", "返回");
 }
 
 void GameUi::drawInventory(const PetSaveData& data) {
@@ -948,7 +959,7 @@ void GameUi::drawInventory(const PetSaveData& data) {
       tft.print(quantity);
     }
   }
-  drawFooterHints("K1使用 K2K3切换", "K4返回");
+  drawFooterHints("使用", "返回");
 }
 
 void GameUi::drawTreasureInventory(const PetSaveData& data) {
@@ -969,7 +980,7 @@ void GameUi::drawTreasureInventory(const PetSaveData& data) {
     text().draw(27, 128, "伤害+10%");
     text().draw(71, 128, "减伤+10%");
   }
-  drawFooterHints("K2K3切换", "K4返回");
+  drawFooterHints("切换", "返回");
 }
 
 void GameUi::drawAdventure(const PetSaveData& data) {
@@ -1033,15 +1044,15 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
   if (data.adventurePhase == AdventurePhase::Advancing) {
     text().color(kBrightGold);
     text().draw(35, 136, "自动前行");
-    drawFooterHints("自动前行", "K4结束");
+    drawFooterHints("自动前行", "结束");
   } else if (data.adventurePhase == AdventurePhase::BossReady) {
     text().color(kCinnabar);
     text().draw(35, 136, "妖狼现身");
-    drawFooterHints("K1挑战", "K4返回");
+    drawFooterHints("挑战", "返回");
   } else {
     text().color(kWarmWhite);
     text().draw(35, 136, "整装待发");
-    drawFooterHints("K1开始", "K4返回");
+    drawFooterHints("开始", "返回");
   }
 }
 
@@ -1062,7 +1073,7 @@ void GameUi::drawQingyunEvent(const PetSaveData& data) {
   text().draw(18, 126, first[event]);
   text().color(selection_ == 1 ? kBrightGold : kWarmWhite);
   text().draw(77, 126, second[event]);
-  drawFooterHints("K1确认 K2K3切换", "K4放弃");
+  drawFooterHints("确认", "放弃");
 }
 
 void GameUi::drawQingyunEventResult(const PetSaveData& data) {
@@ -1076,7 +1087,7 @@ void GameUi::drawQingyunEventResult(const PetSaveData& data) {
   text().color(kWarmWhite);
   text().draw(29, 123,
               results[static_cast<uint8_t>(data.currentEventResult)]);
-  drawFooterHints("K1继续", "K4结束");
+  drawFooterHints("继续", "结束");
 }
 
 void GameUi::drawQingyunBossPrompt(const GameState& state) {
@@ -1180,7 +1191,7 @@ void GameUi::drawBattle(const GameState& state) {
     text().color(data.lastQingyunSword ? kBrightGold : kMutedCyan);
     text().draw(30, 116,
                 data.lastQingyunSword ? "青云剑入手" : "宝物尚无踪");
-    drawFooterHints("K1返回山道", "战斗结束");
+    drawFooterHints("返回山道", "战斗结束");
     return;
   }
 
@@ -1214,7 +1225,7 @@ void GameUi::drawBattle(const GameState& state) {
   tft.setCursor(99, 128);
   tft.printf("R%u", data.battleRound);
   if (data.inBattle) {
-    drawFooterHints("自动交锋", "K4撤退");
+    drawFooterHints("自动交锋", "撤退");
   } else {
     const char* results[] = {"", "", "大胜", "战败", "灵力耗尽",
                              "已撤退"};
@@ -1223,7 +1234,7 @@ void GameUi::drawBattle(const GameState& state) {
                      : kWarmWhite);
     text().draw(42, 90,
                 results[static_cast<uint8_t>(data.lastBattleResult)]);
-    drawFooterHints("K1返回山道", "战斗结束");
+    drawFooterHints("返回山道", "战斗结束");
   }
 }
 
@@ -1287,7 +1298,7 @@ void GameUi::drawStatus(const PetSaveData& data) {
       tft.setCursor(104, y);
       tft.print(data.tendencies[i]);
     }
-    drawFooterHints("K2翻页", "K4返回");
+    drawFooterHints("翻页", "返回");
 
   } else if (statusPage_ == 1) {
     // ── Page 2: Battle Stats ──
@@ -1337,7 +1348,7 @@ void GameUi::drawStatus(const PetSaveData& data) {
       text().draw(13, 140, "青云剑 攻+10% 防+10%");
     }
 
-    drawFooterHints("K2翻页", "K3上页");
+    drawFooterHints("翻页", "上页");
 
   } else {
     // ── Page 3: Vitals & Resources ──
@@ -1368,7 +1379,7 @@ void GameUi::drawStatus(const PetSaveData& data) {
     tft.setCursor(55, 103);
     tft.printf("%u", data.coins);
 
-    drawFooterHints("K2翻页", "K3上页");
+    drawFooterHints("翻页", "上页");
   }
 }
 

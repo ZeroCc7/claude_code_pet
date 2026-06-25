@@ -339,7 +339,7 @@ def test_operation_pages_include_required_cultivation_information():
 
 
 def test_battle_page_is_automatic_and_has_result_notice():
-    for label in ("青云妖狼", "自动交锋", "敌方气血", "己方体力", "K4撤退"):
+    for label in ("青云妖狼", "自动交锋", "敌方气血", "己方体力", "撤退"):
         assert label in UI_SOURCE
     for removed in ("K1 攻击", "K2 法诀", "K3 丹药", "K4 防御"):
         assert removed not in UI_SOURCE
@@ -468,7 +468,8 @@ def test_home_pet_is_lowered_fourteen_pixels_above_vitals():
 
 def test_home_header_shows_level_current_xp_and_connection_icon():
     assert "drawHomeHeader(" in UI_SOURCE
-    assert "data.experience % 20" in UI_SOURCE
+    assert "experienceForLevel(data.level)" in UI_SOURCE
+    assert "cumulativeXpBeforeLevel(data.level)" in UI_SOURCE
     assert "aiActive_" in UI_SOURCE
     assert "Offline/sleeping icon" in UI_SOURCE
     assert "Online/active icon" in UI_SOURCE
