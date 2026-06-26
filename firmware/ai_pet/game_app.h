@@ -12,6 +12,11 @@ class GameApp {
   void begin();
   void update(uint32_t now);
 
+#ifdef SIMULATOR_BUILD
+  void sim_updateButtons(const bool states[4]);
+  const uint16_t* getDisplayFramebuffer() const;
+#endif
+
  private:
   void processInput(uint32_t now);
   void processSerial(uint32_t now);

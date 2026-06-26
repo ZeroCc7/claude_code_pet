@@ -328,3 +328,14 @@ void GameApp::requestSave() {
   }
   savePending_ = true;
 }
+
+#ifdef SIMULATOR_BUILD
+void GameApp::sim_updateButtons(const bool states[4]) {
+  // This is handled by button_scanner_sim.cpp via the global sim_button_states
+  (void)states;
+}
+
+const uint16_t* GameApp::getDisplayFramebuffer() const {
+  return const_cast<DisplayDevice&>(display_).raw().getFramebuffer();
+}
+#endif
