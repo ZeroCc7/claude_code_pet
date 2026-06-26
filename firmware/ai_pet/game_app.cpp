@@ -7,6 +7,7 @@ namespace {
 constexpr uint32_t kSaveDelayMs = 1000;
 constexpr uint32_t kAdventureStepMs = 3000;
 constexpr uint32_t kBattleRoundMs = 1200;
+constexpr uint32_t kEventResultAutoAckMs = 5000;
 
 }  // namespace
 
@@ -74,6 +75,7 @@ void GameApp::update(uint32_t now) {
         ui_.showEvolution(state_.data().form, now);
       } else {
         if (result == AdventureTick::EventTriggered) {
+          eventResultShownAt_ = now;
           ui_.notify("山道有变");
         } else if (result == AdventureTick::EnergyDepleted) {
           ui_.notify("灵力耗尽");
@@ -103,6 +105,15 @@ void GameApp::update(uint32_t now) {
       }
       ui_.draw(state_, now, true);
     }
+  }
+
+  if (state_.data().adventurePhase == AdventurePhase::Result &&
+      eventResultShownAt_ != 0 &&
+      now - eventResultShownAt_ >= kEventResultAutoAckMs) {
+    state_.acknowledgeAdventureResult();
+    eventResultShownAt_ = 0;
+    requestSave();
+    ui_.draw(state_, now, true);
   }
 
   if (aiTaskActive_ && now - aiTaskStartedAt_ >= 1800000) {

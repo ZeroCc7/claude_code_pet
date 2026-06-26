@@ -141,15 +141,6 @@ void GameUi::handle(InputAction action, GameState& state) {
       } else if (action == InputAction::Back) {
         page_ = UiPage::Home;
       }
-    } else if (phase == AdventurePhase::Choosing) {
-      if (action == InputAction::Up || action == InputAction::Down) {
-        selection_ = selection_ == 0 ? 1 : 0;
-      } else if (action == InputAction::Confirm) {
-        state.resolveQingyunEvent(selection_, millis());
-      } else if (action == InputAction::Back) {
-        state.abandonQingyunEvent();
-        startNotice("结束历练");
-      }
     } else if (phase == AdventurePhase::Result) {
       if (action == InputAction::Confirm) {
         state.acknowledgeAdventureResult();
@@ -395,52 +386,26 @@ void GameUi::drawHomeHeader(const PetSaveData& data) {
   tft.fillRect(0, 0, 128, 14, kInkBlack);
   tft.drawRect(0, 0, 128, 14, kDarkGold);
 
-  // Left column: realm + level (compact)
-  text().color(kWarmWhite);
-  text().draw(3, 11, "炼气");
+  // Left column: level
   tft.setTextColor(kBrightGold);
   tft.setTextSize(1);
-  tft.setCursor(28, 3);
+  tft.setCursor(4, 3);
   tft.printf("Lv%u", data.level);
 
   // Middle column: XP bar (compact diamond frame)
   const uint16_t xpThreshold = GameState::experienceForLevel(data.level);
   const uint16_t levelXp = data.experience - cumulativeXpBeforeLevel(data.level);
-  tft.fillRect(52, 1, 42, 11, kInkBlue);
-  tft.drawFastHLine(55, 0, 36, kBrightGold);
-  tft.drawFastHLine(55, 12, 36, kDarkGold);
+  tft.fillRect(52, 1, 72, 11, kInkBlue);
+  tft.drawFastHLine(55, 0, 66, kBrightGold);
+  tft.drawFastHLine(55, 12, 66, kDarkGold);
   tft.drawFastVLine(51, 4, 5, kDarkGold);
-  tft.drawFastVLine(94, 4, 5, kDarkGold);
+  tft.drawFastVLine(124, 4, 5, kDarkGold);
   tft.fillTriangle(51, 6, 55, 2, 55, 10, kDarkGold);
-  tft.fillTriangle(95, 6, 91, 2, 91, 10, kDarkGold);
-  const int16_t xpFill = xpThreshold > 0 ? levelXp * 34 / xpThreshold : 0;
+  tft.fillTriangle(125, 6, 121, 2, 121, 10, kDarkGold);
+  const int16_t xpFill = xpThreshold > 0 ? levelXp * 64 / xpThreshold : 0;
   if (xpFill > 0) {
     tft.fillRect(56, 3, xpFill, 3, kBrightGold);
     tft.fillRect(56, 6, xpFill, 3, 0xDD45);
-  }
-
-  // Right column: status icon (replace text with icon)
-  if (!aiActive_) {
-    // Offline/sleeping icon: small crescent moon
-    tft.drawPixel(108, 2, kMutedCyan);
-    tft.drawPixel(109, 3, kMutedCyan);
-    tft.drawPixel(110, 4, kMutedCyan);
-    tft.drawPixel(110, 5, kMutedCyan);
-    tft.drawPixel(110, 6, kMutedCyan);
-    tft.drawPixel(109, 7, kMutedCyan);
-    tft.drawPixel(108, 8, kMutedCyan);
-    tft.drawPixel(113, 2, kMutedCyan);
-    tft.drawPixel(114, 3, kMutedCyan);
-    tft.drawPixel(115, 4, kMutedCyan);
-    tft.drawPixel(114, 5, kMutedCyan);
-    tft.drawPixel(113, 6, kMutedCyan);
-  } else {
-    // Online/active icon: small lightning bolt
-    tft.drawFastVLine(111, 1, 5, kBrightGold);
-    tft.drawFastHLine(109, 6, 4, kBrightGold);
-    tft.drawFastVLine(110, 7, 5, kBrightGold);
-    tft.drawPixel(112, 5, kBrightGold);
-    tft.drawPixel(109, 7, kBrightGold);
   }
 }
 
@@ -552,10 +517,10 @@ void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
   const int16_t petY = finalForm ? 32 : 42;
   const uint32_t effectElapsed =
       petEffect_ == PetEffect::None ? 0 : now - petEffectStartedAt_;
-  pet_.draw(tft, form, petX, petY, now, petEffect_, effectElapsed);
+  pet_.draw(tft, form, petX, petY, now, petEffect_, effectElapsed, finalForm);
 
-  tft.fillRect(0, 112, 128, 30, kInkBlack);
-  tft.drawFastHLine(0, 112, 128, kDarkGold);
+  tft.fillRect(0, 120, 128, 40, kInkBlack);
+  tft.drawFastHLine(0, 120, 128, kDarkGold);
   tft.setTextColor(kWarmWhite);
   tft.setTextSize(1);
   if (aiResultActive_) {
@@ -565,27 +530,32 @@ void GameUi::drawCultivation(const PetSaveData& data, uint32_t now) {
                                "太虚剑仙", "九转丹仙", "不灭武仙",
                                "万灵仙尊"};
         text().color(0x7DFF);
-        text().draw(34, 116, "灵光进化");
+        text().draw(34, 124, "灵光进化");
         text().color(kWarmWhite);
         const char* formName = forms[static_cast<unsigned>(data.form)];
         const int16_t formWidth = utf8GlyphCount(formName) * 12;
-        text().draw(max<int16_t>(0, (128 - formWidth) / 2), 130, formName);
+        text().draw(max<int16_t>(0, (128 - formWidth) / 2), 136, formName);
       } else {
-        tft.setCursor(28, 118);
+        tft.setCursor(16, 128);
         tft.printf("EXP +%u", aiExperienceGain_);
-        tft.setCursor(64, 118);
+        tft.setCursor(72, 128);
         tft.printf("STN +%u", aiCoinGain_);
       }
     }
   } else {
     const uint32_t elapsedSeconds =
         aiTaskStartedAt_ == 0 ? 0 : (now - aiTaskStartedAt_) / 1000;
-    tft.setCursor(50, 118);
+    tft.setCursor(49, 128);
     tft.printf("%02lu:%02lu",
                static_cast<unsigned long>(elapsedSeconds / 60),
                static_cast<unsigned long>(elapsedSeconds % 60));
   }
-  drawFooterHints("AI修炼联动", "修炼中");
+  text().color(kWarmWhite);
+  text().draw(4, 146, "AI修炼联动");
+  const char* rightHint = "返回";
+  const int16_t rhWidth = utf8GlyphCount(rightHint) * 12;
+  const int16_t rhX = max<int16_t>(68, 123 - rhWidth);
+  text().draw(rhX, 146, rightHint);
 }
 
 void GameUi::drawTitlePlaque(const char* title, uint16_t accent) {
@@ -609,8 +579,6 @@ void GameUi::drawPanel(int16_t x, int16_t y, int16_t width, int16_t height,
                     selected ? kBrightGold : kDarkGold);
   if (selected) {
     tft.drawRoundRect(x + 2, y + 2, width - 4, height - 4, 2, kDarkGold);
-    tft.fillTriangle(x - 2, y + height / 2, x + 3, y + height / 2 - 4,
-                     x + 3, y + height / 2 + 4, kBrightGold);
   }
 }
 
@@ -618,14 +586,10 @@ void GameUi::drawFooterHints(const char* left, const char* right) {
   Adafruit_GFX& tft = target();
   tft.fillRect(0, 144, 128, 16, kInkBlue);
   tft.drawFastHLine(0, 144, 128, kDarkGold);
-  tft.fillTriangle(2, 155, 6, 155, 4, 148, kDarkGold);
-  tft.fillTriangle(9, 148, 13, 148, 11, 155, kDarkGold);
   text().color(kWarmWhite);
-  text().draw(16, 157, left);
+  text().draw(4, 157, left);
   const int16_t width = utf8GlyphCount(right) * 12;
-  const int16_t rightX = max<int16_t>(68, 123 - width);
-  tft.fillTriangle(rightX - 7, 151, rightX - 2, 148, rightX - 2, 155,
-                   kDarkGold);
+  const int16_t rightX = max<int16_t>(68, 124 - width);
   text().draw(rightX, 157, right);
 }
 
@@ -747,9 +711,8 @@ void GameUi::drawHomeVitals(const PetSaveData& data) {
   tft.drawFastVLine(64, 133, 24, 0x4A85);
   tft.drawFastVLine(96, 133, 24, 0x4A85);
 
-  text().color(kBrightGold);
-  text().draw(10, 153, "簿");
-  text().draw(42, 153, "囊");
+  drawButtonIcon(9, 138, kHomeButtonMeritLog);
+  drawButtonIcon(41, 138, kHomeButtonInventory);
   drawButtonIcon(73, 138, kHomeButtonAdventure);
   drawButtonIcon(105, 138, kHomeButtonStatus);
 }
@@ -984,9 +947,7 @@ void GameUi::drawTreasureInventory(const PetSaveData& data) {
 }
 
 void GameUi::drawAdventure(const PetSaveData& data) {
-  if (data.adventurePhase == AdventurePhase::Choosing) {
-    drawQingyunEvent(data);
-  } else if (data.adventurePhase == AdventurePhase::Result) {
+  if (data.adventurePhase == AdventurePhase::Result) {
     drawQingyunEventResult(data);
   } else {
     drawQingyunAdventure(data, millis());
@@ -1056,36 +1017,20 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
   }
 }
 
-void GameUi::drawQingyunEvent(const PetSaveData& data) {
+void GameUi::drawQingyunEventResult(const PetSaveData& data) {
   text().color(kBrightGold);
-  text().draw(38, 31, "山道抉择");
+  text().draw(38, 31, "山道际遇");
   target().drawFastHLine(8, 34, 112, kDarkGold);
   drawQingyunEventSubject(data.currentEvent);
   const char* titles[] = {"", "灵草", "妖兽", "受伤修士", "山道捷径"};
-  const char* first[] = {"", "采集", "迎战", "相助", "冒险"};
-  const char* second[] = {"", "离去", "避开", "无视", "稳行"};
   const uint8_t event = static_cast<uint8_t>(data.currentEvent);
   text().color(kBrightGold);
   text().draw(9, 100, titles[event]);
-  drawPanel(7, 108, 55, 27, selection_ == 0);
-  drawPanel(66, 108, 55, 27, selection_ == 1);
-  text().color(selection_ == 0 ? kBrightGold : kWarmWhite);
-  text().draw(18, 126, first[event]);
-  text().color(selection_ == 1 ? kBrightGold : kWarmWhite);
-  text().draw(77, 126, second[event]);
-  drawFooterHints("确认", "放弃");
-}
-
-void GameUi::drawQingyunEventResult(const PetSaveData& data) {
-  text().color(kBrightGold);
-  text().draw(38, 31, "因缘结果");
-  target().drawFastHLine(8, 34, 112, kDarkGold);
-  drawQingyunEventSubject(data.currentEvent);
-  drawPanel(10, 101, 108, 36, false);
+  drawPanel(10, 108, 108, 28, false);
   const char* results[] = {"风过无痕", "继续前行", "获得物品",
                            "有所收获", "进度提升", "体力受损"};
   text().color(kWarmWhite);
-  text().draw(29, 123,
+  text().draw(29, 126,
               results[static_cast<uint8_t>(data.currentEventResult)]);
   drawFooterHints("继续", "结束");
 }

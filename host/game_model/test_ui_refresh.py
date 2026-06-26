@@ -169,9 +169,7 @@ def test_firmware_exposes_qingyun_adventure_and_event_api():
         "bool startQingyunAdventure();",
         "void stopQingyunAdventure();",
         "AdventureTick tickQingyunAdventure(uint32_t seed);",
-        "EventResult resolveQingyunEvent(uint8_t choice, uint32_t seed);",
         "void acknowledgeAdventureResult();",
-        "void abandonQingyunEvent();",
     ):
         assert signature in GAME_STATE_HEADER
     for value in ("25", "45", "65", "85"):
@@ -330,7 +328,7 @@ def test_operation_pages_include_required_cultivation_information():
         "灵草",
         "回春丹",
         "青云山道",
-        "山道抉择",
+        "山道际遇",
         "青云妖狼",
         "仙宠状态",
         "已臻化境",
@@ -364,7 +362,7 @@ def test_boss_ready_confirm_opens_battle_prompt_instead_of_restarting_adventure(
     boss_ready_branch = source_between(
         adventure_input,
         "if (phase == AdventurePhase::BossReady)",
-        "} else if (phase == AdventurePhase::Choosing) {",
+        "} else if (phase == AdventurePhase::Result) {",
     )
     assert "page_ = UiPage::Battle;" in boss_ready_branch
     assert "battlePrompt_ = true;" in boss_ready_branch
@@ -374,7 +372,6 @@ def test_boss_ready_confirm_opens_battle_prompt_instead_of_restarting_adventure(
 def test_qingyun_ui_renders_boss_with_sprite():
     for signature in (
         "void drawQingyunAdventure",
-        "void drawQingyunEvent",
         "void drawQingyunEventResult",
         "void drawQingyunBossPrompt",
         "void drawQingyunScene",
@@ -407,7 +404,7 @@ def test_qingyun_hud_uses_compact_icons_and_current_values_only():
     qingyun_source = source_between(
         UI_SOURCE,
         "void GameUi::drawQingyunAdventure",
-        "void GameUi::drawQingyunEvent",
+        "void GameUi::drawQingyunEventResult",
     )
     assert "drawQingyunPet(" in UI_SOURCE
     assert "kHomeIconEnergy" in qingyun_source
@@ -427,12 +424,7 @@ def test_qingyun_adventure_separates_large_pet_and_event_subjects():
     event_source = source_between(
         UI_SOURCE,
         "void GameUi::drawQingyunEventSubject",
-        "void GameUi::drawQingyunEvent(const PetSaveData& data)",
-    )
-    choosing_source = source_between(
-        UI_SOURCE,
-        "void GameUi::drawQingyunEvent(const PetSaveData& data)",
-        "void GameUi::drawQingyunEventResult",
+        "void GameUi::drawQingyunAdventure",
     )
     result_source = source_between(
         UI_SOURCE,
@@ -446,8 +438,6 @@ def test_qingyun_adventure_separates_large_pet_and_event_subjects():
     assert "drawQingyunPet(" not in event_source
     assert "drawQingyunIconLarge(50, 50, kQingyunIconSpiritHerb);" in event_source
     assert "drawQingyunIconLarge(50, 50, kQingyunIconDemonBeast);" in event_source
-    assert "drawQingyunEventSubject(data.currentEvent);" in choosing_source
-    assert "drawQingyunScene(data, millis());" not in choosing_source
     assert "drawQingyunEventSubject(data.currentEvent);" in result_source
     assert "drawQingyunScene(data, millis());" not in result_source
 
@@ -470,9 +460,6 @@ def test_home_header_shows_level_current_xp_and_connection_icon():
     assert "drawHomeHeader(" in UI_SOURCE
     assert "experienceForLevel(data.level)" in UI_SOURCE
     assert "cumulativeXpBeforeLevel(data.level)" in UI_SOURCE
-    assert "aiActive_" in UI_SOURCE
-    assert "Offline/sleeping icon" in UI_SOURCE
-    assert "Online/active icon" in UI_SOURCE
     assert 'tft.print("USB")' not in UI_SOURCE
 
 
@@ -518,9 +505,8 @@ def test_removed_care_actions_are_not_part_of_v1_1_state():
 def test_home_button_row_uses_new_text_entries_and_existing_navigation_icons():
     assert '#include "assets/home_button_icons.h"' in UI_SOURCE
     assert "drawButtonIcon(" in UI_SOURCE
-    assert 'text().draw(10, 153, "簿");' in UI_SOURCE
-    assert 'text().draw(42, 153, "囊");' in UI_SOURCE
-    for icon in ("kHomeButtonAdventure", "kHomeButtonStatus"):
+    for icon in ("kHomeButtonMeritLog", "kHomeButtonInventory",
+                 "kHomeButtonAdventure", "kHomeButtonStatus"):
         assert icon in UI_SOURCE
 
 

@@ -94,9 +94,8 @@ void GameState::stopQingyunAdventure() {
 }
 
 AdventureTick GameState::tickQingyunAdventure(uint32_t seed) {
-  (void)seed;
-  if (data_.adventurePhase == AdventurePhase::Choosing) {
-    return AdventureTick::WaitingForChoice;
+  if (data_.adventurePhase == AdventurePhase::Result) {
+    return AdventureTick::Inactive;
   }
   if (data_.adventurePhase != AdventurePhase::Advancing) {
     return AdventureTick::Inactive;
@@ -115,8 +114,8 @@ AdventureTick GameState::tickQingyunAdventure(uint32_t seed) {
         !(data_.qingyunEventMask & eventBit)) {
       data_.qingyunEventMask |= eventBit;
       data_.currentEvent = events[index];
-      data_.currentEventResult = EventResult::None;
-      data_.adventurePhase = AdventurePhase::Choosing;
+      autoResolveEvent(seed);
+      data_.adventurePhase = AdventurePhase::Result;
       return AdventureTick::EventTriggered;
     }
   }
@@ -132,20 +131,18 @@ AdventureTick GameState::tickQingyunAdventure(uint32_t seed) {
   return AdventureTick::Advanced;
 }
 
-EventResult GameState::resolveQingyunEvent(uint8_t choice, uint32_t seed) {
-  if (data_.adventurePhase != AdventurePhase::Choosing) {
-    return EventResult::None;
-  }
+void GameState::autoResolveEvent(uint32_t seed) {
   EventResult result = EventResult::Continued;
-  if (data_.currentEvent == QingyunEvent::SpiritHerb && choice == 0) {
+  if (data_.currentEvent == QingyunEvent::SpiritHerb) {
     addItem(ItemType::SpiritHerb);
+    addTendency(3, 1);
     result = EventResult::ItemGained;
-  } else if (data_.currentEvent == QingyunEvent::DemonBeast &&
-             choice == 0) {
+  } else if (data_.currentEvent == QingyunEvent::DemonBeast) {
     const uint16_t score =
         data_.level + data_.stamina / 10 + data_.tendencies[0] / 4 +
         seed % 10;
-    if (score >= 18) {
+    if (score >= 15) {
+      addTendency(0, 2);
       gainExperience(6);
       data_.coins += 5;
       result = EventResult::RewardGained;
@@ -154,40 +151,33 @@ EventResult GameState::resolveQingyunEvent(uint8_t choice, uint32_t seed) {
       data_.stamina = data_.stamina > damage ? data_.stamina - damage : 0;
       result = EventResult::StaminaLost;
     }
-  } else if (data_.currentEvent == QingyunEvent::WoundedCultivator &&
-             choice == 0) {
+  } else if (data_.currentEvent == QingyunEvent::WoundedCultivator) {
     const uint16_t score =
         data_.level + data_.stamina / 10 + data_.tendencies[3] / 2 +
         seed % 10;
-    if (score >= 25) {
+    if (score >= 22) {
       addItem(ItemType::QingyunToken);
     } else {
       addItem(ItemType::RecoveryPill);
     }
+    addTendency(3, 2);
     result = EventResult::ItemGained;
   } else if (data_.currentEvent == QingyunEvent::Shortcut) {
-    if (choice == 0) {
-      const uint16_t score =
-          data_.level + data_.energy + data_.tendencies[1] / 3 +
-          seed % 10;
-      if (score >= 20) {
-        data_.qingyunProgress =
-            min<uint8_t>(100, data_.qingyunProgress + 8 + seed % 8);
-        result = EventResult::ProgressGained;
-      } else {
-        const uint8_t damage = qingyunEventDamage(10);
-        data_.stamina = data_.stamina > damage ? data_.stamina - damage : 0;
-        result = EventResult::StaminaLost;
-      }
-    } else {
+    const uint16_t score =
+        data_.level + data_.energy + data_.tendencies[1] / 3 +
+        seed % 10;
+    if (score >= 17) {
+      addTendency(1, 2);
       data_.qingyunProgress =
-          min<uint8_t>(100, data_.qingyunProgress + 3);
+          min<uint8_t>(100, data_.qingyunProgress + 8 + seed % 8);
       result = EventResult::ProgressGained;
+    } else {
+      const uint8_t damage = qingyunEventDamage(10);
+      data_.stamina = data_.stamina > damage ? data_.stamina - damage : 0;
+      result = EventResult::StaminaLost;
     }
   }
   data_.currentEventResult = result;
-  data_.adventurePhase = AdventurePhase::Result;
-  return result;
 }
 
 void GameState::acknowledgeAdventureResult() {
@@ -204,16 +194,17 @@ void GameState::acknowledgeAdventureResult() {
                              : AdventurePhase::Advancing;
 }
 
-void GameState::abandonQingyunEvent() {
-  if (data_.adventurePhase == AdventurePhase::Choosing) {
-    stopQingyunAdventure();
-  }
-}
-
 void GameState::addItem(ItemType item) {
   uint16_t& quantity = data_.inventory.items[static_cast<uint8_t>(item)];
   if (quantity < 0xFFFFU) {
     quantity++;
+  }
+}
+
+void GameState::addTendency(uint8_t slot, uint16_t amount) {
+  if (slot < 4) {
+    data_.tendencies[slot] =
+        min<uint16_t>(100, data_.tendencies[slot] + amount);
   }
 }
 
@@ -245,15 +236,15 @@ bool GameState::startQingyunWolfBattle(bool useAttackTalisman,
 
 uint8_t GameState::qingyunAttackDamage(uint32_t seed) const {
   uint16_t damage =
-      4 + data_.level + min<uint16_t>(8, data_.tendencies[0] / 5) +
-      min<uint16_t>(10, data_.tendencies[1] / 4);
+      6 + data_.level + min<uint16_t>(10, data_.tendencies[0] * 3 / 8) +
+      min<uint16_t>(8, data_.tendencies[1] / 3);
   if (data_.form == PetForm::RookieA || data_.form == PetForm::FinalA1) {
     damage++;
   } else if (data_.form == PetForm::FinalA2) {
     damage += 2;
   }
   const uint8_t criticalRate =
-      5 + min<uint16_t>(15, data_.tendencies[0] / 4);
+      5 + min<uint16_t>(20, data_.tendencies[0] / 3);
   if (seed % 100 < criticalRate) {
     damage *= 2;
   }
@@ -268,12 +259,12 @@ uint8_t GameState::qingyunAttackDamage(uint32_t seed) const {
 
 uint8_t GameState::qingyunIncomingDamage(uint32_t seed) const {
   const uint8_t dodgeRate =
-      5 + min<uint16_t>(15, data_.tendencies[2] / 4);
+      5 + min<uint16_t>(20, data_.tendencies[2] / 3);
   if ((seed / 100) % 100 < dodgeRate) {
     return 0;
   }
   uint16_t damage =
-      max<int16_t>(1, 8 - min<uint16_t>(5, data_.tendencies[2] / 8));
+      max<int16_t>(1, 10 - min<uint16_t>(6, data_.tendencies[2] / 5));
   if (data_.form == PetForm::RookieB || data_.form == PetForm::FinalB1) {
     damage = max<uint8_t>(1, damage - 1);
   } else if (data_.form == PetForm::FinalB2) {
@@ -318,6 +309,10 @@ BattleResult GameState::tickQingyunWolfBattle(uint32_t seed) {
     if (data_.qingyunRound < 0xFFFFU) {
       data_.qingyunRound++;
     }
+    const uint16_t bossBonus = 2 + min<uint16_t>(3, data_.qingyunRound / 5);
+    for (uint8_t i = 0; i < 4; ++i) {
+      addTendency(i, bossBonus);
+    }
     resetQingyunRun();
     finishQingyunBattle(BattleResult::Victory, false);
     return BattleResult::Victory;
@@ -348,7 +343,7 @@ void GameState::retreatQingyunWolf() {
 }
 
 uint8_t GameState::qingyunBossMaxHp() const {
-  return min<uint16_t>(255, 48 * qingyunHealthPercent() / 100);
+  return min<uint16_t>(255, 40 * qingyunHealthPercent() / 100);
 }
 
 uint16_t GameState::qingyunCompletionExperience() const {
@@ -366,15 +361,15 @@ uint16_t GameState::qingyunCompletionCoins() const {
 uint16_t GameState::qingyunHealthPercent() const {
   const uint16_t round = min<uint16_t>(50, max<uint16_t>(1, data_.qingyunRound));
   const uint16_t laterRounds = round > 10 ? round - 10 : 0;
-  return 100 + min<uint16_t>(round - 1, 9) * 15 +
-         laterRounds * 3;
+  return 100 + min<uint16_t>(round - 1, 9) * 20 +
+         laterRounds * 5;
 }
 
 uint16_t GameState::qingyunDamagePercent() const {
   const uint16_t round = min<uint16_t>(50, max<uint16_t>(1, data_.qingyunRound));
   const uint16_t laterRounds = round > 10 ? round - 10 : 0;
-  return 100 + min<uint16_t>(round - 1, 9) * 8 +
-         laterRounds * 2;
+  return 100 + min<uint16_t>(round - 1, 9) * 12 +
+         laterRounds * 3;
 }
 
 uint8_t GameState::qingyunEventDamage(uint8_t baseDamage) const {
@@ -471,8 +466,8 @@ void GameState::gainExperience(uint16_t amount) {
   updateEvolution();
 }
 
-void GameState::applyTask(uint32_t durationSeconds, bool success,
-                         bool halved) {
+void GameState::applyTask(const char* source, uint32_t durationSeconds,
+                         bool success, bool halved) {
   const uint16_t minutes =
       constrain(static_cast<uint16_t>(durationSeconds / 60), 1, 60);
   if (success) {
@@ -487,6 +482,13 @@ void GameState::applyTask(uint32_t durationSeconds, bool success,
     data_.energy =
         min<uint16_t>(maxEnergy(data_.form),
                       data_.energy + max<uint16_t>(1, minutes / 2));
+    const uint16_t tendencyGain =
+        max<uint16_t>(1, min<uint16_t>(4, minutes / 5));
+    const uint8_t slot =
+        strcmp(source, "codex") == 0 ? 0 :
+        strcmp(source, "claude-code") == 0 ? 1 :
+        strcmp(source, "opencode") == 0 ? 2 : 3;
+    addTendency(slot, tendencyGain);
   } else {
     gainExperience(max<uint16_t>(1, (minutes + 1) / 2));
   }
@@ -496,7 +498,7 @@ void GameState::completeAiTask(const char* source, uint32_t durationSeconds,
                                bool halved) {
   const uint16_t oldExperience = data_.experience;
   const uint16_t oldCoins = data_.coins;
-  applyTask(durationSeconds, true, halved);
+  applyTask(source, durationSeconds, true, halved);
   AiTaskRecord& record = data_.aiTaskRecords[data_.aiTaskRecordIndex];
   record.source = strcmp(source, "codex") == 0 ? 0 :
                   strcmp(source, "claude-code") == 0 ? 1 :

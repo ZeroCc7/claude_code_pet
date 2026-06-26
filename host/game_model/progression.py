@@ -215,8 +215,8 @@ class GameState:
         self.current_event = QingyunEvent.NONE
 
     def tick_qingyun_adventure(self, seed: int) -> AdventureTick:
-        if self.adventure_phase == AdventurePhase.CHOOSING:
-            return AdventureTick.WAITING_FOR_CHOICE
+        if self.adventure_phase == AdventurePhase.RESULT:
+            return AdventureTick.INACTIVE
         if self.adventure_phase != AdventurePhase.ADVANCING:
             return AdventureTick.INACTIVE
         self.energy -= 1
@@ -236,8 +236,8 @@ class GameState:
             ):
                 self.qingyun_event_mask |= event_bit
                 self.current_event = events[index]
-                self.current_event_result = EventResult.NONE
-                self.adventure_phase = AdventurePhase.CHOOSING
+                self._auto_resolve_event(seed)
+                self.adventure_phase = AdventurePhase.RESULT
                 return AdventureTick.EVENT_TRIGGERED
         if self.qingyun_progress >= 100:
             self.qingyun_boss_unlocked = True
@@ -248,21 +248,21 @@ class GameState:
             return AdventureTick.ENERGY_DEPLETED
         return AdventureTick.ADVANCED
 
-    def resolve_qingyun_event(self, choice: int, seed: int) -> EventResult:
-        if self.adventure_phase != AdventurePhase.CHOOSING:
-            return EventResult.NONE
+    def _auto_resolve_event(self, seed: int) -> None:
         result = EventResult.CONTINUED
-        if self.current_event == QingyunEvent.SPIRIT_HERB and choice == 0:
+        if self.current_event == QingyunEvent.SPIRIT_HERB:
             self._add_item(ItemType.SPIRIT_HERB)
+            self._add_tendency(3, 1)
             result = EventResult.ITEM_GAINED
-        elif self.current_event == QingyunEvent.DEMON_BEAST and choice == 0:
+        elif self.current_event == QingyunEvent.DEMON_BEAST:
             score = (
                 self.level
                 + self.stamina // 10
                 + self.tendencies[0] // 4
                 + seed % 10
             )
-            if score >= 18:
+            if score >= 15:
+                self._add_tendency(0, 2)
                 self.gain_experience(6)
                 self.coins += 5
                 result = EventResult.REWARD_GAINED
@@ -271,45 +271,38 @@ class GameState:
                     0, self.stamina - self._qingyun_event_damage(12)
                 )
                 result = EventResult.STAMINA_LOST
-        elif (
-            self.current_event == QingyunEvent.WOUNDED_CULTIVATOR
-            and choice == 0
-        ):
+        elif self.current_event == QingyunEvent.WOUNDED_CULTIVATOR:
             score = (
                 self.level
                 + self.stamina // 10
                 + self.tendencies[3] // 2
                 + seed % 10
             )
-            if score >= 25:
+            if score >= 22:
                 self._add_item(ItemType.QINGYUN_TOKEN)
             else:
                 self._add_item(ItemType.RECOVERY_PILL)
+            self._add_tendency(3, 2)
             result = EventResult.ITEM_GAINED
         elif self.current_event == QingyunEvent.SHORTCUT:
-            if choice == 0:
-                score = (
-                    self.level
-                    + self.energy
-                    + self.tendencies[1] // 3
-                    + seed % 10
+            score = (
+                self.level
+                + self.energy
+                + self.tendencies[1] // 3
+                + seed % 10
+            )
+            if score >= 17:
+                self._add_tendency(1, 2)
+                self.qingyun_progress = min(
+                    100, self.qingyun_progress + 8 + seed % 8
                 )
-                if score >= 20:
-                    self.qingyun_progress = min(
-                        100, self.qingyun_progress + 8 + seed % 8
-                    )
-                    result = EventResult.PROGRESS_GAINED
-                else:
-                    self.stamina = max(
-                        0, self.stamina - self._qingyun_event_damage(10)
-                    )
-                    result = EventResult.STAMINA_LOST
-            else:
-                self.qingyun_progress = min(100, self.qingyun_progress + 3)
                 result = EventResult.PROGRESS_GAINED
+            else:
+                self.stamina = max(
+                    0, self.stamina - self._qingyun_event_damage(10)
+                )
+                result = EventResult.STAMINA_LOST
         self.current_event_result = result
-        self.adventure_phase = AdventurePhase.RESULT
-        return result
 
     def acknowledge_adventure_result(self) -> None:
         if self.adventure_phase != AdventurePhase.RESULT:
@@ -324,13 +317,12 @@ class GameState:
             else AdventurePhase.ADVANCING
         )
 
-    def abandon_qingyun_event(self) -> None:
-        if self.adventure_phase != AdventurePhase.CHOOSING:
-            return
-        self.stop_qingyun_adventure()
-
     def _add_item(self, item: ItemType) -> None:
         self.items[item] = min(65535, self.items[item] + 1)
+
+    def _add_tendency(self, slot: int, amount: int) -> None:
+        if 0 <= slot < 4:
+            self.tendencies[slot] = min(100, self.tendencies[slot] + amount)
 
     def start_qingyun_wolf_battle(
         self,
@@ -365,16 +357,16 @@ class GameState:
 
     def qingyun_attack_damage(self, seed: int) -> int:
         damage = (
-            4
+            6
             + self.level
-            + min(8, self.tendencies[0] // 5)
-            + min(10, self.tendencies[1] // 4)
+            + min(10, self.tendencies[0] * 3 // 8)
+            + min(8, self.tendencies[1] // 3)
         )
         if self.form in (PetForm.ROOKIE_A, PetForm.FINAL_A1):
             damage += 1
         elif self.form == PetForm.FINAL_A2:
             damage += 2
-        critical_rate = 5 + min(15, self.tendencies[0] // 4)
+        critical_rate = 5 + min(20, self.tendencies[0] // 3)
         if seed % 100 < critical_rate:
             damage *= 2
         if self.battle_attack_talisman:
@@ -384,10 +376,10 @@ class GameState:
         return max(1, damage)
 
     def qingyun_incoming_damage(self, seed: int) -> int:
-        dodge_rate = 5 + min(15, self.tendencies[2] // 4)
+        dodge_rate = 5 + min(20, self.tendencies[2] // 3)
         if (seed // 100) % 100 < dodge_rate:
             return 0
-        damage = max(1, 8 - min(5, self.tendencies[2] // 8))
+        damage = max(1, 10 - min(6, self.tendencies[2] // 5))
         if self.form in (PetForm.ROOKIE_B, PetForm.FINAL_B1):
             damage = max(1, damage - 1)
         elif self.form == PetForm.FINAL_B2:
@@ -424,6 +416,9 @@ class GameState:
             self.gain_experience(experience_reward)
             self.coins = min(65535, self.coins + coin_reward)
             self.qingyun_round = min(65535, self.qingyun_round + 1)
+            boss_bonus = 2 + min(3, self.qingyun_round // 5)
+            for i in range(4):
+                self._add_tendency(i, boss_bonus)
             self._reset_qingyun_run()
             self._finish_qingyun_battle(BattleResult.VICTORY, reset_hp=False)
             return BattleResult.VICTORY
@@ -451,7 +446,7 @@ class GameState:
         self._finish_qingyun_battle(BattleResult.RETREATED)
 
     def qingyun_boss_max_hp(self) -> int:
-        return 48 * self._qingyun_health_percent() // 100
+        return 40 * self._qingyun_health_percent() // 100
 
     def qingyun_completion_experience(self) -> int:
         round_number = min(50, max(1, self.qingyun_round))
@@ -473,16 +468,16 @@ class GameState:
         round_number = min(50, max(1, self.qingyun_round))
         return (
             100
-            + min(round_number - 1, 9) * 15
-            + max(0, round_number - 10) * 3
+            + min(round_number - 1, 9) * 20
+            + max(0, round_number - 10) * 5
         )
 
     def _qingyun_damage_percent(self) -> int:
         round_number = min(50, max(1, self.qingyun_round))
         return (
             100
-            + min(round_number - 1, 9) * 8
-            + max(0, round_number - 10) * 2
+            + min(round_number - 1, 9) * 12
+            + max(0, round_number - 10) * 3
         )
 
     def _qingyun_event_damage(self, base_damage: int) -> int:
@@ -645,7 +640,7 @@ class GameState:
             steady = self.tendencies[2] + self.tendencies[3]
             self.form = PetForm.ROOKIE_A if agile >= steady else PetForm.ROOKIE_B
 
-    def apply_task(self, duration_seconds: int, success: bool,
+    def apply_task(self, source: str, duration_seconds: int, success: bool,
                    halved: bool = False) -> None:
         minutes = max(1, min(60, duration_seconds // 60))
         if success:
@@ -657,6 +652,9 @@ class GameState:
             self.gain_experience(exp_gain)
             self.coins += coin_gain
             self.energy = min(self.max_energy(), self.energy + max(1, minutes // 2))
+            tendency_gain = max(1, min(4, minutes // 5))
+            slot = {"codex": 0, "claude-code": 1, "opencode": 2}.get(source, 3)
+            self._add_tendency(slot, tendency_gain)
         else:
             self.gain_experience(max(1, (minutes + 1) // 2))
 
@@ -665,7 +663,7 @@ class GameState:
     ) -> None:
         old_experience = self.experience
         old_coins = self.coins
-        self.apply_task(duration_seconds, True, halved)
+        self.apply_task(source, duration_seconds, True, halved)
         self.ai_task_records[self.ai_task_record_index] = AiTaskRecord(
             source=source,
             duration_seconds=duration_seconds,

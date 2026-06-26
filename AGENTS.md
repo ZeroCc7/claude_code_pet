@@ -104,7 +104,7 @@
 
 ### 其他
 
-- `docs/`：人类文档（hardware-bringup、arduino-ide-guide、ai-hooks-guide、art-generation-prompts）。
+- `docs/`：人类文档（hardware-bringup、arduino-ide-guide、ai-hooks-guide、art-generation-prompts、qingyun-asset-pipeline、evolution-sprite-pipeline）。
 - `assets/raw/`、`assets/processed/`：美术素材。
 - `tools/arduino-cli/`：捆绑的 arduino-cli（已 gitignore，由 bootstrap 安装）。
 - `build/`：编译产物（已 gitignore）。
@@ -225,6 +225,17 @@ py -3 .\ai_pet_hook.py end   --source codex
 1. 放原始图到 `assets/raw/`。
 2. 跑对应 `scripts/convert_*.py`，产物落到 `firmware/ai_pet/assets/` 头文件。
 3. 不要手改 `assets/` 下的生成头文件。
+
+### 新增修炼动画（evolution 帧）
+
+详细管线文档：`docs/evolution-sprite-pipeline.md`
+
+1. 将 4 张 128×128 RGBA 透明背景的独立帧放入 `assets/processed/pets/<form>/evolution-{1,2,3,4}.png`。
+2. 运行 `py -3 .\scripts\convert_pet_sprites.py`，自动重新生成 `pet_sprites.h`。
+3. 检查 `kEvolutionForms[]` 是否包含该形态。
+4. 编译固件确认。
+5. 不需要改 C++ 代码——`PetRenderer` 和 `drawCultivation()` 已支持所有 final form 的 evolution 帧。
+6. 灵兽阶段（Egg/Rookie）修炼时仍使用 idle 帧，如需扩展需改 `pet_renderer.cpp`。
 
 ## 8. 验证清单（改完代码后）
 

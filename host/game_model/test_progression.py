@@ -98,20 +98,20 @@ def test_qingyun_adventure_stops_at_zero_energy_and_keeps_progress():
     assert state.adventure_phase == AdventurePhase.IDLE
 
 
-def test_event_choice_phase_pauses_energy_consumption():
+def test_result_phase_pauses_energy_consumption():
     state = GameState(
         energy=8,
-        qingyun_progress=24,
-        adventure_phase=AdventurePhase.CHOOSING,
+        qingyun_progress=26,
+        adventure_phase=AdventurePhase.RESULT,
         current_event=QingyunEvent.SPIRIT_HERB,
     )
 
     assert (
         state.tick_qingyun_adventure(seed=9)
-        == AdventureTick.WAITING_FOR_CHOICE
+        == AdventureTick.INACTIVE
     )
     assert state.energy == 8
-    assert state.qingyun_progress == 24
+    assert state.qingyun_progress == 26
 
 
 def test_progress_checkpoint_triggers_each_qingyun_event_once():
@@ -126,19 +126,20 @@ def test_progress_checkpoint_triggers_each_qingyun_event_once():
         == AdventureTick.EVENT_TRIGGERED
     )
     assert state.current_event == QingyunEvent.SPIRIT_HERB
-    assert state.adventure_phase == AdventurePhase.CHOOSING
+    assert state.adventure_phase == AdventurePhase.RESULT
     assert state.qingyun_event_mask & 0b0001
 
 
 def test_collecting_spirit_herb_adds_inventory_and_resumes():
     state = GameState(
-        adventure_phase=AdventurePhase.CHOOSING,
-        current_event=QingyunEvent.SPIRIT_HERB,
+        energy=20,
+        qingyun_progress=23,
+        adventure_phase=AdventurePhase.ADVANCING,
     )
 
-    result = state.resolve_qingyun_event(choice=0, seed=0)
+    state.tick_qingyun_adventure(seed=0)
 
-    assert result == EventResult.ITEM_GAINED
+    assert state.current_event_result == EventResult.ITEM_GAINED
     assert state.items[ItemType.SPIRIT_HERB] == 1
     assert state.adventure_phase == AdventurePhase.RESULT
     state.acknowledge_adventure_result()
@@ -150,12 +151,13 @@ def test_wounded_cultivator_can_award_qingyun_token_without_unlocking_boss():
         level=12,
         stamina=100,
         tendencies=[0, 0, 0, 20],
-        qingyun_progress=65,
-        adventure_phase=AdventurePhase.CHOOSING,
-        current_event=QingyunEvent.WOUNDED_CULTIVATOR,
+        energy=20,
+        qingyun_progress=63,
+        qingyun_event_mask=0b0011,
+        adventure_phase=AdventurePhase.ADVANCING,
     )
 
-    state.resolve_qingyun_event(choice=0, seed=0)
+    state.tick_qingyun_adventure(seed=0)
 
     assert state.items[ItemType.QINGYUN_TOKEN] == 1
     assert not state.qingyun_boss_unlocked
@@ -163,45 +165,30 @@ def test_wounded_cultivator_can_award_qingyun_token_without_unlocking_boss():
     assert state.adventure_phase == AdventurePhase.ADVANCING
 
 
-def test_abandoning_event_ends_adventure_without_extra_cost():
-    state = GameState(
-        energy=7,
-        qingyun_progress=45,
-        qingyun_event_mask=0b0011,
-        adventure_phase=AdventurePhase.CHOOSING,
-        current_event=QingyunEvent.DEMON_BEAST,
-    )
-
-    state.abandon_qingyun_event()
-
-    assert state.energy == 7
-    assert state.adventure_phase == AdventurePhase.IDLE
-    assert state.qingyun_progress == 45
-    assert state.qingyun_event_mask == 0b0011
-
-
 def test_event_item_rewards_saturate_at_uint16_max():
     state = GameState(
         items=[65535, 0, 0, 0, 0],
-        adventure_phase=AdventurePhase.CHOOSING,
-        current_event=QingyunEvent.SPIRIT_HERB,
+        energy=20,
+        qingyun_progress=23,
+        adventure_phase=AdventurePhase.ADVANCING,
     )
 
-    state.resolve_qingyun_event(choice=0, seed=0)
+    state.tick_qingyun_adventure(seed=0)
 
     assert state.items[ItemType.SPIRIT_HERB] == 65535
 
 
 def test_shortcut_event_reaching_progress_100_unlocks_boss():
     state = GameState(
-        qingyun_progress=95,
-        qingyun_event_mask=0b1011,
-        adventure_phase=AdventurePhase.CHOOSING,
-        current_event=QingyunEvent.SHORTCUT,
+        energy=20,
+        qingyun_progress=83,
+        qingyun_event_mask=0b0111,
+        adventure_phase=AdventurePhase.ADVANCING,
     )
 
-    state.resolve_qingyun_event(choice=1, seed=0)
-    assert state.qingyun_progress >= 95
+    state.tick_qingyun_adventure(seed=0)
+    assert state.current_event == QingyunEvent.SHORTCUT
+    assert state.qingyun_progress >= 83
     state.qingyun_progress = 100
 
     state.acknowledge_adventure_result()
@@ -308,13 +295,13 @@ def test_stamina_defeat_resets_current_run_without_losing_round():
 
 
 def test_attack_tendency_improves_damage_with_diminishing_returns():
-    low = GameState(level=8, tendencies=[0, 0, 0, 0])
-    high = GameState(level=8, tendencies=[40, 0, 0, 0])
+    low = GameState(level=8, tendencies=[20, 0, 0, 0])
+    high = GameState(level=8, tendencies=[60, 0, 0, 0])
 
     low_damage = low.qingyun_attack_damage(seed=50)
     first_damage = high.qingyun_attack_damage(seed=50)
     assert first_damage > low_damage
-    high.tendencies[0] = 80
+    high.tendencies[0] = 100
     second_damage = high.qingyun_attack_damage(seed=50)
     assert second_damage - first_damage <= first_damage - low_damage
 
@@ -335,9 +322,10 @@ def test_talismans_are_consumed_at_battle_start_and_modify_one_battle():
 
 
 def test_qingyun_difficulty_scales_quickly_then_slowly_and_caps():
-    assert GameState(qingyun_round=1).qingyun_boss_max_hp() == 48
+    assert GameState(qingyun_round=1).qingyun_boss_max_hp() == 40
     assert GameState(qingyun_round=10).qingyun_boss_max_hp() == 112
     assert GameState(qingyun_round=11).qingyun_boss_max_hp() == 114
+    assert GameState(qingyun_round=50).qingyun_boss_max_hp() == 192
     assert (
         GameState(qingyun_round=100).qingyun_boss_max_hp()
         == GameState(qingyun_round=50).qingyun_boss_max_hp()
@@ -349,22 +337,20 @@ def test_qingyun_event_stamina_loss_scales_with_round():
         stamina=100,
         energy=0,
         qingyun_round=1,
-        adventure_phase=AdventurePhase.CHOOSING,
         current_event=QingyunEvent.SHORTCUT,
     )
     later = GameState(
         stamina=100,
         energy=0,
         qingyun_round=10,
-        adventure_phase=AdventurePhase.CHOOSING,
         current_event=QingyunEvent.SHORTCUT,
     )
 
-    early.resolve_qingyun_event(choice=0, seed=0)
-    later.resolve_qingyun_event(choice=0, seed=0)
+    early._auto_resolve_event(seed=0)
+    later._auto_resolve_event(seed=0)
 
     assert early.stamina == 90
-    assert later.stamina == 83
+    assert later.stamina == 80
 
 
 def test_qingyun_completion_experience_is_small_and_capped():
@@ -482,7 +468,7 @@ def test_qingyun_sword_increases_damage_and_reduces_incoming_damage():
 def test_failed_task_grants_reduced_experience():
     state = GameState()
 
-    state.apply_task(duration_seconds=300, success=False)
+    state.apply_task("codex", duration_seconds=300, success=False)
 
     assert state.experience == 3
     assert state.coins == 30
@@ -660,7 +646,7 @@ def test_stamina_recovery_caps_at_one_hundred_without_banking_time():
 def test_task_rewards_respect_energy_cap():
     state = GameState(energy=19)
 
-    state.apply_task(duration_seconds=600, success=True)
+    state.apply_task("codex", duration_seconds=600, success=True)
 
     assert state.energy == 20
 
@@ -714,7 +700,7 @@ def test_task_records_preserve_source():
 def test_halved_task_grants_half_experience_and_coins():
     state = GameState()
 
-    state.apply_task(duration_seconds=600, success=True, halved=True)
+    state.apply_task("codex", duration_seconds=600, success=True, halved=True)
 
     assert state.experience == 10
     assert state.coins == 35
@@ -732,7 +718,153 @@ def test_halved_ai_task_grants_half_rewards():
 def test_halved_task_minimum_reward_is_one():
     state = GameState()
 
-    state.apply_task(duration_seconds=60, success=True, halved=True)
+    state.apply_task("codex", duration_seconds=60, success=True, halved=True)
 
     assert state.experience == 1
     assert state.coins == 31
+
+
+def test_auto_resolve_events_grow_tendencies():
+    state = GameState(
+        level=20,
+        stamina=100,
+        energy=20,
+        current_event=QingyunEvent.DEMON_BEAST,
+    )
+    state._auto_resolve_event(seed=0)
+    assert state.tendencies[0] == 2
+
+    state2 = GameState(
+        level=20,
+        stamina=100,
+        energy=20,
+        current_event=QingyunEvent.SHORTCUT,
+    )
+    state2._auto_resolve_event(seed=0)
+    assert state2.tendencies[1] == 2
+
+    state3 = GameState(
+        level=20,
+        stamina=100,
+        energy=20,
+        tendencies=[0, 0, 0, 20],
+        current_event=QingyunEvent.WOUNDED_CULTIVATOR,
+    )
+    state3._auto_resolve_event(seed=0)
+    assert state3.tendencies[3] == 22
+
+    state4 = GameState(
+        energy=20,
+        current_event=QingyunEvent.SPIRIT_HERB,
+    )
+    state4._auto_resolve_event(seed=0)
+    assert state4.tendencies[3] == 1
+
+    state5 = GameState(
+        level=1,
+        stamina=10,
+        current_event=QingyunEvent.DEMON_BEAST,
+    )
+    state5._auto_resolve_event(seed=0)
+    assert state5.tendencies == [0, 0, 0, 0]
+
+
+def test_ai_task_grows_tendency_by_source():
+    codex = GameState()
+    codex.apply_task("codex", 600, True)
+    assert codex.tendencies[0] == 2
+
+    claude = GameState()
+    claude.apply_task("claude-code", 600, True)
+    assert claude.tendencies[1] == 2
+
+    opencode = GameState()
+    opencode.apply_task("opencode", 600, True)
+    assert opencode.tendencies[2] == 2
+
+    other = GameState()
+    other.apply_task("codefree-o", 600, True)
+    assert other.tendencies[3] == 2
+
+
+def test_ai_task_tendency_gain_scales_with_duration():
+    short = GameState()
+    short.apply_task("codex", 60, True)
+    assert short.tendencies[0] == 1
+
+    medium = GameState()
+    medium.apply_task("codex", 600, True)
+    assert medium.tendencies[0] == 2
+
+    long = GameState()
+    long.apply_task("codex", 1800, True)
+    assert long.tendencies[0] == 4
+
+
+def test_failed_ai_task_gives_no_tendency():
+    state = GameState()
+    state.apply_task("codex", 600, False)
+    assert state.tendencies == [0, 0, 0, 0]
+
+
+def test_boss_victory_grows_all_tendencies():
+    state = GameState(
+        level=30,
+        energy=20,
+        stamina=100,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
+        qingyun_boss_unlocked=True,
+    )
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp = 1
+
+    state.tick_qingyun_wolf_battle(seed=51)
+
+    assert state.tendencies[0] == 2
+    assert state.tendencies[1] == 2
+    assert state.tendencies[2] == 2
+    assert state.tendencies[3] == 2
+
+
+def test_boss_victory_tendency_bonus_scales_with_round():
+    state = GameState(
+        level=30,
+        energy=20,
+        stamina=100,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
+        qingyun_boss_unlocked=True,
+        qingyun_round=25,
+    )
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp = 1
+
+    state.tick_qingyun_wolf_battle(seed=51)
+
+    assert state.tendencies[0] == 5
+    assert state.tendencies[1] == 5
+    assert state.tendencies[2] == 5
+    assert state.tendencies[3] == 5
+
+
+def test_tendency_caps_at_one_hundred():
+    state = GameState(tendencies=[98, 99, 100, 50])
+
+    state._add_tendency(0, 5)
+    state._add_tendency(1, 5)
+    state._add_tendency(2, 5)
+    state._add_tendency(3, 5)
+
+    assert state.tendencies == [100, 100, 100, 55]
+
+
+def test_complete_ai_task_grows_tendency():
+    state = GameState()
+
+    state.complete_ai_task("codex", 600)
+
+    assert state.tendencies[0] == 2
+    assert state.tendencies[1] == 0
+    assert state.tendencies[2] == 0
+    assert state.tendencies[3] == 0
