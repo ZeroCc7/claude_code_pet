@@ -868,3 +868,36 @@ def test_complete_ai_task_grows_tendency():
     assert state.tendencies[1] == 0
     assert state.tendencies[2] == 0
     assert state.tendencies[3] == 0
+
+
+def test_all_four_events_fire_exactly_once_per_run():
+    state = GameState(energy=200, level=10, stamina=100)
+    assert state.start_qingyun_adventure()
+
+    fired_events = []
+    for _ in range(60):
+        tick = state.tick_qingyun_adventure(seed=42)
+        if tick == AdventureTick.EVENT_TRIGGERED:
+            fired_events.append(state.current_event)
+            state.acknowledge_adventure_result()
+        elif tick == AdventureTick.BOSS_UNLOCKED:
+            break
+
+    assert len(fired_events) == 4
+    assert set(fired_events) == {
+        QingyunEvent.SPIRIT_HERB,
+        QingyunEvent.DEMON_BEAST,
+        QingyunEvent.WOUNDED_CULTIVATOR,
+        QingyunEvent.SHORTCUT,
+    }
+
+
+def test_shuffled_event_order_varies_between_adventures():
+    orders = set()
+    for _ in range(20):
+        state = GameState(energy=10)
+        state.start_qingyun_adventure()
+        orders.add(state.qingyun_event_order)
+
+    # With 20 attempts and 24 possible permutations, we should see at least 2
+    assert len(orders) >= 2

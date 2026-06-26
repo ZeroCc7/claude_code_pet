@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 from enum import IntEnum
 
@@ -113,6 +114,7 @@ class GameState:
     current_event: QingyunEvent = QingyunEvent.NONE
     current_event_result: EventResult = EventResult.NONE
     qingyun_event_mask: int = 0
+    qingyun_event_order: int = 0xE4
     qingyun_boss_unlocked: bool = False
     qingyun_boss_defeated: bool = False
     qingyun_boss_wins: int = 0
@@ -204,6 +206,14 @@ class GameState:
         self.energy -= 3
         self.adventure_phase = AdventurePhase.ADVANCING
         self.current_event = QingyunEvent.NONE
+        # Shuffle event order (Fisher-Yates)
+        perm = [0, 1, 2, 3]
+        for i in range(3, 0, -1):
+            j = random.randint(0, i)
+            perm[i], perm[j] = perm[j], perm[i]
+        self.qingyun_event_order = (
+            perm[0] | (perm[1] << 2) | (perm[2] << 4) | (perm[3] << 6)
+        )
         return True
 
     def stop_qingyun_adventure(self) -> None:
@@ -235,7 +245,8 @@ class GameState:
                 and not self.qingyun_event_mask & event_bit
             ):
                 self.qingyun_event_mask |= event_bit
-                self.current_event = events[index]
+                event_idx = (self.qingyun_event_order >> (index * 2)) & 0x03
+                self.current_event = events[event_idx]
                 self._auto_resolve_event(seed)
                 self.adventure_phase = AdventurePhase.RESULT
                 return AdventureTick.EVENT_TRIGGERED
@@ -511,6 +522,7 @@ class GameState:
     def _reset_qingyun_run(self) -> None:
         self.qingyun_progress = 0
         self.qingyun_event_mask = 0
+        self.qingyun_event_order = 0
         self.qingyun_boss_unlocked = False
         self.adventure_phase = AdventurePhase.IDLE
         self.current_event = QingyunEvent.NONE

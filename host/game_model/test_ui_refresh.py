@@ -57,12 +57,12 @@ def test_v1_1_save_data_contains_inventory_and_merit_log():
 
 
 def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
-    assert "constexpr uint16_t kSaveVersion = 7;" in SAVE_STORE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 8;" in SAVE_STORE_SOURCE
     assert "PetSaveDataV3" not in SAVE_STORE_SOURCE
     assert "PetSaveDataV2" not in SAVE_STORE_SOURCE
     assert "migrated" not in SAVE_STORE_SOURCE
     assert "fileSize != sizeof(PetSaveData)" in SAVE_STORE_SOURCE
-    assert "constexpr uint16_t kSaveVersion = 7;" in GAME_STATE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 8;" in GAME_STATE_SOURCE
 
 
 def test_qingyun_state_is_persisted_in_v1_1_save_data():
@@ -73,6 +73,7 @@ def test_qingyun_state_is_persisted_in_v1_1_save_data():
         "enum class BattleResult",
         "uint8_t qingyunProgress;",
         "uint8_t qingyunEventMask;",
+        "uint8_t qingyunEventOrder;",
         "uint8_t qingyunBossUnlocked;",
         "AdventurePhase adventurePhase;",
         "QingyunEvent currentEvent;",

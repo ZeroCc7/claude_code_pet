@@ -5,7 +5,7 @@
 namespace {
 
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 7;
+constexpr uint16_t kSaveVersion = 8;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
 
 }  // namespace
@@ -26,6 +26,7 @@ void GameState::reset() {
   data_.coins = 30;
   data_.energy = 10;
   data_.qingyunRound = 1;
+  data_.qingyunEventOrder = 0xE4;  // identity: [0,1,2,3]
   data_.adventurePhase = AdventurePhase::Idle;
   data_.currentEvent = QingyunEvent::None;
   data_.currentEventResult = EventResult::None;
@@ -82,6 +83,20 @@ bool GameState::startQingyunAdventure() {
   data_.adventurePhase = AdventurePhase::Advancing;
   data_.currentEvent = QingyunEvent::None;
   data_.currentEventResult = EventResult::None;
+
+  // Shuffle event order using Fisher-Yates with millis() as seed
+  uint8_t perm[4] = {0, 1, 2, 3};
+  uint32_t s = millis();
+  for (uint8_t i = 3; i > 0; --i) {
+    s = s * 1103515245 + 12345;
+    uint8_t j = (s >> 16) % (i + 1);
+    uint8_t tmp = perm[i];
+    perm[i] = perm[j];
+    perm[j] = tmp;
+  }
+  data_.qingyunEventOrder =
+      (perm[0]) | (perm[1] << 2) | (perm[2] << 4) | (perm[3] << 6);
+
   return true;
 }
 
@@ -113,7 +128,9 @@ AdventureTick GameState::tickQingyunAdventure(uint32_t seed) {
     if (data_.qingyunProgress >= checkpoints[index] &&
         !(data_.qingyunEventMask & eventBit)) {
       data_.qingyunEventMask |= eventBit;
-      data_.currentEvent = events[index];
+      // Decode shuffled event from packed order
+      const uint8_t eventIdx = (data_.qingyunEventOrder >> (index * 2)) & 0x03;
+      data_.currentEvent = events[eventIdx];
       autoResolveEvent(seed);
       data_.adventurePhase = AdventurePhase::Result;
       return AdventureTick::EventTriggered;
@@ -380,6 +397,7 @@ uint8_t GameState::qingyunEventDamage(uint8_t baseDamage) const {
 void GameState::resetQingyunRun() {
   data_.qingyunProgress = 0;
   data_.qingyunEventMask = 0;
+  data_.qingyunEventOrder = 0;
   data_.qingyunBossUnlocked = 0;
   data_.adventurePhase = AdventurePhase::Idle;
   data_.currentEvent = QingyunEvent::None;

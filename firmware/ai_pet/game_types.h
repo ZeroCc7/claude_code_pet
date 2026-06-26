@@ -99,6 +99,7 @@ struct PetSaveData {
   uint16_t tendencies[4];
   uint8_t qingyunProgress;
   uint8_t qingyunEventMask;
+  uint8_t qingyunEventOrder;
   uint8_t qingyunBossUnlocked;
   AdventurePhase adventurePhase;
   QingyunEvent currentEvent;
