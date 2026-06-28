@@ -16,6 +16,7 @@ enum class UiPage : uint8_t {
   Home,
   MeritLog,
   Inventory,
+  RegionSelect,
   Adventure,
   Battle,
   Status,
@@ -27,7 +28,7 @@ enum class ItemType : uint8_t {
   RecoveryPill,
   AttackTalisman,
   GuardTalisman,
-  QingyunToken,
+  RegionToken,
 };
 
 enum class AdventurePhase : uint8_t {
@@ -47,11 +48,11 @@ enum class AdventureTick : uint8_t {
   BossUnlocked,
 };
 
-enum class QingyunEvent : uint8_t {
+enum class AdventureEvent : uint8_t {
   None,
-  SpiritHerb,
-  DemonBeast,
-  WoundedCultivator,
+  Gather,
+  Fight,
+  Npc,
   Shortcut,
 };
 
@@ -97,18 +98,16 @@ struct PetSaveData {
   uint16_t coins;
   uint16_t energy;
   uint16_t tendencies[4];
-  uint8_t qingyunProgress;
-  uint8_t qingyunEventMask;
-  uint8_t qingyunEventOrder;
-  uint8_t qingyunBossUnlocked;
+  uint8_t activeRegion;
+  uint8_t regionsUnlocked;
+  uint8_t adventureProgress;
+  uint8_t adventureEventMask;
+  uint8_t adventureEventOrder;
+  uint8_t bossUnlocked;
   AdventurePhase adventurePhase;
-  QingyunEvent currentEvent;
+  AdventureEvent currentEvent;
   EventResult currentEventResult;
-  uint8_t qingyunBossWins;
-  uint8_t qingyunBossDefeated;
-  uint16_t qingyunRound;
-  uint8_t qingyunMisses;
-  uint8_t hasQingyunSword;
+  uint8_t bossDefeated;
   uint8_t bossHp;
   uint8_t bossMaxHp;
   uint8_t inBattle;
@@ -119,10 +118,14 @@ struct PetSaveData {
   uint32_t playSeconds;
   uint16_t energyRecoverySeconds;
   uint16_t staminaRecoverySeconds;
-  uint16_t lastQingyunExperience;
-  uint16_t lastQingyunCoins;
-  uint8_t lastQingyunItems[4];
-  uint8_t lastQingyunSword;
+  uint16_t regionRound[5];
+  uint8_t regionMisses[5];
+  uint8_t regionTreasure[5];
+  uint8_t regionBossWins[5];
+  uint16_t lastBossExperience;
+  uint16_t lastBossCoins;
+  uint8_t lastBossItems[4];
+  uint8_t lastBossTreasure;
   InventoryData inventory;
   AiTaskRecord aiTaskRecords[10];
   uint8_t aiTaskRecordIndex;

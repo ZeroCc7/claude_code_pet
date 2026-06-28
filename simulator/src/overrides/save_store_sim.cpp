@@ -20,7 +20,7 @@ namespace {
 constexpr char kSlotA[] = "saves/save_a.bin";
 constexpr char kSlotB[] = "saves/save_b.bin";
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 8;
+constexpr uint16_t kSaveVersion = 9;
 
 }  // namespace
 

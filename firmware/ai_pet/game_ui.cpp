@@ -11,6 +11,8 @@
 
 #include <cstring>
 
+#include "region_config.h"
+
 namespace {
 
 constexpr int16_t kPetRegionX = 28;
@@ -71,7 +73,8 @@ void GameUi::handle(InputAction action, GameState& state) {
       selection_ = 0;
       inventoryTab_ = 0;
     } else if (action == InputAction::Down) {
-      page_ = UiPage::Adventure;
+      page_ = UiPage::RegionSelect;
+      selection_ = 0;
     } else if (action == InputAction::Back) {
       page_ = UiPage::Status;
     }
@@ -92,7 +95,7 @@ void GameUi::handle(InputAction action, GameState& state) {
       page_ = UiPage::Home;
     }
   } else if (action == InputAction::Back && page_ != UiPage::Adventure &&
-             page_ != UiPage::Battle) {
+             page_ != UiPage::Battle && page_ != UiPage::RegionSelect) {
     page_ = UiPage::Home;
   } else if (page_ == UiPage::MeritLog) {
     if (action == InputAction::Up) {
@@ -130,6 +133,25 @@ void GameUi::handle(InputAction action, GameState& state) {
         startNotice("无法使用");
       }
     }
+  } else if (page_ == UiPage::RegionSelect) {
+    if (action == InputAction::Up) {
+      selection_ = (selection_ + kRegionCount - 1) % kRegionCount;
+    } else if (action == InputAction::Down) {
+      selection_ = (selection_ + 1) % kRegionCount;
+    } else if (action == InputAction::Confirm) {
+      if (state.isRegionUnlocked(selection_)) {
+        state.selectRegion(selection_);
+        page_ = UiPage::Adventure;
+      } else if (state.tryUnlockRegion(selection_)) {
+        state.selectRegion(selection_);
+        page_ = UiPage::Adventure;
+        startNotice("区域解锁");
+      } else {
+        startNotice("条件不足");
+      }
+    } else if (action == InputAction::Back) {
+      page_ = UiPage::Home;
+    }
   } else if (page_ == UiPage::Adventure) {
     const AdventurePhase phase = state.data().adventurePhase;
     if (phase == AdventurePhase::BossReady) {
@@ -145,16 +167,16 @@ void GameUi::handle(InputAction action, GameState& state) {
       if (action == InputAction::Confirm) {
         state.acknowledgeAdventureResult();
       } else if (action == InputAction::Back) {
-        state.stopQingyunAdventure();
+        state.stopAdventure();
         page_ = UiPage::Home;
       }
     } else if (phase == AdventurePhase::Advancing) {
       if (action == InputAction::Back) {
-        state.stopQingyunAdventure();
+        state.stopAdventure();
         startNotice("结束历练");
       }
     } else if (action == InputAction::Confirm) {
-      if (state.startQingyunAdventure()) {
+      if (state.startAdventure()) {
         startNotice("踏上山道");
       } else {
         startNotice("灵力不足");
@@ -165,7 +187,7 @@ void GameUi::handle(InputAction action, GameState& state) {
   } else if (page_ == UiPage::Battle) {
     if (state.data().inBattle) {
       if (action == InputAction::Back) {
-        state.retreatQingyunWolf();
+        state.retreatBoss();
         battlePrompt_ = false;
         startNotice("主动撤退");
       }
@@ -179,7 +201,7 @@ void GameUi::handle(InputAction action, GameState& state) {
                      static_cast<uint8_t>(ItemType::GuardTalisman)] > 0) {
         useGuardTalisman_ = !useGuardTalisman_;
       } else if (action == InputAction::Confirm) {
-        if (state.startQingyunWolfBattle(useAttackTalisman_,
+        if (state.startBossBattle(useAttackTalisman_,
                                          useGuardTalisman_)) {
           battlePrompt_ = false;
           startNotice("自动交锋");
@@ -452,6 +474,9 @@ void GameUi::drawMenuFrame(const GameState& state) {
   }
   drawHeader(data);
   switch (page_) {
+    case UiPage::RegionSelect:
+      drawRegionSelect(state);
+      break;
     case UiPage::MeritLog:
       drawMeritLog(data);
       break;
@@ -929,11 +954,11 @@ void GameUi::drawTreasureInventory(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
   drawTitlePlaque("宝物", kBrightGold);
   drawPanel(10, 45, 108, 88, false);
-  const uint16_t swordColor = data.hasQingyunSword ? kBrightGold : 0x632C;
+  const uint16_t swordColor = data.regionTreasure[0] ? kBrightGold : 0x632C;
   tft.fillTriangle(62, 51, 57, 89, 67, 89, swordColor);
   tft.fillRect(51, 88, 22, 4, swordColor);
   tft.fillRect(60, 92, 5, 13, swordColor);
-  if (!data.hasQingyunSword) {
+  if (!data.regionTreasure[0]) {
     text().color(0x632C);
     text().draw(35, 119, "尚未获得");
   } else {
@@ -965,16 +990,16 @@ void GameUi::drawQingyunScene(const PetSaveData& data, uint32_t now) {
   drawQingyunPetLarge(data.form, 40, 42 + bob);
 }
 
-void GameUi::drawQingyunEventSubject(QingyunEvent event) {
+void GameUi::drawQingyunEventSubject(AdventureEvent event) {
   target().drawRGBBitmap(0, 36, kQingyunScene, kQingyunSceneWidth,
                          kQingyunSceneHeight);
-  if (event == QingyunEvent::SpiritHerb) {
+  if (event == AdventureEvent::Gather) {
     drawQingyunIconLarge(50, 50, kQingyunIconSpiritHerb);
-  } else if (event == QingyunEvent::WoundedCultivator) {
+  } else if (event == AdventureEvent::Npc) {
     drawQingyunIconLarge(50, 50, kQingyunIconWoundedCultivator);
-  } else if (event == QingyunEvent::DemonBeast) {
+  } else if (event == AdventureEvent::Fight) {
     drawQingyunIconLarge(50, 50, kQingyunIconDemonBeast);
-  } else if (event == QingyunEvent::Shortcut) {
+  } else if (event == AdventureEvent::Shortcut) {
     drawQingyunIconLarge(50, 50, kQingyunIconShortcut);
   }
 }
@@ -986,15 +1011,15 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
   tft.setTextColor(kMutedCyan);
   tft.setTextSize(1);
   tft.setCursor(101, 24);
-  tft.printf("R%u", data.qingyunRound);
+  tft.printf("R%u", data.regionRound[data.activeRegion]);
   tft.drawFastHLine(8, 34, 112, kDarkGold);
   drawQingyunScene(data, now);
   drawPanel(7, 93, 114, 46, false);
-  drawProgressBar(13, 99, 82, data.qingyunProgress, 100, kBrightGold);
+  drawProgressBar(13, 99, 82, data.adventureProgress, 100, kBrightGold);
   tft.setTextColor(kWarmWhite);
   tft.setTextSize(1);
   tft.setCursor(99, 95);
-  tft.printf("%u%%", data.qingyunProgress);
+  tft.printf("%u%%", data.adventureProgress);
   drawHomeIcon(14, 109, kHomeIconEnergy);
   drawHomeIcon(68, 109, kHomeIconHeart);
   tft.setTextColor(kMutedCyan);
@@ -1048,7 +1073,7 @@ void GameUi::drawQingyunBossPrompt(const GameState& state) {
   tft.setCursor(18, 28);
   tft.printf("LV%u", data.level);
   tft.setCursor(97, 28);
-  tft.printf("R%u", data.qingyunRound);
+  tft.printf("R%u", data.regionRound[data.activeRegion]);
 
   tft.fillRect(0, 38, 128, 68, 0x0841);
   tft.drawRGBBitmap(28, 34, kQingyunBossLargePixels,
@@ -1058,9 +1083,9 @@ void GameUi::drawQingyunBossPrompt(const GameState& state) {
   tft.fillRect(0, 106, 128, 11, 0x0841);
   text().color(kMutedCyan);
   tft.setCursor(20, 109);
-  tft.printf("HP:%u", state.qingyunBossMaxHp());
+  tft.printf("HP:%u", state.bossMaxHp());
   tft.setCursor(76, 109);
-  tft.printf("ATK:%u", 8 * state.qingyunDamagePercent() / 100);
+  tft.printf("ATK:%u", 8 * state.damagePercent() / 100);
 
   drawPanel(8, 118, 52, 22, useAttackTalisman_);
   drawQingyunIcon(11, 120, kQingyunIconAttackTalisman);
@@ -1103,9 +1128,9 @@ void GameUi::drawBattle(const GameState& state) {
   tft.printf("LV%u", data.level);
   const uint16_t displayRound =
       !data.inBattle && data.lastBattleResult == BattleResult::Victory &&
-              data.qingyunRound > 1
-          ? data.qingyunRound - 1
-          : data.qingyunRound;
+              data.regionRound[data.activeRegion] > 1
+          ? data.regionRound[data.activeRegion] - 1
+          : data.regionRound[data.activeRegion];
   tft.setCursor(97, 28);
   tft.printf("R%u", displayRound);
 
@@ -1115,27 +1140,27 @@ void GameUi::drawBattle(const GameState& state) {
     text().draw(43, 61, "通关奖励");
     tft.setTextColor(kWarmWhite);
     tft.setCursor(17, 69);
-    tft.printf("XP +%u", data.lastQingyunExperience);
+    tft.printf("XP +%u", data.lastBossExperience);
     text().color(kWarmWhite);
     text().draw(67, 77, "灵石");
     tft.setCursor(94, 69);
-    tft.printf("+%u", data.lastQingyunCoins);
+    tft.printf("+%u", data.lastBossCoins);
     const QingyunUiIcon* rewardIcons[] = {
         &kQingyunIconSpiritHerb, &kQingyunIconRecoveryPill,
         &kQingyunIconAttackTalisman, &kQingyunIconGuardTalisman};
     uint8_t rewardX = 18;
     for (uint8_t index = 0; index < 4; ++index) {
-      if (data.lastQingyunItems[index] == 0) {
+      if (data.lastBossItems[index] == 0) {
         continue;
       }
       drawQingyunIcon(rewardX, 86, *rewardIcons[index]);
       tft.setCursor(rewardX + 19, 91);
-      tft.printf("+%u", data.lastQingyunItems[index]);
+      tft.printf("+%u", data.lastBossItems[index]);
       rewardX += 48;
     }
-    text().color(data.lastQingyunSword ? kBrightGold : kMutedCyan);
+    text().color(data.lastBossTreasure ? kBrightGold : kMutedCyan);
     text().draw(30, 116,
-                data.lastQingyunSword ? "青云剑入手" : "宝物尚无踪");
+                data.lastBossTreasure ? "青云剑入手" : "宝物尚无踪");
     drawFooterHints("返回山道", "战斗结束");
     return;
   }
@@ -1287,7 +1312,7 @@ void GameUi::drawStatus(const PetSaveData& data) {
     tft.setCursor(70, 114);
     tft.printf("%u%%", dodgeRate);
 
-    if (data.hasQingyunSword) {
+    if (data.regionTreasure[0]) {
       drawPanel(7, 131, 114, 12, false);
       text().color(kBrightGold);
       text().draw(13, 140, "青云剑 攻+10% 防+10%");

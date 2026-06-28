@@ -1,6 +1,7 @@
 #include "game_app.h"
 
 #include "input_actions.h"
+#include "region_config.h"
 
 namespace {
 
@@ -67,7 +68,7 @@ void GameApp::update(uint32_t now) {
       now - lastAdventureStepAt_ >= kAdventureStepMs) {
     lastAdventureStepAt_ = now;
     const PetForm oldForm = state_.data().form;
-    const AdventureTick result = state_.tickQingyunAdventure(now);
+    const AdventureTick result = state_.tickAdventure(now);
     if (result != AdventureTick::Inactive &&
         result != AdventureTick::WaitingForChoice) {
       requestSave();
@@ -76,11 +77,12 @@ void GameApp::update(uint32_t now) {
       } else {
         if (result == AdventureTick::EventTriggered) {
           eventResultShownAt_ = now;
-          ui_.notify("山道有变");
+          ui_.notify("路有际遇");
         } else if (result == AdventureTick::EnergyDepleted) {
           ui_.notify("灵力耗尽");
         } else if (result == AdventureTick::BossUnlocked) {
-          ui_.notify("妖狼现踪");
+          const char* boss = kRegions[state_.activeRegion()].boss_name;
+          ui_.notify(boss);
         }
         ui_.draw(state_, now, true);
       }
@@ -91,13 +93,13 @@ void GameApp::update(uint32_t now) {
       now - lastBattleRoundAt_ >= kBattleRoundMs) {
     lastBattleRoundAt_ = now;
     const PetForm oldForm = state_.data().form;
-    const BattleResult result = state_.tickQingyunWolfBattle(now);
+    const BattleResult result = state_.tickBossBattle(now);
     requestSave();
     if (state_.data().form != oldForm) {
       ui_.showEvolution(state_.data().form, now);
     } else {
       if (result == BattleResult::Victory) {
-        ui_.notify("妖狼已伏");
+        ui_.notify("首领已伏");
       } else if (result == BattleResult::Defeat) {
         ui_.notify("战败归山");
       } else if (result == BattleResult::EnergyDepleted) {
@@ -232,10 +234,18 @@ void GameApp::processSetCommand(const String& command) {
   else if (field == "t1") d.tendencies[1] = static_cast<uint16_t>(value);
   else if (field == "t2") d.tendencies[2] = static_cast<uint16_t>(value);
   else if (field == "t3") d.tendencies[3] = static_cast<uint16_t>(value);
-  else if (field == "progress") d.qingyunProgress = static_cast<uint8_t>(value);
-  else if (field == "boss") d.qingyunBossUnlocked = static_cast<uint8_t>(value);
-  else if (field == "round") d.qingyunRound = static_cast<uint16_t>(value);
-  else if (field == "sword") d.hasQingyunSword = static_cast<uint8_t>(value);
+  else if (field == "progress") d.adventureProgress = static_cast<uint8_t>(value);
+  else if (field == "boss") d.bossUnlocked = static_cast<uint8_t>(value);
+  else if (field == "region") {
+    const uint8_t r = static_cast<uint8_t>(value);
+    if (r < kRegionCount) state_.selectRegion(r);
+  }
+  else if (field == "round") d.regionRound[d.activeRegion] = static_cast<uint16_t>(value);
+  else if (field == "sword") d.regionTreasure[d.activeRegion] = static_cast<uint8_t>(value);
+  else if (field == "unlock") {
+    const uint8_t r = static_cast<uint8_t>(value);
+    if (r < kRegionCount) d.regionsUnlocked |= (1U << r);
+  }
   else if (field == "item0") d.inventory.items[0] = static_cast<uint16_t>(value);
   else if (field == "item1") d.inventory.items[1] = static_cast<uint16_t>(value);
   else if (field == "item2") d.inventory.items[2] = static_cast<uint16_t>(value);
