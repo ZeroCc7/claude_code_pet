@@ -25,7 +25,7 @@ class GameState {
   void retreatBoss();
   static uint16_t maxEnergy(PetForm form);
   static uint16_t experienceForLevel(uint8_t level);
-  uint8_t bossMaxHp() const;
+  uint16_t bossMaxHp() const;
   uint16_t damagePercent() const;
   void gainExperience(uint16_t amount);
   void applyTask(const char* source, uint32_t durationSeconds, bool success,

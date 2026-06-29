@@ -7,7 +7,7 @@
 namespace {
 
 constexpr uint32_t kSaveMagic = 0x50455431;
-constexpr uint16_t kSaveVersion = 9;
+constexpr uint16_t kSaveVersion = 10;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
 
 }  // namespace
@@ -407,12 +407,10 @@ void GameState::retreatBoss() {
   }
 }
 
-uint8_t GameState::bossMaxHp() const {
+uint16_t GameState::bossMaxHp() const {
   const uint8_t r = data_.activeRegion;
-  return min<uint16_t>(
-      255,
-      static_cast<uint16_t>(kRegions[r].base_boss_hp) * healthPercent() /
-          100);
+  return static_cast<uint32_t>(kRegions[r].base_boss_hp) * healthPercent() /
+         100;
 }
 
 uint16_t GameState::completionExperience() const {

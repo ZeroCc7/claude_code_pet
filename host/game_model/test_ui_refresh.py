@@ -31,6 +31,12 @@ GAME_STATE_HEADER = (
 SAVE_STORE_SOURCE = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "save_store.cpp"
 ).read_text(encoding="utf-8")
+REGION_CONFIG_HEADER = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "region_config.h"
+).read_text(encoding="utf-8")
+REGION_CONFIG_SOURCE = (
+    Path(__file__).parents[2] / "firmware" / "ai_pet" / "region_config.cpp"
+).read_text(encoding="utf-8")
 AI_PROTOCOL_HEADER = (
     Path(__file__).parents[2] / "firmware" / "ai_pet" / "ai_event_protocol.h"
 ).read_text(encoding="utf-8")
@@ -57,12 +63,35 @@ def test_v1_1_save_data_contains_inventory_and_merit_log():
 
 
 def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
-    assert "constexpr uint16_t kSaveVersion = 9;" in SAVE_STORE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 10;" in SAVE_STORE_SOURCE
     assert "PetSaveDataV3" not in SAVE_STORE_SOURCE
     assert "PetSaveDataV2" not in SAVE_STORE_SOURCE
     assert "migrated" not in SAVE_STORE_SOURCE
     assert "fileSize != sizeof(PetSaveData)" in SAVE_STORE_SOURCE
-    assert "constexpr uint16_t kSaveVersion = 9;" in GAME_STATE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 10;" in GAME_STATE_SOURCE
+
+
+def test_v1_2_save_data_has_techniques_and_16_bit_boss_hp():
+    assert "uint8_t techniqueLevels[4];" in GAME_TYPES
+    assert "uint16_t bossHp;" in GAME_TYPES
+    assert "uint16_t bossMaxHp;" in GAME_TYPES
+    assert "constexpr uint16_t kSaveVersion = 10;" in SAVE_STORE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 10;" in GAME_STATE_SOURCE
+
+
+def test_v1_2_region_config_has_bamboo_realm_and_difficulty_ladder():
+    source = REGION_CONFIG_HEADER + REGION_CONFIG_SOURCE
+    for token in (
+        "base_boss_damage",
+        "reward_bias[4]",
+        "青竹灵境",
+        "竹灵守卫",
+        "灵竹玉佩",
+        "60, 25, 6, 13, 15, 4",
+        "90, 27, 7, 17, 17, 5",
+        "220, 36, 10, 36, 25, 8",
+    ):
+        assert token in source
 
 
 def test_qingyun_state_is_persisted_in_v1_1_save_data():
@@ -99,7 +128,7 @@ def test_firmware_exposes_repeat_challenge_helpers():
     for signature in (
         "uint8_t attackDamage(uint32_t seed) const;",
         "uint8_t incomingDamage(uint32_t seed) const;",
-        "uint8_t bossMaxHp() const;",
+        "uint16_t bossMaxHp() const;",
         "uint16_t completionExperience() const;",
         "uint16_t completionCoins() const;",
         "void resetRun();",

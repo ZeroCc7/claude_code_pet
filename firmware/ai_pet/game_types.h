@@ -98,6 +98,7 @@ struct PetSaveData {
   uint16_t coins;
   uint16_t energy;
   uint16_t tendencies[4];
+  uint8_t techniqueLevels[4];
   uint8_t activeRegion;
   uint8_t regionsUnlocked;
   uint8_t adventureProgress;
@@ -108,8 +109,8 @@ struct PetSaveData {
   AdventureEvent currentEvent;
   EventResult currentEventResult;
   uint8_t bossDefeated;
-  uint8_t bossHp;
-  uint8_t bossMaxHp;
+  uint16_t bossHp;
+  uint16_t bossMaxHp;
   uint8_t inBattle;
   uint8_t battleRound;
   uint8_t battleAttackTalisman;
