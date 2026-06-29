@@ -1,7 +1,13 @@
 param(
-    [ValidateSet("start", "end")]
+    [ValidateSet("UserPromptSubmit", "Stop", "start", "end")]
     [string]$Event
 )
+
+$command = switch ($Event) {
+    "UserPromptSubmit" { "start" }
+    "Stop" { "end" }
+    default { $Event }
+}
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pythonCommand = (Get-Command py -ErrorAction SilentlyContinue).Source
@@ -12,6 +18,6 @@ if (-not $pythonCommand) {
 }
 if ($pythonCommand) {
     & $pythonCommand @pythonPrefix (Join-Path $root "ai_pet_hook.py") `
-        $Event --source codex | Out-Null
+        $command --source codex | Out-Null
 }
 exit 0

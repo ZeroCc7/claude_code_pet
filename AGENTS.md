@@ -17,7 +17,7 @@
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  AI 工具（Codex / Claude Code / OpenCode）                    │
+│  AI 工具（Codex / Claude Code / OpenCode / CodeFree-O）        │
 │  事件钩子 ──► host/hooks/*.ps1 + ai_pet_hook.py               │
 └──────────────────────────────┬──────────────────────────────┘
                                │ JSON over USB Serial (115200)
@@ -29,9 +29,9 @@
 │                  ├─ ButtonScanner  ──► InputAction            │
 │                  ├─ AiEventProtocol（解析串口 JSON）            │
 │                  │     └─► GameState.applyAiTask()（结算奖励）   │
-│                  ├─ GameState（规则 + 存档数据 PetSaveData）      │
+│                  ├─ GameState（规则 + 功法 + 区域 + 存档数据）       │
 │                  ├─ SaveStore（LittleFS A/B 双槽 + CRC32）       │
-│                  ├─ GameUi（六页面渲染：首页/培养/历练/战斗/状态/修炼）│
+│                  ├─ GameUi（多页面渲染：首页/背包/区域/历练/战斗/状态/功法）│
 │                  └─ DisplayDevice（ST7735S + 背光 PWM）         │
 └─────────────────────────────────────────────────────────────┘
 
@@ -52,9 +52,10 @@
 |---|---|
 | `ai_pet.ino` | 入口，仅创建 `GameApp` 并调用 `begin()/update()` |
 | `game_app.{h,cpp}` | 主编排器：串口、输入、秒级 tick、存档调度、AI 事件分发 |
-| `game_state.{h,cpp}` | 游戏规则与 `PetSaveData`：培养、历练、战斗、经验、进化、AI 任务结算 |
-| `game_types.h` | 枚举（`PetForm`/`UiPage`/`MeditationResult`）+ `PetSaveData` 结构 |
-| `game_ui.{h,cpp}` | 全部 UI 渲染（六页面 + 局部刷新 + 反馈/通知/AI 状态页） |
+| `game_state.{h,cpp}` | 游戏规则与 `PetSaveData`：历练、区域、战斗、功法、经验、进化、AI 任务结算 |
+| `game_types.h` | 枚举（`PetForm`/`UiPage`/`ItemType`/`AdventurePhase` 等）+ `PetSaveData` 结构 |
+| `region_config.{h,cpp}` | V1.2 区域配置：区域名、Boss、难度、解锁条件、奖励偏向 |
+| `game_ui.{h,cpp}` | 全部 UI 渲染（首页/功德簿/背包/区域/历练/战斗/状态/功法/修炼 + 局部刷新） |
 | `ai_event_protocol.{h,cpp}` | 解析 AI 任务 `start/end + source` 串口 JSON |
 | `save_store.{h,cpp}` | LittleFS A/B 双槽存档 + CRC32 + 旧版迁移 |
 | `display_device.{h,cpp}` | ST7735S 封装（init/背光/诊断图样） |
@@ -80,8 +81,8 @@
 | 文件 | 职责 |
 |---|---|
 | `ai_pet_hook.py` | 手动触发 CLI：`py ai_pet_hook.py <command> [--source --session --port]` |
-| `claude-hook.ps1` / `codex-hook.ps1` / `opencode-hook.ps1` | 各工具的事件钩子 |
-| `opencode-plugin.js` | OpenCode 插件 |
+| `claude-hook.ps1` / `codex-hook.ps1` / `opencode-hook.ps1` / `codefree-o-hook.ps1` | 各工具的事件钩子 |
+| `opencode-plugin.js` / `codefree-o-plugin.js` | OpenCode / CodeFree-O 插件 |
 | `send-ai-pet-event.ps1` | 共用发送器 |
 | `test_hook_payloads.py` | Hook 载荷测试 |
 
@@ -99,8 +100,8 @@
 | `bootstrap-arduino.ps1` | 安装 `tools/arduino-cli/` 与所需库（首次必跑） |
 | `compile-firmware.ps1` | 编译固件到 `build/firmware/` |
 | `upload-firmware.ps1` | 烧录到指定 `-Port` |
-| `install-ai-hooks.ps1` | 把 Hook 装进 Claude/Codex/OpenCode 配置 |
-| `convert_background.py` / `convert_pet_sprites.py` / `convert_ui_icons.py` | 素材转换 |
+| `install-ai-hooks.ps1` | 把 Hook 装进 Claude/Codex/OpenCode/CodeFree-O 配置 |
+| `convert_background.py` / `convert_pet_sprites.py` / `convert_ui_icons.py` / `convert_v12_assets.py` | 素材转换 |
 
 ### 其他
 
@@ -185,11 +186,11 @@ py -3 .\ai_pet_hook.py end   --source codex
 ## 6. 关键不变量（修改前必读）
 
 1. **Flash 布局固定**：必须选 `2MB (Sketch: 1792KB, FS: 256KB)`。选 `2MB (no FS)` 会导致 `SaveStore` 失败、存档丢失。
-2. **`PetSaveData` 是存档磁盘格式**：`game_types.h` 中的结构体字段顺序/类型即存档二进制布局。`save_store.cpp` 用 `kSaveMagic=0x50455431`、`kSaveVersion`（当前 4）、`size`、`sequence`、`crc32` 做校验。改结构必须 bump `kSaveVersion`。通常需要写迁移逻辑；V1.1 已明确放弃 V1.0 存档兼容，旧存档应直接失效并初始化新角色。
+2. **`PetSaveData` 是存档磁盘格式**：`game_types.h` 中的结构体字段顺序/类型即存档二进制布局。`save_store.cpp` 用 `kSaveMagic=0x50455431`、`kSaveVersion`（当前 10）、`size`、`sequence`、`crc32` 做校验。改结构必须 bump `kSaveVersion`。当前 V1.1/V1.2 均不迁移旧结构存档，旧存档应直接失效并初始化新角色。
 3. **A/B 双槽**：`SaveStore` 轮流写入 A/B 两个文件，CRC 校验通过才视为有效，写入失败不覆盖最后有效存档。
 4. **AI 协议上限 384 字节**：`AiEventProtocol::kMaximumMessageBytes=384`（`host/game_model/ai_protocol.py` 同步）。超长会被拒绝。
 5. **单活动任务**：设备仅接受空闲时的 `start`，运行中忽略其他 `start`；只有来源匹配的 `end` 才结算。协议不使用 `task_id`。
-6. **奖励规则**：设备按本地运行时间结算，每分钟 2 经验、1 灵石，最少按 1 分钟、最多按 30 分钟；30 分钟未结束自动减半结算。
+6. **奖励规则**：设备按本地运行时间结算，每分钟 2 经验、1 灵石，最少按 1 分钟、最多按 60 分钟；30 分钟未结束自动减半结算。
 7. **引脚分配写死**：`board_config.h` 定义 GP2–GP11，改引脚必须同步更新 `docs/hardware-bringup.md` 和 README 接线表。
 8. **固件 ↔ Python 规则必须一致**：`firmware/ai_pet/game_state.cpp` 与 `host/game_model/progression.py` 是同一规则的两种实现。改一处必须改另一处并更新对应 pytest。
 9. **进化阈值固定**：LV3 第一次分支、LV12 最终分支，每 20 经验一级，最高 LV30。
@@ -219,6 +220,14 @@ py -3 .\ai_pet_hook.py end   --source codex
 3. 更新四种工具的开始与结束生命周期映射。
 4. 更新协议、Hook 和安装器测试。
 5. 更新 README 与 `docs/ai-hooks-guide.md`。
+
+### 新增一个区域
+
+1. 在 `region_config.{h,cpp}` 增加区域配置，确认 `kRegionCount` 与 `PetSaveData` 中 5 个区域槽位一致。
+2. 同步 `host/game_model/progression.py` 的区域配置、解锁条件、难度阶梯和奖励偏向。
+3. 若新增持久字段，修改 `game_types.h` 并 bump `kSaveVersion`。
+4. 更新区域选择、Boss 展示、宝物页等 UI 文案与素材接口。
+5. 更新 `host/game_model/test_progression.py` 和 `test_ui_refresh.py`。
 
 ### 新增素材
 
@@ -266,7 +275,7 @@ py -3 .\ai_pet_hook.py end   --source codex
 3. ✅ 重做青云山道：自动前进、事件自动结算、场景化显示和灵力逐步消耗。
 4. ✅ 增加青云妖狼：固定进度或信物解锁，全自动战斗，每回合消耗 1 点灵力。
 5. ✅ 让等级、形态和四类成长倾向参与自动战斗，并保留少量暴击、闪避随机性。
-6. ✅ 增加固定五种物品的轻量背包：灵草、回春丹、攻击符、护身符、青云信物。
+6. ✅ 增加固定五种物品的轻量背包：灵草、回春丹、攻击符、护身符、青云信物（V1.2 起文案改为秘境令）。
 7. ✅ 增加功德簿，持久保存最近 10 条成功 AI 任务，每页显示 2 条。
 8. ✅ 升级存档版本，不迁移 V1.0 存档，首次启动 V1.1 时从头修炼。
 9. ✅ 固件与 Python 参考模型同步实现，测试后再做实机验收。
@@ -294,3 +303,24 @@ py -3 .\ai_pet_hook.py end   --source codex
 - **AI 任务完成**：根据时长分配倾向。
 
 固件与 Python 参考模型已同步实现，测试通过。
+
+## 12. V1.2 功法与青竹灵境（已完成）
+
+开发目标：
+
+1. ✅ 新增四门被动功法：太虚剑诀、九转丹法、不灭玄功、万灵息法。
+2. ✅ 功法等级 Lv0-Lv9，升级消耗对应倾向门槛和灵石，不扣除倾向数值，不影响进化分支判定。
+3. ✅ 状态页新增“功法概览”，可进入“功法修炼”页选择并升级功法。
+4. ✅ 功法接入战斗、丹药回复、被动恢复、护体、闪避和灵力上限等规则。
+5. ✅ 开放第二个区域“青竹灵境”，Boss 为“竹灵守卫”，奖励偏向丹和灵。
+6. ✅ 预置云海剑台、丹霞药谷、玄河古战场的锁定区域配置、解锁条件、难度阶梯和奖励偏向。
+7. ✅ 青云信物改为通用“秘境令”：进入历练时可选择消耗 1 枚，直接推进到当前区域 Boss 可挑战状态。
+8. ✅ 区域宝物改为通用结构：青云剑、灵竹玉佩及后续区域宝物共用掉落和 20 次保底逻辑。
+9. ✅ Boss HP 改为 `uint16_t`，V1.2 难度整体提高：青云山道基础 HP 60、基础伤害 13；青竹灵境基础 HP 90、基础伤害 17。
+10. ✅ 固件与 Python 参考模型同步实现 V1.2 功法、青竹灵境、秘境令直达 Boss、区域宝物和难度阶梯。
+
+素材状态：
+
+- V1.2 代码不包含生成、绘制或合成正式素材。
+- 缺失素材清单记录在 `docs/art-asset-self-service-guide.md` 和 `docs/art-generation-prompts.md`：青云剑图标、青竹灵境背景、竹灵守卫 Boss、灵竹玉佩图标。
+- 用户后续把 PNG 放入指定路径后，再运行 `scripts/convert_v12_assets.py` 接入固件资源并编译验证。
