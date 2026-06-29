@@ -12,6 +12,7 @@
 #include "assets/qingyun_ui_icons.h"
 #include "assets/qingyun_pets.h"
 #include "assets/qingyun_boss.h"
+#include "assets/region_treasures.h"
 
 class GameUi {
  public:
@@ -71,6 +72,8 @@ class GameUi {
                       const HomeButtonIcon& icon);
   void drawQingyunIcon(int16_t x, int16_t y,
                        const QingyunUiIcon& icon);
+  void drawRegionTreasureIcon(int16_t x, int16_t y,
+                              const RegionTreasureIcon& icon);
   void drawQingyunIconLarge(int16_t x, int16_t y,
                             const QingyunUiIcon& icon);
   void drawQingyunPet(PetForm form, int16_t x, int16_t y);
@@ -90,7 +93,7 @@ class GameUi {
   void drawQingyunEventResult(const PetSaveData& data);
   void drawQingyunBossPrompt(const GameState& state);
   void drawQingyunScene(const PetSaveData& data, uint32_t now);
-  void drawQingyunEventSubject(AdventureEvent event);
+  void drawQingyunEventSubject(const PetSaveData& data, AdventureEvent event);
   void drawBattle(const GameState& state);
   void drawStatus(const PetSaveData& data);
   void drawTechniqueOverview(const PetSaveData& data);

@@ -184,6 +184,21 @@ def test_ui_has_technique_overview_and_detail_pages():
         assert token in UI_HEADER + UI_SOURCE + GAME_TYPES
 
 
+def test_v1_2_art_assets_are_wired_into_firmware_ui():
+    for token in (
+        '#include "assets/bamboo_realm_scene.h"',
+        '#include "assets/bamboo_guardian.h"',
+        '#include "assets/region_treasures.h"',
+        "kBambooRealmScene",
+        "kBambooGuardianPixels",
+        "kBambooGuardianLargePixels",
+        "kRegionTreasureQingyunSword",
+        "kRegionTreasureSpiritBambooJade",
+        "data.activeRegion == 1",
+    ):
+        assert token in UI_HEADER + UI_SOURCE
+
+
 def test_firmware_inventory_rules_match_python_recovery_items():
     for item in (
         "SpiritHerb",
@@ -214,9 +229,12 @@ def test_inventory_has_item_and_treasure_pages():
         "void GameUi::handle",
         "void GameUi::draw",
     )
-    for label in ("宝物", "青云剑", "尚未获得", "伤害+10%", "减伤+10%"):
+    for label in ("宝物", "青云剑", "灵竹玉佩", "未得", "攻防", "闪避"):
         assert label in UI_SOURCE
     assert "data.regionTreasure[0]" in UI_SOURCE
+    assert "data.regionTreasure[1]" in UI_SOURCE
+    assert "kRegionTreasureQingyunSword" in UI_SOURCE
+    assert "kRegionTreasureSpiritBambooJade" in UI_SOURCE
 
 
 def test_qingyun_ui_shows_round_and_completion_rewards():
@@ -404,9 +422,9 @@ def test_operation_pages_include_required_cultivation_information():
         "乾坤袋",
         "灵草",
         "回春丹",
-        "青云山道",
-        "山道际遇",
-        "青云妖狼",
+        "秘境际遇",
+        "kRegions[data.activeRegion].name",
+        "kRegions[data.activeRegion].boss_name",
         "仙宠状态",
         "已臻化境",
     ):
@@ -414,7 +432,8 @@ def test_operation_pages_include_required_cultivation_information():
 
 
 def test_battle_page_is_automatic_and_has_result_notice():
-    for label in ("青云妖狼", "自动交锋", "敌方气血", "己方体力", "撤退"):
+    for label in ("kRegions[data.activeRegion].boss_name", "自动交锋", "敌方气血",
+                  "己方体力", "撤退"):
         assert label in UI_SOURCE
     for removed in ("K1 攻击", "K2 法诀", "K3 丹药", "K4 防御"):
         assert removed not in UI_SOURCE
@@ -515,7 +534,7 @@ def test_qingyun_adventure_separates_large_pet_and_event_subjects():
     assert "drawQingyunPet(" not in event_source
     assert "drawQingyunIconLarge(50, 50, kQingyunIconSpiritHerb);" in event_source
     assert "drawQingyunIconLarge(50, 50, kQingyunIconDemonBeast);" in event_source
-    assert "drawQingyunEventSubject(data.currentEvent);" in result_source
+    assert "drawQingyunEventSubject(data, data.currentEvent);" in result_source
     assert "drawQingyunScene(data, millis());" not in result_source
 
 

@@ -9,6 +9,8 @@
 #include "assets/qingyun_scene.h"
 #include "assets/qingyun_ui_icons.h"
 #include "assets/qingyun_pets.h"
+#include "assets/bamboo_realm_scene.h"
+#include "assets/bamboo_guardian.h"
 
 #include <cstring>
 
@@ -837,6 +839,13 @@ void GameUi::drawQingyunIcon(int16_t x, int16_t y,
                          kQingyunIconWidth, kQingyunIconHeight);
 }
 
+void GameUi::drawRegionTreasureIcon(int16_t x, int16_t y,
+                                    const RegionTreasureIcon& icon) {
+  target().drawRGBBitmap(x, y, icon.pixels, icon.mask,
+                         kRegionTreasureIconWidth,
+                         kRegionTreasureIconHeight);
+}
+
 void GameUi::drawQingyunIconLarge(int16_t x, int16_t y,
                                   const QingyunUiIcon& icon) {
   Adafruit_GFX& tft = target();
@@ -1010,23 +1019,21 @@ void GameUi::drawInventory(const PetSaveData& data) {
 }
 
 void GameUi::drawTreasureInventory(const PetSaveData& data) {
-  Adafruit_GFX& tft = target();
   drawTitlePlaque("宝物", kBrightGold);
   drawPanel(10, 45, 108, 88, false);
-  const uint16_t swordColor = data.regionTreasure[0] ? kBrightGold : 0x632C;
-  tft.fillTriangle(62, 51, 57, 89, 67, 89, swordColor);
-  tft.fillRect(51, 88, 22, 4, swordColor);
-  tft.fillRect(60, 92, 5, 13, swordColor);
-  if (!data.regionTreasure[0]) {
-    text().color(0x632C);
-    text().draw(35, 119, "尚未获得");
-  } else {
-    text().color(kBrightGold);
-    text().draw(43, 114, "青云剑");
-    text().color(kWarmWhite);
-    text().draw(27, 128, "伤害+10%");
-    text().draw(71, 128, "减伤+10%");
-  }
+  drawPanel(16, 53, 44, 70, false);
+  drawRegionTreasureIcon(26, 59, kRegionTreasureQingyunSword);
+  text().color(data.regionTreasure[0] ? kBrightGold : 0x632C);
+  text().draw(22, 93, "青云剑");
+  text().color(data.regionTreasure[0] ? kWarmWhite : 0x632C);
+  text().draw(20, 110, data.regionTreasure[0] ? "攻防" : "未得");
+
+  drawPanel(68, 53, 44, 70, false);
+  drawRegionTreasureIcon(78, 59, kRegionTreasureSpiritBambooJade);
+  text().color(data.regionTreasure[1] ? kBrightGold : 0x632C);
+  text().draw(72, 93, "灵竹玉佩");
+  text().color(data.regionTreasure[1] ? kWarmWhite : 0x632C);
+  text().draw(73, 110, data.regionTreasure[1] ? "闪避" : "未得");
   drawFooterHints("切换", "返回");
 }
 
@@ -1080,8 +1087,13 @@ void GameUi::drawAdventure(const PetSaveData& data) {
 
 void GameUi::drawQingyunScene(const PetSaveData& data, uint32_t now) {
   Adafruit_GFX& tft = target();
-  tft.drawRGBBitmap(0, 36, kQingyunScene, kQingyunSceneWidth,
-                    kQingyunSceneHeight);
+  if (data.activeRegion == 1) {
+    tft.drawRGBBitmap(0, 36, kBambooRealmScene, kBambooRealmSceneWidth,
+                      kBambooRealmSceneHeight);
+  } else {
+    tft.drawRGBBitmap(0, 36, kQingyunScene, kQingyunSceneWidth,
+                      kQingyunSceneHeight);
+  }
   const int16_t bob =
       data.adventurePhase == AdventurePhase::Advancing
           ? static_cast<int16_t>((now / 250) % 2)
@@ -1089,9 +1101,9 @@ void GameUi::drawQingyunScene(const PetSaveData& data, uint32_t now) {
   drawQingyunPetLarge(data.form, 40, 42 + bob);
 }
 
-void GameUi::drawQingyunEventSubject(AdventureEvent event) {
-  target().drawRGBBitmap(0, 36, kQingyunScene, kQingyunSceneWidth,
-                         kQingyunSceneHeight);
+void GameUi::drawQingyunEventSubject(const PetSaveData& data,
+                                     AdventureEvent event) {
+  drawQingyunScene(data, millis());
   if (event == AdventureEvent::Gather) {
     drawQingyunIconLarge(50, 50, kQingyunIconSpiritHerb);
   } else if (event == AdventureEvent::Npc) {
@@ -1106,7 +1118,8 @@ void GameUi::drawQingyunEventSubject(AdventureEvent event) {
 void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
   Adafruit_GFX& tft = target();
   text().color(kBrightGold);
-  text().draw(38, 31, "青云山道");
+  text().draw(data.activeRegion == 1 ? 38 : 38, 31,
+              kRegions[data.activeRegion].name);
   tft.setTextColor(kMutedCyan);
   tft.setTextSize(1);
   tft.setCursor(101, 24);
@@ -1132,7 +1145,7 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
     drawFooterHints("自动前行", "结束");
   } else if (data.adventurePhase == AdventurePhase::BossReady) {
     text().color(kCinnabar);
-    text().draw(35, 136, "妖狼现身");
+    text().draw(35, 136, "首领现身");
     drawFooterHints("挑战", "返回");
   } else {
     text().color(kWarmWhite);
@@ -1143,9 +1156,9 @@ void GameUi::drawQingyunAdventure(const PetSaveData& data, uint32_t now) {
 
 void GameUi::drawQingyunEventResult(const PetSaveData& data) {
   text().color(kBrightGold);
-  text().draw(38, 31, "山道际遇");
+  text().draw(38, 31, "秘境际遇");
   target().drawFastHLine(8, 34, 112, kDarkGold);
-  drawQingyunEventSubject(data.currentEvent);
+  drawQingyunEventSubject(data, data.currentEvent);
   const char* titles[] = {"", "灵草", "妖兽", "受伤修士", "山道捷径"};
   const uint8_t event = static_cast<uint8_t>(data.currentEvent);
   text().color(kBrightGold);
@@ -1167,7 +1180,7 @@ void GameUi::drawQingyunBossPrompt(const GameState& state) {
   tft.drawRoundRect(14, 8, 100, 30, 4, kDarkGold);
   tft.drawFastHLine(23, 10, 82, kCinnabar);
   text().color(kCinnabar);
-  text().draw(36, 23, "青云妖狼");
+  text().draw(36, 23, kRegions[data.activeRegion].boss_name);
   text().color(kMutedCyan);
   tft.setCursor(18, 28);
   tft.printf("LV%u", data.level);
@@ -1175,16 +1188,25 @@ void GameUi::drawQingyunBossPrompt(const GameState& state) {
   tft.printf("R%u", data.regionRound[data.activeRegion]);
 
   tft.fillRect(0, 38, 128, 68, 0x0841);
-  tft.drawRGBBitmap(28, 34, kQingyunBossLargePixels,
-                    kQingyunBossLargeMask,
-                    kQingyunBossLargeWidth, kQingyunBossLargeHeight);
+  if (data.activeRegion == 1) {
+    tft.drawRGBBitmap(28, 34, kBambooGuardianLargePixels,
+                      kBambooGuardianLargeMask,
+                      kBambooGuardianLargeWidth,
+                      kBambooGuardianLargeHeight);
+  } else {
+    tft.drawRGBBitmap(28, 34, kQingyunBossLargePixels,
+                      kQingyunBossLargeMask,
+                      kQingyunBossLargeWidth, kQingyunBossLargeHeight);
+  }
 
   tft.fillRect(0, 106, 128, 11, 0x0841);
   text().color(kMutedCyan);
   tft.setCursor(20, 109);
   tft.printf("HP:%u", state.bossMaxHp());
   tft.setCursor(76, 109);
-  tft.printf("ATK:%u", 8 * state.damagePercent() / 100);
+  tft.printf("ATK:%u",
+             kRegions[data.activeRegion].base_boss_damage *
+                 state.damagePercent() / 100);
 
   drawPanel(8, 118, 52, 22, useAttackTalisman_);
   drawQingyunIcon(11, 120, kQingyunIconAttackTalisman);
@@ -1220,7 +1242,7 @@ void GameUi::drawBattle(const GameState& state) {
   tft.drawRoundRect(14, 8, 100, 30, 4, kDarkGold);
   tft.drawFastHLine(23, 10, 82, kCinnabar);
   text().color(kCinnabar);
-  text().draw(36, 23, "青云妖狼");
+  text().draw(36, 23, kRegions[data.activeRegion].boss_name);
   text().color(kMutedCyan);
   tft.setTextSize(1);
   tft.setCursor(18, 28);
@@ -1259,7 +1281,9 @@ void GameUi::drawBattle(const GameState& state) {
     }
     text().color(data.lastBossTreasure ? kBrightGold : kMutedCyan);
     text().draw(30, 116,
-                data.lastBossTreasure ? "青云剑入手" : "宝物尚无踪");
+                data.lastBossTreasure
+                    ? kRegions[data.activeRegion].treasure_name
+                    : "宝物尚无踪");
     drawFooterHints("返回山道", "战斗结束");
     return;
   }
@@ -1267,11 +1291,20 @@ void GameUi::drawBattle(const GameState& state) {
   tft.fillRect(0, 40, 128, 48, 0x11E5);
   const uint8_t bossFrame =
       data.inBattle
-          ? static_cast<uint8_t>((millis() / 200) % kQingyunBossFrameCount)
+          ? static_cast<uint8_t>((millis() / 200) %
+                                 (data.activeRegion == 1
+                                      ? kBambooGuardianFrameCount
+                                      : kQingyunBossFrameCount))
           : 0;
-  tft.drawRGBBitmap(80, 42, kQingyunBossPixels[bossFrame],
-                    kQingyunBossMasks[bossFrame],
-                    kQingyunBossWidth, kQingyunBossHeight);
+  if (data.activeRegion == 1) {
+    tft.drawRGBBitmap(80, 42, kBambooGuardianPixels[bossFrame],
+                      kBambooGuardianMasks[bossFrame],
+                      kBambooGuardianWidth, kBambooGuardianHeight);
+  } else {
+    tft.drawRGBBitmap(80, 42, kQingyunBossPixels[bossFrame],
+                      kQingyunBossMasks[bossFrame],
+                      kQingyunBossWidth, kQingyunBossHeight);
+  }
   pet_.draw(tft, data.form, 5, 50, millis());
 
   drawPanel(7, 90, 114, 22, false);
