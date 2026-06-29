@@ -171,6 +171,19 @@ def test_firmware_supports_region_token_direct_boss_prompt():
         assert token in UI_HEADER + UI_SOURCE + GAME_STATE_SOURCE
 
 
+def test_ui_has_technique_overview_and_detail_pages():
+    for token in (
+        "UiPage::TechniqueDetail",
+        "drawTechniqueOverview",
+        "drawTechniqueDetail",
+        "techniqueSelection_",
+        "upgradeTechnique",
+        "功法概览",
+        "功法修炼",
+    ):
+        assert token in UI_HEADER + UI_SOURCE + GAME_TYPES
+
+
 def test_firmware_inventory_rules_match_python_recovery_items():
     for item in (
         "SpiritHerb",

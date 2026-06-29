@@ -93,6 +93,8 @@ class GameUi {
   void drawQingyunEventSubject(AdventureEvent event);
   void drawBattle(const GameState& state);
   void drawStatus(const PetSaveData& data);
+  void drawTechniqueOverview(const PetSaveData& data);
+  void drawTechniqueDetail(const GameState& state);
   void drawCultivation(const PetSaveData& data, uint32_t now);
   void drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color);
   void startPetEffect(PetEffect effect, uint32_t now);
@@ -115,6 +117,7 @@ class GameUi {
   uint8_t inventoryTab_ = 0;
   uint8_t meritPage_ = 0;
   uint8_t statusPage_ = 0;
+  uint8_t techniqueSelection_ = 0;
   bool battlePrompt_ = true;
   bool tokenPrompt_ = false;
   bool useAttackTalisman_ = false;

@@ -32,6 +32,11 @@ constexpr uint16_t kWarmWhite = 0xEF5D;
 constexpr uint16_t kMutedCyan = 0x7CEF;
 constexpr uint16_t kCinnabar = 0xD9E4;
 constexpr uint32_t kPetEffectDurationMs = 500;
+constexpr uint8_t kTechniqueMaxLevel = 9;
+constexpr uint8_t kTechniqueThresholds[kTechniqueMaxLevel] = {
+    0, 10, 22, 38, 58, 82, 112, 148, 190};
+constexpr uint16_t kTechniqueCosts[kTechniqueMaxLevel] = {
+    5, 8, 12, 18, 26, 36, 48, 62, 80};
 
 uint8_t utf8GlyphCount(const char* value) {
   uint8_t count = 0;
@@ -50,6 +55,19 @@ uint16_t cumulativeXpBeforeLevel(uint8_t level) {
     total += GameState::experienceForLevel(lv);
   }
   return total;
+}
+
+const char* techniqueRealm(uint8_t level) {
+  if (level == 0) {
+    return "未修";
+  }
+  if (level <= 3) {
+    return "入门";
+  }
+  if (level <= 6) {
+    return "小成";
+  }
+  return "大成";
 }
 
 }  // namespace
@@ -86,14 +104,31 @@ void GameUi::handle(InputAction action, GameState& state) {
     dirty_ = true;
   } else if (page_ == UiPage::Status) {
     if (action == InputAction::Up) {
-      statusPage_ = (statusPage_ + 1) % 3;
+      statusPage_ = (statusPage_ + 1) % 4;
       dirty_ = true;
     } else if (action == InputAction::Down) {
-      statusPage_ = (statusPage_ + 2) % 3;
+      statusPage_ = (statusPage_ + 3) % 4;
+      dirty_ = true;
+    } else if (action == InputAction::Confirm && statusPage_ == 3) {
+      page_ = UiPage::TechniqueDetail;
+      techniqueSelection_ = 0;
       dirty_ = true;
     } else if (action == InputAction::Back) {
       statusPage_ = 0;
       page_ = UiPage::Home;
+    }
+  } else if (page_ == UiPage::TechniqueDetail) {
+    if (action == InputAction::Up) {
+      techniqueSelection_ = (techniqueSelection_ + 3) % 4;
+    } else if (action == InputAction::Down) {
+      techniqueSelection_ = (techniqueSelection_ + 1) % 4;
+    } else if (action == InputAction::Confirm) {
+      startNotice(state.upgradeTechnique(techniqueSelection_)
+                      ? "功法精进"
+                      : "条件不足");
+    } else if (action == InputAction::Back) {
+      statusPage_ = 3;
+      page_ = UiPage::Status;
     }
   } else if (action == InputAction::Back && page_ != UiPage::Adventure &&
              page_ != UiPage::Battle && page_ != UiPage::RegionSelect) {
@@ -509,6 +544,9 @@ void GameUi::drawMenuFrame(const GameState& state) {
       break;
     case UiPage::Status:
       drawStatus(data);
+      break;
+    case UiPage::TechniqueDetail:
+      drawTechniqueDetail(state);
       break;
     case UiPage::Battle:
       drawBattle(state);
@@ -1271,12 +1309,12 @@ void GameUi::drawBattle(const GameState& state) {
 
 void GameUi::drawStatus(const PetSaveData& data) {
   Adafruit_GFX& tft = target();
-  const char* titles[] = {"仙宠状态", "战斗属性", "修为资源"};
+  const char* titles[] = {"仙宠状态", "战斗属性", "修为资源", "功法概览"};
   drawTitlePlaque(titles[statusPage_], kBrightGold);
 
   // Page indicator dots at y=146
-  for (uint8_t i = 0; i < 3; ++i) {
-    tft.fillRect(55 + i * 8, 146, 5, 3,
+  for (uint8_t i = 0; i < 4; ++i) {
+    tft.fillRect(51 + i * 8, 146, 5, 3,
                  i == statusPage_ ? kBrightGold : 0x4208);
   }
 
@@ -1381,7 +1419,7 @@ void GameUi::drawStatus(const PetSaveData& data) {
 
     drawFooterHints("翻页", "上页");
 
-  } else {
+  } else if (statusPage_ == 2) {
     // ── Page 3: Vitals & Resources ──
     drawPanel(7, 47, 114, 66, false);
 
@@ -1390,7 +1428,7 @@ void GameUi::drawStatus(const PetSaveData& data) {
     text().color(0x7DFF);
     tft.setCursor(55, 55);
     tft.printf("%u/%u", data.energy,
-               GameState::maxEnergy(data.form));
+               GameState::maxEnergy(data.form, data.techniqueLevels));
 
     text().color(kMutedCyan);
     text().draw(13, 78, "体力");
@@ -1411,7 +1449,78 @@ void GameUi::drawStatus(const PetSaveData& data) {
     tft.printf("%u", data.coins);
 
     drawFooterHints("翻页", "上页");
+  } else {
+    drawTechniqueOverview(data);
   }
+}
+
+void GameUi::drawTechniqueOverview(const PetSaveData& data) {
+  Adafruit_GFX& tft = target();
+  const char* names[] = {"太虚剑诀", "九转丹法", "不灭玄功", "万灵息法"};
+  const uint16_t colors[] = {0x7DFF, 0xD41F, kCinnabar, 0x6E8D};
+
+  drawPanel(7, 47, 114, 84, false);
+  for (uint8_t i = 0; i < 4; ++i) {
+    const int16_t y = 56 + i * 19;
+    text().color(colors[i]);
+    text().draw(13, y + 7, names[i]);
+    text().color(kWarmWhite);
+    tft.setTextSize(1);
+    tft.setTextColor(kWarmWhite);
+    tft.setCursor(76, y);
+    tft.printf("Lv%u", data.techniqueLevels[i]);
+    text().color(kBrightGold);
+    text().draw(100, y + 7, techniqueRealm(data.techniqueLevels[i]));
+  }
+
+  drawFooterHints("详情", "上页");
+}
+
+void GameUi::drawTechniqueDetail(const GameState& state) {
+  Adafruit_GFX& tft = target();
+  const PetSaveData& data = state.data();
+  const char* names[] = {"太虚剑诀", "九转丹法", "不灭玄功", "万灵息法"};
+  const char* labels[] = {"剑", "丹", "体", "灵"};
+  const char* effects[] = {"伤害暴击", "丹药回复", "减伤护体", "灵力上限"};
+  const uint16_t colors[] = {0x7DFF, 0xD41F, kCinnabar, 0x6E8D};
+  const uint8_t index = techniqueSelection_;
+  const uint8_t level = data.techniqueLevels[index];
+
+  drawTitlePlaque("功法修炼", kBrightGold);
+  drawPanel(7, 43, 114, 88, false);
+
+  for (uint8_t i = 0; i < 4; ++i) {
+    const int16_t y = 50 + i * 12;
+    tft.fillRect(11, y - 1, 106, 11,
+                 i == index ? kPanelSelected : kInkBlue);
+    text().color(i == index ? kBrightGold : colors[i]);
+    text().draw(16, y + 8, names[i]);
+    tft.setTextSize(1);
+    tft.setTextColor(kWarmWhite);
+    tft.setCursor(86, y + 1);
+    tft.printf("Lv%u", data.techniqueLevels[i]);
+  }
+
+  text().color(kMutedCyan);
+  text().draw(15, 108, effects[index]);
+  text().color(kBrightGold);
+  text().draw(72, 108, techniqueRealm(level));
+
+  if (level >= kTechniqueMaxLevel) {
+    text().color(kBrightGold);
+    text().draw(15, 124, "已至大成");
+  } else {
+    const uint8_t next = level;
+    text().color(kMutedCyan);
+    text().draw(15, 124, "所需");
+    tft.setTextSize(1);
+    tft.setTextColor(kWarmWhite);
+    tft.setCursor(48, 117);
+    tft.printf("%s%u 石%u", labels[index], kTechniqueThresholds[next],
+               kTechniqueCosts[next]);
+  }
+
+  drawFooterHints("修炼", "返回");
 }
 
 void GameUi::drawBar(int16_t x, int16_t y, uint8_t value, uint16_t color) {

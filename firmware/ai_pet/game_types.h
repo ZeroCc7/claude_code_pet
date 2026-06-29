@@ -20,6 +20,7 @@ enum class UiPage : uint8_t {
   Adventure,
   Battle,
   Status,
+  TechniqueDetail,
   Cultivation,
 };
 
