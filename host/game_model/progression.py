@@ -83,6 +83,49 @@ class AiTaskRecord:
     coin_reward: int
 
 
+@dataclass(frozen=True)
+class RegionConfig:
+    name: str
+    boss_name: str
+    base_boss_hp: int
+    hp_scale_first10: int
+    hp_scale_later: int
+    base_boss_damage: int
+    damage_scale_first10: int
+    damage_scale_later: int
+    base_xp: int
+    base_coins: int
+    tendency_base: int
+    unlock_level: int
+    unlock_coins: int
+    prerequisite: int
+    reward_bias: tuple[int, int, int, int]
+
+
+REGIONS = (
+    RegionConfig(
+        "青云山道", "青云妖狼", 60, 25, 6, 13, 15, 4,
+        6, 15, 2, 0, 0, 0, (0, 0, 0, 0),
+    ),
+    RegionConfig(
+        "青竹灵境", "竹灵守卫", 90, 27, 7, 17, 17, 5,
+        8, 18, 3, 5, 100, 0, (0, 2, 0, 2),
+    ),
+    RegionConfig(
+        "云海剑台", "云海剑灵", 125, 30, 8, 22, 19, 6,
+        10, 22, 3, 12, 300, 1, (3, 0, 0, 0),
+    ),
+    RegionConfig(
+        "丹霞药谷", "丹谷兽王", 165, 33, 9, 28, 22, 7,
+        12, 28, 4, 18, 600, 2, (0, 3, 0, 1),
+    ),
+    RegionConfig(
+        "玄河古战场", "古战场霸主", 220, 36, 10, 36, 25, 8,
+        15, 35, 5, 25, 1000, 3, (2, 0, 2, 0),
+    ),
+)
+
+
 def crc32(payload: bytes) -> int:
     value = 0xFFFFFFFF
     for byte in payload:
@@ -102,9 +145,10 @@ class GameState:
     coins: int = 30
     energy: int = 10
     active_region: int | None = None
-    region_progress: list[int] = field(default_factory=lambda: [0, 0, 0])
+    region_progress: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0])
+    regions_unlocked: int = 0b00001
     boss_defeated_mask: int = 0
-    boss_wins: list[int] = field(default_factory=lambda: [0, 0, 0])
+    boss_wins: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0])
     tendencies: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     technique_levels: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     form: PetForm = PetForm.EGG
@@ -232,17 +276,59 @@ class GameState:
         return changed
 
     def region_unlocked(self, region: int) -> bool:
-        return region == 0 or bool(self.boss_defeated_mask & (1 << (region - 1)))
+        if not 0 <= region < len(REGIONS):
+            return False
+        return bool(self.regions_unlocked & (1 << region)) or (
+            region == 0 or bool(self.boss_defeated_mask & (1 << (region - 1)))
+        )
+
+    def try_unlock_region(self, region: int) -> bool:
+        if not 0 <= region < len(REGIONS):
+            return False
+        if self.region_unlocked(region):
+            return True
+        cfg = REGIONS[region]
+        if (
+            self.level < cfg.unlock_level
+            or self.coins < cfg.unlock_coins
+            or self.boss_wins[cfg.prerequisite] == 0
+        ):
+            return False
+        self.coins -= cfg.unlock_coins
+        self.regions_unlocked |= 1 << region
+        return True
+
+    def select_region(self, region: int) -> None:
+        if self.region_unlocked(region):
+            self.active_region = region
 
     def start_exploration(self, region: int) -> bool:
         if (
-            region not in (0, 1, 2)
+            not 0 <= region < len(REGIONS)
             or not self.region_unlocked(region)
             or self.energy < 3
         ):
             return False
         self.energy -= 3
         self.active_region = region
+        return True
+
+    def boss_energy_requirement(self) -> int:
+        return 4 if self.technique_levels[TECHNIQUE_DAN] >= 4 else 5
+
+    def can_use_region_token_for_boss(self) -> bool:
+        return (
+            self.items[ItemType.QINGYUN_TOKEN] > 0
+            and self.energy >= self.boss_energy_requirement()
+        )
+
+    def use_region_token_for_boss(self) -> bool:
+        if not self.can_use_region_token_for_boss():
+            return False
+        self.items[ItemType.QINGYUN_TOKEN] -= 1
+        self.qingyun_progress = 100
+        self.qingyun_boss_unlocked = True
+        self.adventure_phase = AdventurePhase.BOSS_READY
         return True
 
     def start_qingyun_adventure(self) -> bool:
@@ -478,7 +564,11 @@ class GameState:
         )
         if (seed // 100) % 100 < dodge_rate:
             return 0
-        damage = max(1, 10 - min(6, self.tendencies[2] // 5))
+        damage = max(
+            1,
+            self._region_config().base_boss_damage
+            - min(5, self.tendencies[2] // 6),
+        )
         if self.form in (PetForm.ROOKIE_B, PetForm.FINAL_B1):
             damage = max(1, damage - 1)
         elif self.form == PetForm.FINAL_B2:
@@ -526,9 +616,10 @@ class GameState:
             self.qingyun_round = min(65535, self.qingyun_round + 1)
             if self.technique_levels[TECHNIQUE_SPIRIT] >= 3:
                 self.energy = min(self.max_energy(), self.energy + 1)
-            boss_bonus = 2 + min(3, self.qingyun_round // 5)
+            cfg = self._region_config()
+            boss_bonus = cfg.tendency_base + min(3, self.qingyun_round // 5)
             for i in range(4):
-                self._add_tendency(i, boss_bonus)
+                self._add_tendency(i, boss_bonus + cfg.reward_bias[i])
             self._reset_qingyun_run()
             self._finish_qingyun_battle(BattleResult.VICTORY, reset_hp=False)
             return BattleResult.VICTORY
@@ -567,38 +658,48 @@ class GameState:
         self._finish_qingyun_battle(BattleResult.RETREATED)
 
     def qingyun_boss_max_hp(self) -> int:
-        return 40 * self._qingyun_health_percent() // 100
+        return self._region_config().base_boss_hp * self._qingyun_health_percent() // 100
 
     def qingyun_completion_experience(self) -> int:
+        cfg = self._region_config()
         round_number = min(50, max(1, self.qingyun_round))
         return (
-            6
+            cfg.base_xp
             + min(round_number, 10)
             + max(0, round_number - 10) // 5
         )
 
     def qingyun_completion_coins(self) -> int:
+        cfg = self._region_config()
         round_number = min(50, max(1, self.qingyun_round))
         return (
-            15
+            cfg.base_coins
             + 2 * min(round_number, 10)
             + max(0, round_number - 10)
         )
 
+    def _region_config(self) -> RegionConfig:
+        region = self.active_region if self.active_region is not None else 0
+        if not 0 <= region < len(REGIONS):
+            region = 0
+        return REGIONS[region]
+
     def _qingyun_health_percent(self) -> int:
+        cfg = self._region_config()
         round_number = min(50, max(1, self.qingyun_round))
         return (
             100
-            + min(round_number - 1, 9) * 20
-            + max(0, round_number - 10) * 5
+            + min(round_number - 1, 9) * cfg.hp_scale_first10
+            + max(0, round_number - 10) * cfg.hp_scale_later
         )
 
     def _qingyun_damage_percent(self) -> int:
+        cfg = self._region_config()
         round_number = min(50, max(1, self.qingyun_round))
         return (
             100
-            + min(round_number - 1, 9) * 12
-            + max(0, round_number - 10) * 3
+            + min(round_number - 1, 9) * cfg.damage_scale_first10
+            + max(0, round_number - 10) * cfg.damage_scale_later
         )
 
     def _qingyun_event_damage(self, base_damage: int) -> int:

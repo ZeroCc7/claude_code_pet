@@ -154,6 +154,27 @@ def test_start_exploration_consumes_energy():
     assert state.active_region == 0
 
 
+def test_bamboo_realm_unlock_requires_level_qingyun_win_and_coins():
+    state = GameState(level=5, coins=100)
+    state.boss_wins[0] = 1
+
+    assert state.try_unlock_region(1)
+    assert state.regions_unlocked & (1 << 1)
+    assert state.coins == 0
+
+
+def test_region_token_direct_challenge_consumes_token_and_skips_adventure():
+    state = GameState(level=5, energy=10, items=[0, 0, 0, 0, 1])
+    state.regions_unlocked |= 1 << 1
+    state.select_region(1)
+
+    assert state.use_region_token_for_boss()
+    assert state.items[ItemType.QINGYUN_TOKEN] == 0
+    assert state.adventure_phase == AdventurePhase.BOSS_READY
+    assert state.qingyun_boss_unlocked
+    assert state.qingyun_progress == 100
+
+
 def test_qingyun_adventure_starts_for_three_energy_and_advances_one_step():
     state = GameState(energy=5)
 
@@ -402,10 +423,10 @@ def test_talismans_are_consumed_at_battle_start_and_modify_one_battle():
 
 
 def test_qingyun_difficulty_scales_quickly_then_slowly_and_caps():
-    assert GameState(qingyun_round=1).qingyun_boss_max_hp() == 40
-    assert GameState(qingyun_round=10).qingyun_boss_max_hp() == 112
-    assert GameState(qingyun_round=11).qingyun_boss_max_hp() == 114
-    assert GameState(qingyun_round=50).qingyun_boss_max_hp() == 192
+    assert GameState(qingyun_round=1).qingyun_boss_max_hp() == 60
+    assert GameState(qingyun_round=10).qingyun_boss_max_hp() == 195
+    assert GameState(qingyun_round=11).qingyun_boss_max_hp() == 198
+    assert GameState(qingyun_round=50).qingyun_boss_max_hp() == 339
     assert (
         GameState(qingyun_round=100).qingyun_boss_max_hp()
         == GameState(qingyun_round=50).qingyun_boss_max_hp()
@@ -430,7 +451,7 @@ def test_qingyun_event_stamina_loss_scales_with_round():
     later._auto_resolve_event(seed=0)
 
     assert early.stamina == 90
-    assert later.stamina == 80
+    assert later.stamina == 77
 
 
 def test_qingyun_completion_experience_is_small_and_capped():
@@ -649,7 +670,7 @@ def test_defeated_boss_can_be_rechallenged_with_halved_rewards():
         )
 
     assert rewards == [(20, 20), (10, 10), (5, 5)]
-    assert state.boss_wins == [3, 0, 0]
+    assert state.boss_wins == [3, 0, 0, 0, 0]
 
 
 def test_repeated_boss_reward_never_falls_below_one():
@@ -905,6 +926,26 @@ def test_boss_victory_grows_all_tendencies():
     assert state.tendencies[1] == 2
     assert state.tendencies[2] == 2
     assert state.tendencies[3] == 2
+
+
+def test_bamboo_realm_rewards_bias_dan_and_spirit_tendencies():
+    state = GameState(
+        level=30,
+        energy=20,
+        stamina=100,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
+        qingyun_boss_unlocked=True,
+    )
+    state.regions_unlocked |= 1 << 1
+    state.select_region(1)
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp = 1
+
+    assert state.tick_qingyun_wolf_battle(seed=51) == BattleResult.VICTORY
+
+    assert state.tendencies[1] > state.tendencies[0]
+    assert state.tendencies[3] > state.tendencies[2]
 
 
 def test_boss_victory_tendency_bonus_scales_with_round():
