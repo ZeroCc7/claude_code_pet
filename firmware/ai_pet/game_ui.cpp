@@ -1238,24 +1238,24 @@ void GameUi::drawBattle(const GameState& state) {
     return;
   }
 
-  tft.fillRoundRect(14, 8, 100, 30, 4, kPanelBlue);
-  tft.drawRoundRect(14, 8, 100, 30, 4, kDarkGold);
-  tft.drawFastHLine(23, 10, 82, kCinnabar);
-  text().color(kCinnabar);
-  text().draw(36, 23, kRegions[data.activeRegion].boss_name);
-  text().color(kMutedCyan);
-  tft.setTextSize(1);
-  tft.setCursor(18, 28);
-  tft.printf("LV%u", data.level);
   const uint16_t displayRound =
       !data.inBattle && data.lastBattleResult == BattleResult::Victory &&
               data.regionRound[data.activeRegion] > 1
           ? data.regionRound[data.activeRegion] - 1
           : data.regionRound[data.activeRegion];
-  tft.setCursor(97, 28);
-  tft.printf("R%u", displayRound);
 
   if (!data.inBattle && data.lastBattleResult == BattleResult::Victory) {
+    tft.fillRoundRect(14, 8, 100, 30, 4, kPanelBlue);
+    tft.drawRoundRect(14, 8, 100, 30, 4, kDarkGold);
+    tft.drawFastHLine(23, 10, 82, kCinnabar);
+    text().color(kCinnabar);
+    text().draw(36, 23, kRegions[data.activeRegion].boss_name);
+    text().color(kMutedCyan);
+    tft.setTextSize(1);
+    tft.setCursor(18, 28);
+    tft.printf("LV%u", data.level);
+    tft.setCursor(97, 28);
+    tft.printf("R%u", displayRound);
     drawPanel(8, 43, 112, 91, false);
     text().color(kBrightGold);
     text().draw(43, 61, "通关奖励");
@@ -1288,7 +1288,24 @@ void GameUi::drawBattle(const GameState& state) {
     return;
   }
 
-  tft.fillRect(0, 40, 128, 48, 0x11E5);
+  tft.fillRect(0, 18, 128, 22, kInkBlack);
+  tft.drawFastHLine(0, 39, 128, kDarkGold);
+  text().color(kCinnabar);
+  text().draw(6, 31, kRegions[data.activeRegion].boss_name);
+  tft.setTextColor(kMutedCyan);
+  tft.setTextSize(1);
+  tft.setCursor(84, 20);
+  tft.printf("Lv%u", data.level);
+  tft.setCursor(108, 20);
+  tft.printf("R%u", displayRound);
+  text().color(kCinnabar);
+  text().draw(8, 39, "敌");
+  drawProgressBar(25, 31, 62, data.bossHp, data.bossMaxHp, kCinnabar);
+  tft.setTextColor(kWarmWhite);
+  tft.setCursor(92, 31);
+  tft.print(data.bossHp);
+
+  tft.fillRect(0, 40, 128, 54, 0x11E5);
   const uint8_t bossFrame =
       data.inBattle
           ? static_cast<uint8_t>((millis() / 200) %
@@ -1297,37 +1314,36 @@ void GameUi::drawBattle(const GameState& state) {
                                       : kQingyunBossFrameCount))
           : 0;
   if (data.activeRegion == 1) {
-    tft.drawRGBBitmap(80, 42, kBambooGuardianPixels[bossFrame],
+    tft.drawRGBBitmap(80, 44, kBambooGuardianPixels[bossFrame],
                       kBambooGuardianMasks[bossFrame],
                       kBambooGuardianWidth, kBambooGuardianHeight);
   } else {
-    tft.drawRGBBitmap(80, 42, kQingyunBossPixels[bossFrame],
+    tft.drawRGBBitmap(80, 44, kQingyunBossPixels[bossFrame],
                       kQingyunBossMasks[bossFrame],
                       kQingyunBossWidth, kQingyunBossHeight);
   }
-  pet_.draw(tft, data.form, 5, 50, millis());
+  drawQingyunPetLarge(data.form, 8, 44);
+  tft.drawFastHLine(0, 94, 128, kDarkGold);
 
-  drawPanel(7, 90, 114, 22, false);
-  text().color(kCinnabar);
-  text().draw(13, 93, "敌方气血");
-  drawProgressBar(13, 100, 70, data.bossHp, data.bossMaxHp, kCinnabar);
-  tft.setTextColor(kWarmWhite);
-  tft.setTextSize(1);
-  tft.setCursor(99, 94);
-  tft.print(data.bossHp);
-
-  drawPanel(7, 114, 114, 20, false);
+  drawPanel(7, 98, 114, 39, false);
   text().color(kMutedCyan);
-  text().draw(13, 117, "己方体力");
-  drawProgressBar(13, 124, 50, data.stamina, 100, 0x6E8D);
-  text().draw(68, 117, "灵力");
+  text().draw(13, 110, "我");
+  drawProgressBar(29, 102, 58, data.stamina, 100, 0x6E8D);
   tft.setTextColor(kWarmWhite);
-  tft.setCursor(99, 118);
+  tft.setCursor(93, 101);
+  tft.print(data.stamina);
+  text().color(kMutedCyan);
+  text().draw(13, 125, "灵力");
+  tft.setTextColor(kWarmWhite);
+  tft.setCursor(47, 118);
   tft.print(data.energy);
-  tft.setCursor(99, 128);
-  tft.printf("R%u", data.battleRound);
+  text().color(kMutedCyan);
+  text().draw(72, 125, "回合");
+  tft.setCursor(104, 118);
+  tft.print(data.battleRound);
   if (data.inBattle) {
-    drawFooterHints("自动交锋", "撤退");
+    drawBattleLog(state);
+    drawFooterHints("自动中", "撤退");
   } else {
     const char* results[] = {"", "", "大胜", "战败", "灵力耗尽",
                              "已撤退"};
@@ -1337,6 +1353,65 @@ void GameUi::drawBattle(const GameState& state) {
     text().draw(42, 90,
                 results[static_cast<uint8_t>(data.lastBattleResult)]);
     drawFooterHints("返回山道", "战斗结束");
+  }
+}
+
+void GameUi::drawBattleLog(const GameState& state) {
+  Adafruit_GFX& tft = target();
+  tft.fillRect(0, 131, 128, 13, kInkBlack);
+  text().color(kBrightGold);
+  const int16_t y = 143;
+  switch (state.battleLogType()) {
+    case BattleLogType::PlayerHit:
+      text().draw(23, y, "剑气");
+      tft.setTextColor(kWarmWhite);
+      tft.setTextSize(1);
+      tft.setCursor(60, 136);
+      tft.printf("-%d", state.battleLogValue());
+      break;
+    case BattleLogType::PlayerCritical:
+      text().draw(23, y, "暴击");
+      tft.setTextColor(kBrightGold);
+      tft.setTextSize(1);
+      tft.setCursor(60, 136);
+      tft.printf("-%d", state.battleLogValue());
+      break;
+    case BattleLogType::BossHit:
+      text().draw(23, y, "敌袭");
+      tft.setTextColor(kWarmWhite);
+      tft.setTextSize(1);
+      tft.setCursor(60, 136);
+      tft.printf("-%d", state.battleLogValue());
+      break;
+    case BattleLogType::BossMiss:
+      text().draw(41, y, "闪避");
+      break;
+    case BattleLogType::Shield:
+      text().draw(29, y, "护体");
+      tft.setTextColor(kWarmWhite);
+      tft.setTextSize(1);
+      tft.setCursor(66, 136);
+      tft.printf("-%d", state.battleLogValue());
+      break;
+    case BattleLogType::Heal:
+      text().draw(29, y, "回元");
+      tft.setTextColor(kWarmWhite);
+      tft.setTextSize(1);
+      tft.setCursor(66, 136);
+      tft.printf("+%d", state.battleLogValue());
+      break;
+    case BattleLogType::Victory:
+      text().draw(35, y, "首领伏诛");
+      break;
+    case BattleLogType::Defeat:
+      text().draw(41, y, "战败");
+      break;
+    case BattleLogType::EnergyDepleted:
+      text().draw(29, y, "灵力枯竭");
+      break;
+    case BattleLogType::None:
+      text().draw(35, y, "自动交锋");
+      break;
   }
 }
 
@@ -1546,11 +1621,15 @@ void GameUi::drawTechniqueDetail(const GameState& state) {
     const uint8_t next = level;
     text().color(kMutedCyan);
     text().draw(15, 124, "所需");
+    text().color(kWarmWhite);
+    text().draw(48, 124, labels[index]);
+    text().draw(82, 124, "石");
     tft.setTextSize(1);
     tft.setTextColor(kWarmWhite);
-    tft.setCursor(48, 117);
-    tft.printf("%s%u 石%u", labels[index], kTechniqueThresholds[next],
-               kTechniqueCosts[next]);
+    tft.setCursor(62, 117);
+    tft.printf("%u", kTechniqueThresholds[next]);
+    tft.setCursor(98, 117);
+    tft.printf("%u", kTechniqueCosts[next]);
   }
 
   drawFooterHints("修炼", "返回");

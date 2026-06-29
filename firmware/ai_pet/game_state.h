@@ -27,6 +27,8 @@ class GameState {
   bool startBossBattle(bool useAttackTalisman, bool useGuardTalisman);
   BattleResult tickBossBattle(uint32_t seed);
   void retreatBoss();
+  BattleLogType battleLogType() const;
+  int16_t battleLogValue() const;
   static uint16_t maxEnergy(PetForm form);
   static uint16_t maxEnergy(PetForm form, const uint8_t techniqueLevels[4]);
   static uint16_t experienceForLevel(uint8_t level);
@@ -60,4 +62,6 @@ class GameState {
   static uint8_t clampPercent(uint16_t value);
   PetSaveData data_{};
   uint8_t battleShield_ = 0;
+  BattleLogType battleLogType_ = BattleLogType::None;
+  int16_t battleLogValue_ = 0;
 };

@@ -184,6 +184,12 @@ def test_ui_has_technique_overview_and_detail_pages():
         assert token in UI_HEADER + UI_SOURCE + GAME_TYPES
 
 
+def test_technique_requirement_text_uses_chinese_renderer():
+    assert 'tft.printf("%s%u 石%u"' not in UI_SOURCE
+    assert 'text().draw(48, 124, labels[index]);' in UI_SOURCE
+    assert 'text().draw(82, 124, "石");' in UI_SOURCE
+
+
 def test_v1_2_art_assets_are_wired_into_firmware_ui():
     for token in (
         '#include "assets/bamboo_realm_scene.h"',
@@ -432,8 +438,8 @@ def test_operation_pages_include_required_cultivation_information():
 
 
 def test_battle_page_is_automatic_and_has_result_notice():
-    for label in ("kRegions[data.activeRegion].boss_name", "自动交锋", "敌方气血",
-                  "己方体力", "撤退"):
+    for label in ("kRegions[data.activeRegion].boss_name", "自动交锋", "敌",
+                  "我", "撤退"):
         assert label in UI_SOURCE
     for removed in ("K1 攻击", "K2 法诀", "K3 丹药", "K4 防御"):
         assert removed not in UI_SOURCE
@@ -441,11 +447,62 @@ def test_battle_page_is_automatic_and_has_result_notice():
     assert "drawNotice(" in UI_SOURCE
 
 
+def test_active_battle_page_uses_compact_header_and_runtime_battle_log():
+    for token in (
+        "enum class BattleLogType",
+        "BattleLogType battleLogType() const;",
+        "int16_t battleLogValue() const;",
+        "drawBattleLog(state);",
+        "敌",
+        "我",
+        "灵力",
+        "回合",
+        "剑气",
+        "暴击",
+        "敌袭",
+        "闪避",
+    ):
+        assert token in GAME_TYPES + GAME_STATE_HEADER + UI_HEADER + UI_SOURCE
+    battle_source = source_between(
+        UI_SOURCE,
+        "void GameUi::drawBattle(const GameState& state)",
+        "void GameUi::drawBattleLog(const GameState& state)",
+    )
+    for token in (
+        "tft.fillRect(0, 18, 128, 22, kInkBlack);",
+        "drawProgressBar(25, 31, 62, data.bossHp",
+        "drawProgressBar(29, 102, 58, data.stamina",
+        "drawQingyunPetLarge(data.form, 8, 44);",
+        "drawFooterHints(\"自动中\", \"撤退\");",
+    ):
+        assert token in battle_source
+    assert "pet_.draw(tft, data.form, 5, 52, millis());" not in battle_source
+
+
+def test_game_state_load_preserves_runtime_battle_feedback():
+    load_source = source_between(
+        GAME_STATE_SOURCE,
+        "void GameState::load(const PetSaveData& data)",
+        "const PetSaveData& GameState::data() const",
+    )
+    for token in (
+        "const uint8_t savedBattleShield = battleShield_;",
+        "const BattleLogType savedBattleLogType = battleLogType_;",
+        "const int16_t savedBattleLogValue = battleLogValue_;",
+        "battleShield_ = savedBattleShield;",
+        "battleLogType_ = savedBattleLogType;",
+        "battleLogValue_ = savedBattleLogValue;",
+    ):
+        assert token in load_source
+    assert "battleLogType_ = BattleLogType::None;" not in load_source
+
+
 def test_game_app_ticks_adventure_and_battle_separately():
     assert "lastAdventureStepAt_" in APP_HEADER
     assert "lastBattleRoundAt_" in APP_HEADER
     assert "tickAdventure(" in APP_SOURCE
     assert "tickBossBattle(" in APP_SOURCE
+    assert "constexpr uint32_t kBattleRoundMs = 2200;" in APP_SOURCE
     assert "tickExploration(" not in APP_SOURCE
 
 

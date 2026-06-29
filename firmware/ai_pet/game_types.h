@@ -75,6 +75,19 @@ enum class BattleResult : uint8_t {
   Retreated,
 };
 
+enum class BattleLogType : uint8_t {
+  None,
+  PlayerHit,
+  PlayerCritical,
+  BossHit,
+  BossMiss,
+  Shield,
+  Heal,
+  Victory,
+  Defeat,
+  EnergyDepleted,
+};
+
 struct InventoryData {
   uint16_t items[5];
 };

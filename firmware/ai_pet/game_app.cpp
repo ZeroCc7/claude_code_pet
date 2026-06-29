@@ -7,7 +7,7 @@ namespace {
 
 constexpr uint32_t kSaveDelayMs = 1000;
 constexpr uint32_t kAdventureStepMs = 3000;
-constexpr uint32_t kBattleRoundMs = 1200;
+constexpr uint32_t kBattleRoundMs = 2200;
 constexpr uint32_t kEventResultAutoAckMs = 5000;
 
 }  // namespace

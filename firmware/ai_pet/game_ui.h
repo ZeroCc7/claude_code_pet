@@ -95,6 +95,7 @@ class GameUi {
   void drawQingyunScene(const PetSaveData& data, uint32_t now);
   void drawQingyunEventSubject(const PetSaveData& data, AdventureEvent event);
   void drawBattle(const GameState& state);
+  void drawBattleLog(const GameState& state);
   void drawStatus(const PetSaveData& data);
   void drawTechniqueOverview(const PetSaveData& data);
   void drawTechniqueDetail(const GameState& state);

@@ -28,6 +28,8 @@ GameState::GameState() {
 void GameState::reset() {
   memset(&data_, 0, sizeof(data_));
   battleShield_ = 0;
+  battleLogType_ = BattleLogType::None;
+  battleLogValue_ = 0;
   data_.magic = kSaveMagic;
   data_.version = kSaveVersion;
   data_.size = sizeof(PetSaveData);
@@ -49,8 +51,13 @@ void GameState::reset() {
 }
 
 void GameState::load(const PetSaveData& data) {
+  const uint8_t savedBattleShield = battleShield_;
+  const BattleLogType savedBattleLogType = battleLogType_;
+  const int16_t savedBattleLogValue = battleLogValue_;
   data_ = data;
-  battleShield_ = 0;
+  battleShield_ = savedBattleShield;
+  battleLogType_ = savedBattleLogType;
+  battleLogValue_ = savedBattleLogValue;
   data_.mood = clampPercent(data_.mood);
   data_.stamina = clampPercent(data_.stamina);
   data_.energy = min<uint16_t>(maxEnergy(data_.form, data_.techniqueLevels),
@@ -339,6 +346,8 @@ bool GameState::startBossBattle(bool useAttackTalisman,
   data_.bossHp = data_.bossMaxHp;
   data_.battleRound = 0;
   data_.lastBattleResult = BattleResult::Continue;
+  battleLogType_ = BattleLogType::None;
+  battleLogValue_ = 0;
   uint16_t& attackQuantity =
       data_.inventory.items[static_cast<uint8_t>(ItemType::AttackTalisman)];
   uint16_t& guardQuantity =
@@ -441,12 +450,25 @@ BattleResult GameState::tickBossBattle(uint32_t seed) {
   data_.energy--;
   data_.battleRound++;
   if (data_.energy == 0) {
+    battleLogType_ = BattleLogType::EnergyDepleted;
+    battleLogValue_ = 0;
     resetRun();
     finishBattle(BattleResult::EnergyDepleted);
     return BattleResult::EnergyDepleted;
   }
+  const uint8_t swordLevel = data_.techniqueLevels[kTechniqueSword];
+  uint8_t criticalRate =
+      5 + min<uint16_t>(20, data_.tendencies[0] / 3) +
+      (swordLevel >= 2 ? 2 : 0) + (swordLevel >= 6 ? 3 : 0);
+  if (data_.regionTreasure[2]) {
+    criticalRate = min<uint8_t>(100, criticalRate + 15);
+  }
+  const bool critical = seed % 100 < criticalRate;
   const uint8_t damage = attackDamage(seed);
   data_.bossHp = damage >= data_.bossHp ? 0 : data_.bossHp - damage;
+  battleLogType_ = critical ? BattleLogType::PlayerCritical
+                            : BattleLogType::PlayerHit;
+  battleLogValue_ = damage;
   if (data_.bossHp == 0) {
     const uint8_t r = data_.activeRegion;
     data_.lastBossExperience = completionExperience();
@@ -476,15 +498,29 @@ BattleResult GameState::tickBossBattle(uint32_t seed) {
     }
     if (!data_.regionTreasure[4] && r == 4) {
     }
+    battleLogType_ = BattleLogType::Victory;
+    battleLogValue_ = 0;
     resetRun();
     finishBattle(BattleResult::Victory, false);
     return BattleResult::Victory;
   }
   uint8_t incoming = incomingDamage(seed);
+  if (incoming == 0) {
+    battleLogType_ = BattleLogType::BossMiss;
+    battleLogValue_ = 0;
+  }
   if (battleShield_ > 0) {
     const uint8_t blocked = min<uint8_t>(battleShield_, incoming);
     battleShield_ -= blocked;
     incoming -= blocked;
+    if (blocked > 0) {
+      battleLogType_ = BattleLogType::Shield;
+      battleLogValue_ = blocked;
+    }
+  }
+  if (incoming > 0) {
+    battleLogType_ = BattleLogType::BossHit;
+    battleLogValue_ = incoming;
   }
   data_.stamina =
       incoming >= data_.stamina ? 0 : data_.stamina - incoming;
@@ -497,9 +533,13 @@ BattleResult GameState::tickBossBattle(uint32_t seed) {
     const uint8_t heal =
         2 + (data_.techniqueLevels[kTechniqueSpirit] >= 4 ? 1 : 0);
     data_.stamina = clampPercent(data_.stamina + heal);
+    battleLogType_ = BattleLogType::Heal;
+    battleLogValue_ = heal;
   }
   if (data_.stamina == 0) {
     data_.stamina = 30;
+    battleLogType_ = BattleLogType::Defeat;
+    battleLogValue_ = 0;
     resetRun();
     finishBattle(BattleResult::Defeat);
     return BattleResult::Defeat;
@@ -513,6 +553,14 @@ void GameState::retreatBoss() {
     resetRun();
     finishBattle(BattleResult::Retreated);
   }
+}
+
+BattleLogType GameState::battleLogType() const {
+  return battleLogType_;
+}
+
+int16_t GameState::battleLogValue() const {
+  return battleLogValue_;
 }
 
 uint16_t GameState::bossMaxHp() const {
