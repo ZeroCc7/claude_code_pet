@@ -67,8 +67,6 @@ def test_manual_tool_ignores_boot_lines_and_returns_json_ack():
 
 
 def test_codex_hook_only_maps_start_and_end():
-    for event in ("UserPromptSubmit", "Stop"):
-        assert event in CODEX_HOOK_SOURCE
     for removed in ("PreToolUse", "PermissionRequest", "PostToolUse"):
         assert removed not in CODEX_HOOK_SOURCE
     assert '"start"' in CODEX_HOOK_SOURCE
@@ -76,8 +74,8 @@ def test_codex_hook_only_maps_start_and_end():
 
 
 def test_codex_hook_follows_official_windows_and_stop_contract():
-    assert 'if ($Event -eq "Stop")' in CODEX_HOOK_SOURCE
-    assert "Write-Output \"{}\"" in CODEX_HOOK_SOURCE
+    assert '[ValidateSet("start", "end")]' in CODEX_HOOK_SOURCE
+    assert "exit 0" in CODEX_HOOK_SOURCE
 
 
 def test_codex_only_installer_preserves_notify_and_is_idempotent():

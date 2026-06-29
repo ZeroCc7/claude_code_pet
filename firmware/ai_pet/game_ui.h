@@ -83,12 +83,13 @@ class GameUi {
   void drawMeritLog(const PetSaveData& data);
   void drawInventory(const PetSaveData& data);
   void drawTreasureInventory(const PetSaveData& data);
+  void drawRegionSelect(const GameState& state);
   void drawAdventure(const PetSaveData& data);
   void drawQingyunAdventure(const PetSaveData& data, uint32_t now);
   void drawQingyunEventResult(const PetSaveData& data);
   void drawQingyunBossPrompt(const GameState& state);
   void drawQingyunScene(const PetSaveData& data, uint32_t now);
-  void drawQingyunEventSubject(QingyunEvent event);
+  void drawQingyunEventSubject(AdventureEvent event);
   void drawBattle(const GameState& state);
   void drawStatus(const PetSaveData& data);
   void drawCultivation(const PetSaveData& data, uint32_t now);

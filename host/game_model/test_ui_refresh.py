@@ -57,54 +57,54 @@ def test_v1_1_save_data_contains_inventory_and_merit_log():
 
 
 def test_v1_1_save_store_rejects_legacy_layouts_instead_of_migrating():
-    assert "constexpr uint16_t kSaveVersion = 8;" in SAVE_STORE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 9;" in SAVE_STORE_SOURCE
     assert "PetSaveDataV3" not in SAVE_STORE_SOURCE
     assert "PetSaveDataV2" not in SAVE_STORE_SOURCE
     assert "migrated" not in SAVE_STORE_SOURCE
     assert "fileSize != sizeof(PetSaveData)" in SAVE_STORE_SOURCE
-    assert "constexpr uint16_t kSaveVersion = 8;" in GAME_STATE_SOURCE
+    assert "constexpr uint16_t kSaveVersion = 9;" in GAME_STATE_SOURCE
 
 
 def test_qingyun_state_is_persisted_in_v1_1_save_data():
     for token in (
         "enum class AdventurePhase",
-        "enum class QingyunEvent",
+        "enum class AdventureEvent",
         "enum class EventResult",
         "enum class BattleResult",
-        "uint8_t qingyunProgress;",
-        "uint8_t qingyunEventMask;",
-        "uint8_t qingyunEventOrder;",
-        "uint8_t qingyunBossUnlocked;",
+        "uint8_t adventureProgress;",
+        "uint8_t adventureEventMask;",
+        "uint8_t adventureEventOrder;",
+        "uint8_t bossUnlocked;",
         "AdventurePhase adventurePhase;",
-        "QingyunEvent currentEvent;",
+        "AdventureEvent currentEvent;",
         "EventResult currentEventResult;",
-        "uint8_t qingyunBossWins;",
-        "uint8_t qingyunBossDefeated;",
+        "uint8_t regionBossWins[5];",
+        "uint8_t bossDefeated;",
         "uint8_t battleRound;",
         "uint8_t battleAttackTalisman;",
         "uint8_t battleGuardTalisman;",
-        "uint16_t qingyunRound;",
-        "uint8_t qingyunMisses;",
-        "uint8_t hasQingyunSword;",
+        "uint16_t regionRound[5];",
+        "uint8_t regionMisses[5];",
+        "uint8_t regionTreasure[5];",
         "uint16_t staminaRecoverySeconds;",
-        "uint16_t lastQingyunExperience;",
-        "uint16_t lastQingyunCoins;",
-        "uint8_t lastQingyunItems[4];",
-        "uint8_t lastQingyunSword;",
+        "uint16_t lastBossExperience;",
+        "uint16_t lastBossCoins;",
+        "uint8_t lastBossItems[4];",
+        "uint8_t lastBossTreasure;",
     ):
         assert token in GAME_TYPES
 
 
 def test_firmware_exposes_repeat_challenge_helpers():
     for signature in (
-        "uint8_t qingyunAttackDamage(uint32_t seed) const;",
-        "uint8_t qingyunIncomingDamage(uint32_t seed) const;",
-        "uint8_t qingyunBossMaxHp() const;",
-        "uint16_t qingyunCompletionExperience() const;",
-        "uint16_t qingyunCompletionCoins() const;",
-        "void resetQingyunRun();",
-        "void grantQingyunItems(uint32_t seed);",
-        "void rollQingyunSword(uint32_t seed);",
+        "uint8_t attackDamage(uint32_t seed) const;",
+        "uint8_t incomingDamage(uint32_t seed) const;",
+        "uint8_t bossMaxHp() const;",
+        "uint16_t completionExperience() const;",
+        "uint16_t completionCoins() const;",
+        "void resetRun();",
+        "void grantItems(uint32_t seed);",
+        "void rollTreasure(uint32_t seed);",
     ):
         assert signature in GAME_STATE_HEADER
 
@@ -115,14 +115,14 @@ def test_firmware_inventory_rules_match_python_recovery_items():
         "RecoveryPill",
         "AttackTalisman",
         "GuardTalisman",
-        "QingyunToken",
+        "RegionToken",
     ):
         assert item in GAME_TYPES
     assert "bool useItem(ItemType item);" in GAME_STATE_HEADER
     use_item_source = source_between(
         GAME_STATE_SOURCE,
         "bool GameState::useItem",
-        "bool GameState::startQingyunAdventure",
+        "bool GameState::startAdventure",
     )
     assert "data_.energy + 3" in use_item_source
     assert "data_.stamina + 20" in use_item_source
@@ -140,16 +140,16 @@ def test_inventory_has_item_and_treasure_pages():
     )
     for label in ("宝物", "青云剑", "尚未获得", "伤害+10%", "减伤+10%"):
         assert label in UI_SOURCE
-    assert "data.hasQingyunSword" in UI_SOURCE
+    assert "data.regionTreasure[0]" in UI_SOURCE
 
 
 def test_qingyun_ui_shows_round_and_completion_rewards():
     for token in (
-        "data.qingyunRound",
-        "data.lastQingyunExperience",
-        "data.lastQingyunCoins",
-        "data.lastQingyunItems",
-        "data.lastQingyunSword",
+        "data.regionRound[data.activeRegion]",
+        "data.lastBossExperience",
+        "data.lastBossCoins",
+        "data.lastBossItems",
+        "data.lastBossTreasure",
     ):
         assert token in UI_SOURCE
 
@@ -167,9 +167,9 @@ def test_app_distinguishes_energy_and_stamina_recovery():
 
 def test_firmware_exposes_qingyun_adventure_and_event_api():
     for signature in (
-        "bool startQingyunAdventure();",
-        "void stopQingyunAdventure();",
-        "AdventureTick tickQingyunAdventure(uint32_t seed);",
+        "bool startAdventure();",
+        "void stopAdventure();",
+        "AdventureTick tickAdventure(uint32_t seed);",
         "void acknowledgeAdventureResult();",
     ):
         assert signature in GAME_STATE_HEADER
@@ -179,9 +179,9 @@ def test_firmware_exposes_qingyun_adventure_and_event_api():
 
 def test_firmware_exposes_qingyun_auto_battle_api():
     for signature in (
-        "bool startQingyunWolfBattle(bool useAttackTalisman,",
-        "BattleResult tickQingyunWolfBattle(uint32_t seed);",
-        "void retreatQingyunWolf();",
+        "bool startBossBattle(bool useAttackTalisman,",
+        "BattleResult tickBossBattle(uint32_t seed);",
+        "void retreatBoss();",
     ):
         assert signature in GAME_STATE_HEADER
     assert "battleAction(" not in GAME_STATE_HEADER
@@ -349,8 +349,8 @@ def test_battle_page_is_automatic_and_has_result_notice():
 def test_game_app_ticks_adventure_and_battle_separately():
     assert "lastAdventureStepAt_" in APP_HEADER
     assert "lastBattleRoundAt_" in APP_HEADER
-    assert "tickQingyunAdventure(" in APP_SOURCE
-    assert "tickQingyunWolfBattle(" in APP_SOURCE
+    assert "tickAdventure(" in APP_SOURCE
+    assert "tickBossBattle(" in APP_SOURCE
     assert "tickExploration(" not in APP_SOURCE
 
 
@@ -487,7 +487,7 @@ def test_home_navigation_opens_merit_log_inventory_adventure_and_status():
     )
     assert "page_ = UiPage::MeritLog;" in home_source
     assert "page_ = UiPage::Inventory;" in home_source
-    assert "page_ = UiPage::Adventure;" in home_source
+    assert "page_ = UiPage::RegionSelect;" in home_source
     assert "page_ = UiPage::Status;" in home_source
     assert "state.interact()" not in home_source
     assert "UiPage::Care" not in UI_SOURCE

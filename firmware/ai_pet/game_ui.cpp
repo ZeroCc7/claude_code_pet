@@ -3,6 +3,7 @@
 #include "assets/cloud_terrace_home.h"
 #include "assets/home_button_icons.h"
 #include "assets/home_ui_icons.h"
+#include "region_config.h"
 #include "assets/immortal_cave_home.h"
 #include "assets/pet_sprites.h"
 #include "assets/qingyun_scene.h"
@@ -969,6 +970,29 @@ void GameUi::drawTreasureInventory(const PetSaveData& data) {
     text().draw(71, 128, "减伤+10%");
   }
   drawFooterHints("切换", "返回");
+}
+
+void GameUi::drawRegionSelect(const GameState& state) {
+  const PetSaveData& data = state.data();
+  Adafruit_GFX& tft = target();
+  drawTitlePlaque("秘境", kBrightGold);
+  for (uint8_t i = 0; i < kRegionCount; ++i) {
+    const int16_t y = 43 + i * 19;
+    const bool unlocked = state.isRegionUnlocked(i);
+    drawPanel(8, y, 112, 17, selection_ == i);
+    text().color(unlocked ? (selection_ == i ? kBrightGold : kWarmWhite)
+                          : kMutedCyan);
+    text().draw(14, y + 13, kRegions[i].name);
+    tft.setTextColor(unlocked ? kMutedCyan : 0x632C);
+    tft.setTextSize(1);
+    tft.setCursor(88, y + 5);
+    if (unlocked) {
+      tft.printf("R%u", data.regionRound[i]);
+    } else {
+      tft.printf("L%u", kRegions[i].unlock_level);
+    }
+  }
+  drawFooterHints("进入", "返回");
 }
 
 void GameUi::drawAdventure(const PetSaveData& data) {
