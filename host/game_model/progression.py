@@ -66,6 +66,15 @@ class BattleResult(IntEnum):
     RETREATED = 5
 
 
+TECHNIQUE_MAX_LEVEL = 9
+TECHNIQUE_THRESHOLDS = (0, 10, 22, 38, 58, 82, 112, 148, 190)
+TECHNIQUE_COSTS = (50, 90, 150, 240, 360, 520, 720, 960, 1250)
+TECHNIQUE_SWORD = 0
+TECHNIQUE_DAN = 1
+TECHNIQUE_BODY = 2
+TECHNIQUE_SPIRIT = 3
+
+
 @dataclass(frozen=True)
 class AiTaskRecord:
     source: str
@@ -97,6 +106,7 @@ class GameState:
     boss_defeated_mask: int = 0
     boss_wins: list[int] = field(default_factory=lambda: [0, 0, 0])
     tendencies: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
+    technique_levels: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     form: PetForm = PetForm.EGG
     in_battle: bool = False
     battle_region: int = 0
@@ -130,6 +140,22 @@ class GameState:
     battle_attack_talisman: bool = False
     battle_guard_talisman: bool = False
     last_battle_result: BattleResult = BattleResult.INACTIVE
+
+    def technique_level(self, index: int) -> int:
+        return self.technique_levels[index]
+
+    def upgrade_technique(self, index: int) -> bool:
+        level = self.technique_levels[index]
+        if level >= TECHNIQUE_MAX_LEVEL:
+            return False
+        target = level + 1
+        threshold = TECHNIQUE_THRESHOLDS[target - 1]
+        cost = TECHNIQUE_COSTS[target - 1]
+        if self.tendencies[index] < threshold or self.coins < cost:
+            return False
+        self.coins -= cost
+        self.technique_levels[index] = target
+        return True
 
     def max_energy(self) -> int:
         if self.form >= PetForm.FINAL_A1:

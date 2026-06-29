@@ -33,6 +33,41 @@ def test_v1_1_state_has_no_care_actions():
     assert not hasattr(state, "meditations_used")
 
 
+def test_technique_upgrade_requires_matching_tendency_and_coins():
+    state = GameState(coins=49, tendencies=[0, 0, 0, 0])
+
+    assert not state.upgrade_technique(0)
+    assert state.technique_levels == [0, 0, 0, 0]
+
+    state.coins = 50
+    assert state.upgrade_technique(0)
+    assert state.technique_levels == [1, 0, 0, 0]
+    assert state.coins == 0
+
+    state.coins = 90
+    state.tendencies[0] = 9
+    assert not state.upgrade_technique(0)
+    state.tendencies[0] = 10
+    assert state.upgrade_technique(0)
+    assert state.technique_levels[0] == 2
+
+
+def test_technique_upgrade_stops_at_level_nine_and_does_not_change_form():
+    state = GameState(
+        coins=9999,
+        tendencies=[250, 250, 250, 250],
+        technique_levels=[8, 0, 0, 0],
+        level=12,
+    )
+    before_form = state.form
+
+    assert state.upgrade_technique(0)
+    assert state.technique_levels[0] == 9
+    assert not state.upgrade_technique(0)
+    assert state.technique_levels[0] == 9
+    assert state.form == before_form
+
+
 def test_spirit_herb_restores_three_energy_and_consumes_one():
     state = GameState(energy=16, items=[1, 0, 0, 0, 0])
 
