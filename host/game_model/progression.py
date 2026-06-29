@@ -175,16 +175,31 @@ class GameState:
     qingyun_round: int = 1
     qingyun_misses: int = 0
     has_qingyun_sword: bool = False
+    region_treasure: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0])
+    region_misses: list[int] = field(default_factory=lambda: [0, 0, 0, 0, 0])
     stamina_recovery_seconds: int = 0
     last_qingyun_experience: int = 0
     last_qingyun_coins: int = 0
     last_qingyun_items: list[int] = field(default_factory=lambda: [0] * 4)
     last_qingyun_sword: bool = False
+    last_boss_treasure: bool = False
     battle_round: int = 0
     battle_attack_talisman: bool = False
     battle_guard_talisman: bool = False
     battle_shield: int = 0
     last_battle_result: BattleResult = BattleResult.INACTIVE
+
+    def __post_init__(self) -> None:
+        self.region_treasure = (self.region_treasure + [0] * 5)[:5]
+        self.region_misses = (self.region_misses + [0] * 5)[:5]
+        if self.has_qingyun_sword:
+            self.region_treasure[0] = 1
+        else:
+            self.has_qingyun_sword = bool(self.region_treasure[0])
+        if self.qingyun_misses:
+            self.region_misses[0] = self.qingyun_misses
+        else:
+            self.qingyun_misses = self.region_misses[0]
 
     def technique_level(self, index: int) -> int:
         return self.technique_levels[index]
@@ -539,11 +554,13 @@ class GameState:
             + (2 if sword_level >= 2 else 0)
             + (3 if sword_level >= 6 else 0)
         )
+        if self._has_region_treasure(2):
+            critical_rate = min(100, critical_rate + 15)
         if seed % 100 < critical_rate:
             damage = damage * (220 if sword_level >= 9 else 200) // 100
         if self.battle_attack_talisman:
             damage = damage * 120 // 100
-        if self.has_qingyun_sword:
+        if self._has_region_treasure(0):
             damage = damage * 110 // 100
         pierce = (1 if sword_level >= 4 else 0) + (1 if sword_level >= 8 else 0)
         damage += pierce * 2
@@ -562,6 +579,8 @@ class GameState:
             + (2 if spirit_level >= 2 else 0)
             + (3 if spirit_level >= 7 else 0)
         )
+        if self._has_region_treasure(1):
+            dodge_rate = min(100, dodge_rate + 10)
         if (seed // 100) % 100 < dodge_rate:
             return 0
         damage = max(
@@ -576,7 +595,7 @@ class GameState:
         if self.battle_guard_talisman:
             damage = max(1, damage * 80 // 100)
         damage = max(1, damage * self._qingyun_damage_percent() // 100)
-        if self.has_qingyun_sword:
+        if self._has_region_treasure(0):
             damage = max(1, damage * 90 // 100)
         body_reduction = (
             (3 if body_level >= 1 else 0)
@@ -718,17 +737,49 @@ class GameState:
             self.items[item] = min(65535, self.items[item] + quantity)
 
     def _roll_qingyun_sword(self, seed: int) -> None:
+        self._roll_region_treasure(seed)
+
+    def _roll_region_treasure(self, seed: int) -> None:
+        region = self.active_region if self.active_region is not None else 0
+        if not 0 <= region < len(REGIONS):
+            region = 0
+        self.last_boss_treasure = False
         self.last_qingyun_sword = False
-        if self.has_qingyun_sword:
-            self.qingyun_misses = 0
+        if self.region_treasure[region]:
+            self.region_misses[region] = 0
+            self._sync_qingyun_treasure_aliases()
             return
         chance = min(10, max(1, self.qingyun_round))
-        if self.qingyun_misses >= 19 or seed % 100 < chance:
-            self.has_qingyun_sword = True
-            self.last_qingyun_sword = True
-            self.qingyun_misses = 0
+        if self.region_misses[region] >= 19 or seed % 100 < chance:
+            self.region_treasure[region] = 1
+            self.last_boss_treasure = True
+            self.region_misses[region] = 0
+            self._apply_region_treasure_bonus(region)
         else:
-            self.qingyun_misses = min(255, self.qingyun_misses + 1)
+            self.region_misses[region] = min(255, self.region_misses[region] + 1)
+        self._sync_qingyun_treasure_aliases()
+
+    def _has_region_treasure(self, region: int) -> bool:
+        if region == 0 and self.has_qingyun_sword:
+            return True
+        return 0 <= region < len(self.region_treasure) and bool(
+            self.region_treasure[region]
+        )
+
+    def _sync_qingyun_treasure_aliases(self) -> None:
+        self.has_qingyun_sword = bool(self.region_treasure[0])
+        self.qingyun_misses = self.region_misses[0]
+        self.last_qingyun_sword = self.last_boss_treasure and self.active_region in (
+            None,
+            0,
+        )
+
+    def _apply_region_treasure_bonus(self, region: int) -> None:
+        if region == 3:
+            self.stamina = min(100, self.stamina + 20)
+        elif region == 4:
+            for i in range(4):
+                self._add_tendency(i, 10)
 
     def _reset_qingyun_run(self) -> None:
         self.qingyun_progress = 0

@@ -948,6 +948,39 @@ def test_bamboo_realm_rewards_bias_dan_and_spirit_tendencies():
     assert state.tendencies[3] > state.tendencies[2]
 
 
+def test_bamboo_realm_treasure_uses_region_treasure_slot():
+    state = GameState(
+        level=30,
+        energy=20,
+        stamina=100,
+        qingyun_progress=100,
+        qingyun_event_mask=0b1111,
+        qingyun_boss_unlocked=True,
+        qingyun_misses=19,
+    )
+    state.regions_unlocked |= 1 << 1
+    state.select_region(1)
+    state.region_misses[1] = 19
+    assert state.start_qingyun_wolf_battle(False, False)
+    state.boss_hp = 1
+
+    assert state.tick_qingyun_wolf_battle(seed=99) == BattleResult.VICTORY
+
+    assert state.region_treasure[1] == 1
+    assert state.last_boss_treasure
+    assert not state.last_qingyun_sword
+    assert not state.has_qingyun_sword
+    assert state.qingyun_misses == 19
+
+
+def test_bamboo_jade_increases_dodge_chance():
+    ordinary = GameState(level=8, active_region=1)
+    jade = GameState(level=8, active_region=1, region_treasure=[0, 1, 0, 0, 0])
+
+    assert ordinary.qingyun_incoming_damage(seed=500) > 0
+    assert jade.qingyun_incoming_damage(seed=500) == 0
+
+
 def test_boss_victory_tendency_bonus_scales_with_round():
     state = GameState(
         level=30,
