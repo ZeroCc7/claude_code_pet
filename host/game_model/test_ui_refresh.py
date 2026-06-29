@@ -602,6 +602,13 @@ def test_ai_work_uses_a_dedicated_cultivation_page():
     assert "showAiResult(" in UI_HEADER
 
 
+def test_manual_ai_cultivation_exit_returns_home_without_result_page():
+    assert "completeAiTask(uint32_t now, bool halved, bool acknowledge," in APP_HEADER
+    assert "completeAiTask(now, true, true, false);" in APP_SOURCE
+    assert "if (showResult) {" in APP_SOURCE
+    assert "ui_.clearAiCultivation(now);" in APP_SOURCE
+
+
 def test_simple_ai_protocol_and_single_active_task_controller():
     assert "AiEventKind::Start" in APP_SOURCE
     assert "AiEventKind::End" in APP_SOURCE

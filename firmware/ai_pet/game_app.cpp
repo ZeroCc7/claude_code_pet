@@ -42,7 +42,7 @@ void GameApp::update(uint32_t now) {
   processInput(now);
 
   if (ui_.consumeCultivationExit() && aiTaskActive_) {
-    completeAiTask(now, true, true);
+    completeAiTask(now, true, true, false);
   }
 
   if (now - lastTickAt_ >= 1000) {
@@ -283,7 +283,8 @@ void GameApp::processAiEvent(const AiEvent& event, uint32_t now) {
   completeAiTask(now, false, true);
 }
 
-void GameApp::completeAiTask(uint32_t now, bool halved, bool acknowledge) {
+void GameApp::completeAiTask(uint32_t now, bool halved, bool acknowledge,
+                             bool showResult) {
   const uint32_t elapsedSeconds = (now - aiTaskStartedAt_) / 1000;
   const uint32_t duration = constrain(elapsedSeconds, 60U, 1800U);
   const uint16_t oldExperience = state_.data().experience;
@@ -294,7 +295,11 @@ void GameApp::completeAiTask(uint32_t now, bool halved, bool acknowledge) {
       state_.data().experience - oldExperience;
   const uint16_t coinGain = state_.data().coins - oldCoins;
   const bool evolved = state_.data().form != oldForm;
-  ui_.showAiResult(aiTaskSource_, experienceGain, coinGain, evolved, now);
+  if (showResult) {
+    ui_.showAiResult(aiTaskSource_, experienceGain, coinGain, evolved, now);
+  } else {
+    ui_.clearAiCultivation(now);
+  }
   aiTaskActive_ = false;
   aiTaskSource_[0] = '\0';
   aiTaskStartedAt_ = 0;

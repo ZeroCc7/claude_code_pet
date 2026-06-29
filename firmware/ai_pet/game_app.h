@@ -24,7 +24,8 @@ class GameApp {
   void processPreviewCommand(const String& command, uint32_t now);
   void processSetCommand(const String& command);
   void processAiEvent(const AiEvent& event, uint32_t now);
-  void completeAiTask(uint32_t now, bool halved, bool acknowledge);
+  void completeAiTask(uint32_t now, bool halved, bool acknowledge,
+                      bool showResult = true);
   void printAck(const char* status,
                 uint16_t experience = 0, uint16_t coins = 0);
   void requestSave();
