@@ -84,6 +84,7 @@ class GameUi {
   void drawInventory(const PetSaveData& data);
   void drawTreasureInventory(const PetSaveData& data);
   void drawRegionSelect(const GameState& state);
+  void drawRegionTokenPrompt(const GameState& state);
   void drawAdventure(const PetSaveData& data);
   void drawQingyunAdventure(const PetSaveData& data, uint32_t now);
   void drawQingyunEventResult(const PetSaveData& data);
@@ -115,6 +116,7 @@ class GameUi {
   uint8_t meritPage_ = 0;
   uint8_t statusPage_ = 0;
   bool battlePrompt_ = true;
+  bool tokenPrompt_ = false;
   bool useAttackTalisman_ = false;
   bool useGuardTalisman_ = false;
   bool dirty_ = true;

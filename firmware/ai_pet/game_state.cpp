@@ -153,6 +153,25 @@ uint8_t GameState::activeRegion() const {
   return data_.activeRegion;
 }
 
+bool GameState::canUseRegionTokenForBoss() const {
+  return data_.inventory.items[static_cast<uint8_t>(ItemType::RegionToken)] >
+             0 &&
+         data_.energy >= bossEnergyRequirement();
+}
+
+bool GameState::useRegionTokenForBoss() {
+  if (!canUseRegionTokenForBoss()) {
+    return false;
+  }
+  data_.inventory.items[static_cast<uint8_t>(ItemType::RegionToken)]--;
+  data_.adventureProgress = 100;
+  data_.bossUnlocked = 1;
+  data_.adventurePhase = AdventurePhase::BossReady;
+  data_.currentEvent = AdventureEvent::None;
+  data_.currentEventResult = EventResult::None;
+  return true;
+}
+
 bool GameState::startAdventure() {
   if (data_.adventurePhase == AdventurePhase::BossReady) {
     return false;

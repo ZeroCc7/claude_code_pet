@@ -143,9 +143,11 @@ void GameUi::handle(InputAction action, GameState& state) {
       if (state.isRegionUnlocked(selection_)) {
         state.selectRegion(selection_);
         page_ = UiPage::Adventure;
+        tokenPrompt_ = state.canUseRegionTokenForBoss();
       } else if (state.tryUnlockRegion(selection_)) {
         state.selectRegion(selection_);
         page_ = UiPage::Adventure;
+        tokenPrompt_ = state.canUseRegionTokenForBoss();
         startNotice("区域解锁");
       } else {
         startNotice("条件不足");
@@ -154,6 +156,20 @@ void GameUi::handle(InputAction action, GameState& state) {
       page_ = UiPage::Home;
     }
   } else if (page_ == UiPage::Adventure) {
+    if (tokenPrompt_) {
+      if (action == InputAction::Confirm) {
+        if (state.useRegionTokenForBoss()) {
+          tokenPrompt_ = false;
+          page_ = UiPage::Battle;
+          battlePrompt_ = true;
+          useAttackTalisman_ = false;
+          useGuardTalisman_ = false;
+        }
+      } else if (action == InputAction::Back) {
+        tokenPrompt_ = false;
+      }
+      return;
+    }
     const AdventurePhase phase = state.data().adventurePhase;
     if (phase == AdventurePhase::BossReady) {
       if (action == InputAction::Confirm) {
@@ -485,7 +501,11 @@ void GameUi::drawMenuFrame(const GameState& state) {
       drawInventory(data);
       break;
     case UiPage::Adventure:
-      drawAdventure(data);
+      if (tokenPrompt_) {
+        drawRegionTokenPrompt(state);
+      } else {
+        drawAdventure(data);
+      }
       break;
     case UiPage::Status:
       drawStatus(data);
@@ -993,6 +1013,23 @@ void GameUi::drawRegionSelect(const GameState& state) {
     }
   }
   drawFooterHints("进入", "返回");
+}
+
+void GameUi::drawRegionTokenPrompt(const GameState& state) {
+  const PetSaveData& data = state.data();
+  Adafruit_GFX& tft = target();
+  drawTitlePlaque("秘境令", kBrightGold);
+  drawPanel(10, 47, 108, 76, false);
+  text().color(kWarmWhite);
+  text().draw(25, 68, "消耗一枚令牌");
+  text().draw(21, 87, "直接挑战首领");
+  text().color(kMutedCyan);
+  text().draw(28, 107, "当前持有");
+  tft.setTextColor(kBrightGold);
+  tft.setTextSize(1);
+  tft.setCursor(87, 98);
+  tft.print(data.inventory.items[static_cast<uint8_t>(ItemType::RegionToken)]);
+  drawFooterHints("使用", "不用");
 }
 
 void GameUi::drawAdventure(const PetSaveData& data) {

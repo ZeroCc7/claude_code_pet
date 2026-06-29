@@ -156,6 +156,21 @@ def test_firmware_exposes_technique_api_and_effect_helpers():
         assert token in GAME_STATE_SOURCE + GAME_STATE_HEADER
 
 
+def test_firmware_supports_region_token_direct_boss_prompt():
+    for signature in (
+        "bool canUseRegionTokenForBoss() const;",
+        "bool useRegionTokenForBoss();",
+    ):
+        assert signature in GAME_STATE_HEADER
+    for token in (
+        "drawRegionTokenPrompt",
+        "tokenPrompt_",
+        "useRegionTokenForBoss()",
+        "ItemType::RegionToken",
+    ):
+        assert token in UI_HEADER + UI_SOURCE + GAME_STATE_SOURCE
+
+
 def test_firmware_inventory_rules_match_python_recovery_items():
     for item in (
         "SpiritHerb",

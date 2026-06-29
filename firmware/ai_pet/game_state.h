@@ -18,6 +18,8 @@ class GameState {
   bool tryUnlockRegion(uint8_t regionId);
   void selectRegion(uint8_t regionId);
   uint8_t activeRegion() const;
+  bool canUseRegionTokenForBoss() const;
+  bool useRegionTokenForBoss();
   bool startAdventure();
   void stopAdventure();
   AdventureTick tickAdventure(uint32_t seed);
