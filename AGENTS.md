@@ -321,6 +321,6 @@ py -3 .\ai_pet_hook.py end   --source codex
 
 素材状态：
 
-- V1.2 代码不包含生成、绘制或合成正式素材。
+- V1.2 正式素材已交付并接入固件；后续替换素材时仍走 `assets/raw/`、转换脚本、固件编译和实机验收流程。
 - 缺失素材清单记录在 `docs/art-asset-self-service-guide.md` 和 `docs/art-generation-prompts.md`：青云剑图标、青竹灵境背景、竹灵守卫 Boss、灵竹玉佩图标。
 - 用户后续把 PNG 放入指定路径后，再运行 `scripts/convert_v12_assets.py` 接入固件资源并编译验证。
