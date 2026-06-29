@@ -9,6 +9,15 @@ namespace {
 constexpr uint32_t kSaveMagic = 0x50455431;
 constexpr uint16_t kSaveVersion = 10;
 constexpr uint16_t kPassiveRecoverySeconds = 300;
+constexpr uint8_t TECHNIQUE_MAX_LEVEL = 9;
+constexpr uint16_t kTechniqueThresholds[TECHNIQUE_MAX_LEVEL] = {
+    0, 10, 22, 38, 58, 82, 112, 148, 190};
+constexpr uint16_t kTechniqueCosts[TECHNIQUE_MAX_LEVEL] = {
+    50, 90, 150, 240, 360, 520, 720, 960, 1250};
+constexpr uint8_t kTechniqueSword = 0;
+constexpr uint8_t kTechniqueDan = 1;
+constexpr uint8_t kTechniqueBody = 2;
+constexpr uint8_t kTechniqueSpirit = 3;
 
 }  // namespace
 
@@ -18,6 +27,7 @@ GameState::GameState() {
 
 void GameState::reset() {
   memset(&data_, 0, sizeof(data_));
+  battleShield_ = 0;
   data_.magic = kSaveMagic;
   data_.version = kSaveVersion;
   data_.size = sizeof(PetSaveData);
@@ -40,9 +50,11 @@ void GameState::reset() {
 
 void GameState::load(const PetSaveData& data) {
   data_ = data;
+  battleShield_ = 0;
   data_.mood = clampPercent(data_.mood);
   data_.stamina = clampPercent(data_.stamina);
-  data_.energy = min<uint16_t>(maxEnergy(data_.form), data_.energy);
+  data_.energy = min<uint16_t>(maxEnergy(data_.form, data_.techniqueLevels),
+                               data_.energy);
   for (uint8_t i = 0; i < kRegionCount; ++i) {
     data_.regionRound[i] = max<uint16_t>(1, data_.regionRound[i]);
   }
@@ -66,19 +78,50 @@ bool GameState::useItem(ItemType item) {
     return false;
   }
   if (item == ItemType::SpiritHerb) {
-    if (data_.energy >= maxEnergy(data_.form)) {
+    const uint16_t cap = maxEnergy(data_.form, data_.techniqueLevels);
+    if (data_.energy >= cap) {
       return false;
     }
-    data_.energy = min<uint16_t>(maxEnergy(data_.form), data_.energy + 3);
+    const uint8_t restore =
+        3 + (data_.techniqueLevels[kTechniqueDan] >= 1 ? 1 : 0) +
+        (data_.techniqueLevels[kTechniqueDan] >= 6 ? 1 : 0);
+    data_.energy = min<uint16_t>(cap, data_.energy + restore);
   } else if (item == ItemType::RecoveryPill) {
     if (data_.stamina >= 100) {
       return false;
     }
-    data_.stamina = clampPercent(data_.stamina + 20);
+    const uint8_t restore =
+        20 + (data_.techniqueLevels[kTechniqueDan] >= 2 ? 5 : 0) +
+        (data_.techniqueLevels[kTechniqueDan] >= 7 ? 5 : 0);
+    data_.stamina = clampPercent(data_.stamina + restore);
   } else {
     return false;
   }
   quantity--;
+  return true;
+}
+
+uint8_t GameState::techniqueLevel(uint8_t index) const {
+  return index < 4 ? data_.techniqueLevels[index] : 0;
+}
+
+bool GameState::upgradeTechnique(uint8_t index) {
+  if (index >= 4) {
+    return false;
+  }
+  const uint8_t level = data_.techniqueLevels[index];
+  if (level >= TECHNIQUE_MAX_LEVEL) {
+    return false;
+  }
+  const uint16_t threshold = kTechniqueThresholds[level];
+  const uint16_t cost = kTechniqueCosts[level];
+  if (data_.tendencies[index] < threshold || data_.coins < cost) {
+    return false;
+  }
+  data_.coins -= cost;
+  data_.techniqueLevels[index] = level + 1;
+  data_.energy = min<uint16_t>(data_.energy,
+                               maxEnergy(data_.form, data_.techniqueLevels));
   return true;
 }
 
@@ -152,7 +195,11 @@ AdventureTick GameState::tickAdventure(uint32_t seed) {
   if (data_.adventurePhase != AdventurePhase::Advancing) {
     return AdventureTick::Inactive;
   }
-  data_.energy--;
+  const bool skipEnergyCost =
+      data_.techniqueLevels[kTechniqueSpirit] >= 6 && seed % 100 < 10;
+  if (!skipEnergyCost) {
+    data_.energy--;
+  }
   data_.adventureProgress =
       min<uint8_t>(100, data_.adventureProgress + 2);
 
@@ -265,7 +312,7 @@ void GameState::addTendency(uint8_t slot, uint16_t amount) {
 bool GameState::startBossBattle(bool useAttackTalisman,
                                 bool useGuardTalisman) {
   if (data_.inBattle || !data_.bossUnlocked ||
-      data_.adventureProgress < 100 || data_.energy < 5) {
+      data_.adventureProgress < 100 || data_.energy < bossEnergyRequirement()) {
     return false;
   }
   data_.inBattle = 1;
@@ -285,6 +332,9 @@ bool GameState::startBossBattle(bool useAttackTalisman,
   if (data_.battleGuardTalisman) {
     guardQuantity--;
   }
+  const uint8_t bodyLevel = data_.techniqueLevels[kTechniqueBody];
+  battleShield_ = (bodyLevel >= 2 ? 3 : 0) + (bodyLevel >= 5 ? 4 : 0) +
+                  (bodyLevel >= 8 ? 5 : 0);
   return true;
 }
 
@@ -297,13 +347,20 @@ uint8_t GameState::attackDamage(uint32_t seed) const {
   } else if (data_.form == PetForm::FinalA2) {
     damage += 2;
   }
+  const uint8_t swordLevel = data_.techniqueLevels[kTechniqueSword];
+  const uint8_t swordBonus = (swordLevel >= 1 ? 3 : 0) +
+                             (swordLevel >= 3 ? 3 : 0) +
+                             (swordLevel >= 5 ? 4 : 0) +
+                             (swordLevel >= 7 ? 5 : 0);
+  damage = damage * (100 + swordBonus) / 100;
   uint8_t criticalRate =
-      5 + min<uint16_t>(20, data_.tendencies[0] / 3);
+      5 + min<uint16_t>(20, data_.tendencies[0] / 3) +
+      (swordLevel >= 2 ? 2 : 0) + (swordLevel >= 6 ? 3 : 0);
   if (data_.regionTreasure[2]) {
     criticalRate = min<uint8_t>(100, criticalRate + 15);
   }
   if (seed % 100 < criticalRate) {
-    damage *= 2;
+    damage = damage * (swordLevel >= 9 ? 220 : 200) / 100;
   }
   if (data_.battleAttackTalisman) {
     damage = damage * 120 / 100;
@@ -311,12 +368,19 @@ uint8_t GameState::attackDamage(uint32_t seed) const {
   if (data_.regionTreasure[0]) {
     damage = damage * 110 / 100;
   }
+  const uint8_t pierce =
+      (swordLevel >= 4 ? 1 : 0) + (swordLevel >= 8 ? 1 : 0);
+  damage += pierce * 2;
   return min<uint16_t>(255, max<uint16_t>(1, damage));
 }
 
 uint8_t GameState::incomingDamage(uint32_t seed) const {
+  const uint8_t bodyLevel = data_.techniqueLevels[kTechniqueBody];
+  const uint8_t spiritLevel = data_.techniqueLevels[kTechniqueSpirit];
   uint8_t dodgeRate =
-      5 + min<uint16_t>(20, data_.tendencies[2] / 3);
+      5 + min<uint16_t>(20, data_.tendencies[2] / 3) +
+      (bodyLevel >= 6 ? 3 : 0) + (spiritLevel >= 2 ? 2 : 0) +
+      (spiritLevel >= 7 ? 3 : 0);
   if (data_.regionTreasure[1]) {
     dodgeRate = min<uint8_t>(100, dodgeRate + 10);
   }
@@ -324,7 +388,9 @@ uint8_t GameState::incomingDamage(uint32_t seed) const {
     return 0;
   }
   uint16_t damage =
-      max<int16_t>(1, 10 - min<uint16_t>(6, data_.tendencies[2] / 5));
+      max<int16_t>(
+          1, kRegions[data_.activeRegion].base_boss_damage -
+                 min<uint16_t>(5, data_.tendencies[2] / 6));
   if (data_.form == PetForm::RookieB || data_.form == PetForm::FinalB1) {
     damage = max<uint8_t>(1, damage - 1);
   } else if (data_.form == PetForm::FinalB2) {
@@ -336,6 +402,15 @@ uint8_t GameState::incomingDamage(uint32_t seed) const {
   damage = max<uint16_t>(1, damage * damagePercent() / 100);
   if (data_.regionTreasure[0]) {
     damage = max<uint16_t>(1, damage * 90 / 100);
+  }
+  uint8_t bodyReduction = (bodyLevel >= 1 ? 3 : 0) +
+                          (bodyLevel >= 4 ? 4 : 0) +
+                          (bodyLevel >= 7 ? 5 : 0);
+  if (data_.stamina < 20 && bodyLevel >= 9) {
+    bodyReduction += 10;
+  }
+  if (bodyReduction > 0) {
+    damage = max<uint16_t>(1, damage * (100 - bodyReduction) / 100);
   }
   return min<uint16_t>(255, damage);
 }
@@ -367,6 +442,10 @@ BattleResult GameState::tickBossBattle(uint32_t seed) {
     data_.coins = min<uint32_t>(
         0xFFFFU, static_cast<uint32_t>(data_.coins) +
                      data_.lastBossCoins);
+    if (data_.techniqueLevels[kTechniqueSpirit] >= 3) {
+      data_.energy = min<uint16_t>(
+          maxEnergy(data_.form, data_.techniqueLevels), data_.energy + 1);
+    }
     if (data_.regionRound[r] < 0xFFFFU) {
       data_.regionRound[r]++;
     }
@@ -374,7 +453,7 @@ BattleResult GameState::tickBossBattle(uint32_t seed) {
     const uint16_t bossBonus =
         cfg.tendency_base + min<uint16_t>(3, data_.regionRound[r] / 5);
     for (uint8_t i = 0; i < 4; ++i) {
-      addTendency(i, bossBonus);
+      addTendency(i, bossBonus + cfg.reward_bias[i]);
     }
     if (!data_.regionTreasure[4] && r == 4) {
     }
@@ -382,13 +461,23 @@ BattleResult GameState::tickBossBattle(uint32_t seed) {
     finishBattle(BattleResult::Victory, false);
     return BattleResult::Victory;
   }
-  const uint8_t incoming = incomingDamage(seed);
+  uint8_t incoming = incomingDamage(seed);
+  if (battleShield_ > 0) {
+    const uint8_t blocked = min<uint8_t>(battleShield_, incoming);
+    battleShield_ -= blocked;
+    incoming -= blocked;
+  }
   data_.stamina =
       incoming >= data_.stamina ? 0 : data_.stamina - incoming;
   const uint8_t affinityRate =
-      min<uint16_t>(20, data_.tendencies[3] / 3);
+      min<uint16_t>(20, data_.tendencies[3] / 3) +
+      (data_.techniqueLevels[kTechniqueSpirit] >= 1 ? 3 : 0) +
+      (data_.techniqueLevels[kTechniqueSpirit] >= 5 ? 4 : 0) +
+      (data_.techniqueLevels[kTechniqueSpirit] >= 8 ? 3 : 0);
   if (data_.stamina > 0 && (seed / 10000) % 100 < affinityRate) {
-    data_.stamina = clampPercent(data_.stamina + 2);
+    const uint8_t heal =
+        2 + (data_.techniqueLevels[kTechniqueSpirit] >= 4 ? 1 : 0);
+    data_.stamina = clampPercent(data_.stamina + heal);
   }
   if (data_.stamina == 0) {
     data_.stamina = 30;
@@ -411,6 +500,15 @@ uint16_t GameState::bossMaxHp() const {
   const uint8_t r = data_.activeRegion;
   return static_cast<uint32_t>(kRegions[r].base_boss_hp) * healthPercent() /
          100;
+}
+
+uint16_t GameState::recoveryIntervalSeconds() const {
+  return data_.techniqueLevels[kTechniqueDan] >= 9 ? 180
+                                                  : kPassiveRecoverySeconds;
+}
+
+uint8_t GameState::bossEnergyRequirement() const {
+  return data_.techniqueLevels[kTechniqueDan] >= 4 ? 4 : 5;
 }
 
 uint16_t GameState::completionExperience() const {
@@ -527,16 +625,26 @@ void GameState::finishBattle(BattleResult result, bool resetHp) {
   }
   data_.battleAttackTalisman = 0;
   data_.battleGuardTalisman = 0;
+  battleShield_ = 0;
 }
 
 uint16_t GameState::maxEnergy(PetForm form) {
+  const uint8_t emptyTechniques[4] = {0, 0, 0, 0};
+  return maxEnergy(form, emptyTechniques);
+}
+
+uint16_t GameState::maxEnergy(PetForm form,
+                              const uint8_t techniqueLevels[4]) {
+  uint16_t base = 20;
   if (form >= PetForm::FinalA1) {
-    return 80;
+    base = 80;
+  } else if (form >= PetForm::RookieA) {
+    base = 40;
   }
-  if (form >= PetForm::RookieA) {
-    return 40;
+  if (techniqueLevels[kTechniqueSpirit] >= 9) {
+    base += max<uint16_t>(10, base * 30 / 100);
   }
-  return 20;
+  return base;
 }
 
 uint16_t GameState::experienceForLevel(uint8_t level) {
@@ -579,7 +687,7 @@ void GameState::applyTask(const char* source, uint32_t durationSeconds,
     gainExperience(expGain);
     data_.coins += coinGain;
     data_.energy =
-        min<uint16_t>(maxEnergy(data_.form),
+        min<uint16_t>(maxEnergy(data_.form, data_.techniqueLevels),
                       data_.energy + max<uint16_t>(1, minutes / 2));
     const uint16_t tendencyGain =
         max<uint16_t>(1, min<uint16_t>(4, minutes / 5));
@@ -616,17 +724,19 @@ void GameState::completeAiTask(const char* source, uint32_t durationSeconds,
 
 bool GameState::tickRuntime(uint32_t seconds) {
   bool changed = false;
-  if (data_.energy >= maxEnergy(data_.form)) {
+  const uint16_t energyCap = maxEnergy(data_.form, data_.techniqueLevels);
+  const uint16_t recoveryInterval = recoveryIntervalSeconds();
+  if (data_.energy >= energyCap) {
     data_.energyRecoverySeconds = 0;
   } else {
     data_.energyRecoverySeconds += seconds;
-    while (data_.energyRecoverySeconds >= kPassiveRecoverySeconds &&
-           data_.energy < maxEnergy(data_.form)) {
-      data_.energyRecoverySeconds -= kPassiveRecoverySeconds;
+    while (data_.energyRecoverySeconds >= recoveryInterval &&
+           data_.energy < energyCap) {
+      data_.energyRecoverySeconds -= recoveryInterval;
       data_.energy++;
       changed = true;
     }
-    if (data_.energy >= maxEnergy(data_.form)) {
+    if (data_.energy >= energyCap) {
       data_.energyRecoverySeconds = 0;
     }
   }
@@ -635,9 +745,9 @@ bool GameState::tickRuntime(uint32_t seconds) {
     data_.staminaRecoverySeconds = 0;
   } else {
     data_.staminaRecoverySeconds += seconds;
-    while (data_.staminaRecoverySeconds >= kPassiveRecoverySeconds &&
+    while (data_.staminaRecoverySeconds >= recoveryInterval &&
            data_.stamina < 100) {
-      data_.staminaRecoverySeconds -= kPassiveRecoverySeconds;
+      data_.staminaRecoverySeconds -= recoveryInterval;
       data_.stamina = clampPercent(data_.stamina + 5);
       changed = true;
     }

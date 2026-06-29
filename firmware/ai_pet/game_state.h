@@ -12,6 +12,8 @@ class GameState {
   PetSaveData& mutableData();
 
   bool useItem(ItemType item);
+  uint8_t techniqueLevel(uint8_t index) const;
+  bool upgradeTechnique(uint8_t index);
   bool isRegionUnlocked(uint8_t regionId) const;
   bool tryUnlockRegion(uint8_t regionId);
   void selectRegion(uint8_t regionId);
@@ -24,8 +26,11 @@ class GameState {
   BattleResult tickBossBattle(uint32_t seed);
   void retreatBoss();
   static uint16_t maxEnergy(PetForm form);
+  static uint16_t maxEnergy(PetForm form, const uint8_t techniqueLevels[4]);
   static uint16_t experienceForLevel(uint8_t level);
   uint16_t bossMaxHp() const;
+  uint16_t recoveryIntervalSeconds() const;
+  uint8_t bossEnergyRequirement() const;
   uint16_t damagePercent() const;
   void gainExperience(uint16_t amount);
   void applyTask(const char* source, uint32_t durationSeconds, bool success,
@@ -52,4 +57,5 @@ class GameState {
   void updateEvolution();
   static uint8_t clampPercent(uint16_t value);
   PetSaveData data_{};
+  uint8_t battleShield_ = 0;
 };

@@ -138,6 +138,24 @@ def test_firmware_exposes_repeat_challenge_helpers():
         assert signature in GAME_STATE_HEADER
 
 
+def test_firmware_exposes_technique_api_and_effect_helpers():
+    for signature in (
+        "uint8_t techniqueLevel(uint8_t index) const;",
+        "bool upgradeTechnique(uint8_t index);",
+        "uint16_t recoveryIntervalSeconds() const;",
+        "uint16_t maxEnergy(PetForm form, const uint8_t techniqueLevels[4])",
+        "uint8_t bossEnergyRequirement() const;",
+    ):
+        assert signature in GAME_STATE_HEADER
+    for token in (
+        "kTechniqueThresholds",
+        "kTechniqueCosts",
+        "techniqueLevels",
+        "TECHNIQUE_MAX_LEVEL",
+    ):
+        assert token in GAME_STATE_SOURCE + GAME_STATE_HEADER
+
+
 def test_firmware_inventory_rules_match_python_recovery_items():
     for item in (
         "SpiritHerb",
@@ -153,8 +171,9 @@ def test_firmware_inventory_rules_match_python_recovery_items():
         "bool GameState::useItem",
         "bool GameState::startAdventure",
     )
-    assert "data_.energy + 3" in use_item_source
-    assert "data_.stamina + 20" in use_item_source
+    assert "const uint8_t restore =" in use_item_source
+    assert "data_.energy + restore" in use_item_source
+    assert "data_.stamina + restore" in use_item_source
     assert "quantity--;" in use_item_source
     assert "return false;" in use_item_source
 
