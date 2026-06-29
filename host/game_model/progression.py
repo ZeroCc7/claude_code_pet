@@ -139,6 +139,7 @@ class GameState:
     battle_round: int = 0
     battle_attack_talisman: bool = False
     battle_guard_talisman: bool = False
+    battle_shield: int = 0
     last_battle_result: BattleResult = BattleResult.INACTIVE
 
     def technique_level(self, index: int) -> int:
@@ -159,10 +160,25 @@ class GameState:
 
     def max_energy(self) -> int:
         if self.form >= PetForm.FINAL_A1:
-            return 80
-        if self.form >= PetForm.ROOKIE_A:
-            return 40
-        return 20
+            base = 80
+        elif self.form >= PetForm.ROOKIE_A:
+            base = 40
+        else:
+            base = 20
+        if self.technique_levels[TECHNIQUE_SPIRIT] >= 9:
+            base += max(10, base * 30 // 100)
+        return base
+
+    def recovery_interval_seconds(self) -> int:
+        return 180 if self.technique_levels[TECHNIQUE_DAN] >= 9 else 300
+
+    def spirit_herb_restore_amount(self) -> int:
+        level = self.technique_levels[TECHNIQUE_DAN]
+        return 3 + (1 if level >= 1 else 0) + (1 if level >= 6 else 0)
+
+    def recovery_pill_restore_amount(self) -> int:
+        level = self.technique_levels[TECHNIQUE_DAN]
+        return 20 + (5 if level >= 2 else 0) + (5 if level >= 7 else 0)
 
     def use_item(self, item: ItemType) -> bool:
         if self.items[item] == 0:
@@ -170,11 +186,14 @@ class GameState:
         if item == ItemType.SPIRIT_HERB:
             if self.energy >= self.max_energy():
                 return False
-            self.energy = min(self.max_energy(), self.energy + 3)
+            self.energy = min(
+                self.max_energy(),
+                self.energy + self.spirit_herb_restore_amount(),
+            )
         elif item == ItemType.RECOVERY_PILL:
             if self.stamina >= 100:
                 return False
-            self.stamina = min(100, self.stamina + 20)
+            self.stamina = min(100, self.stamina + self.recovery_pill_restore_amount())
         else:
             return False
         self.items[item] -= 1
@@ -186,8 +205,12 @@ class GameState:
             self.energy_recovery_seconds = 0
         else:
             self.energy_recovery_seconds += seconds
-            while self.energy_recovery_seconds >= 300 and self.energy < self.max_energy():
-                self.energy_recovery_seconds -= 300
+            interval = self.recovery_interval_seconds()
+            while (
+                self.energy_recovery_seconds >= interval
+                and self.energy < self.max_energy()
+            ):
+                self.energy_recovery_seconds -= interval
                 self.energy += 1
                 changed = True
             if self.energy >= self.max_energy():
@@ -198,10 +221,10 @@ class GameState:
         else:
             self.stamina_recovery_seconds += seconds
             while (
-                self.stamina_recovery_seconds >= 300
+                self.stamina_recovery_seconds >= self.recovery_interval_seconds()
                 and self.stamina < 100
             ):
-                self.stamina_recovery_seconds -= 300
+                self.stamina_recovery_seconds -= self.recovery_interval_seconds()
                 self.stamina = min(100, self.stamina + 5)
                 changed = True
             if self.stamina >= 100:
@@ -255,7 +278,11 @@ class GameState:
             return AdventureTick.INACTIVE
         if self.adventure_phase != AdventurePhase.ADVANCING:
             return AdventureTick.INACTIVE
-        self.energy -= 1
+        skip_energy_cost = (
+            self.technique_levels[TECHNIQUE_SPIRIT] >= 6 and seed % 100 < 10
+        )
+        if not skip_energy_cost:
+            self.energy -= 1
         self.qingyun_progress = min(100, self.qingyun_progress + 2)
         checkpoints = (25, 45, 65, 85)
         events = (
@@ -390,7 +417,16 @@ class GameState:
             self.items[ItemType.ATTACK_TALISMAN] -= 1
         if self.battle_guard_talisman:
             self.items[ItemType.GUARD_TALISMAN] -= 1
+        body_level = self.technique_levels[TECHNIQUE_BODY]
+        self.battle_shield = (
+            (3 if body_level >= 2 else 0)
+            + (4 if body_level >= 5 else 0)
+            + (5 if body_level >= 8 else 0)
+        )
         return True
+
+    def attack_damage(self, seed: int) -> int:
+        return self.qingyun_attack_damage(seed)
 
     def qingyun_attack_damage(self, seed: int) -> int:
         damage = (
@@ -403,17 +439,43 @@ class GameState:
             damage += 1
         elif self.form == PetForm.FINAL_A2:
             damage += 2
-        critical_rate = 5 + min(20, self.tendencies[0] // 3)
+        sword_level = self.technique_levels[TECHNIQUE_SWORD]
+        sword_bonus = (
+            (3 if sword_level >= 1 else 0)
+            + (3 if sword_level >= 3 else 0)
+            + (4 if sword_level >= 5 else 0)
+            + (5 if sword_level >= 7 else 0)
+        )
+        damage = damage * (100 + sword_bonus) // 100
+        critical_rate = (
+            5
+            + min(20, self.tendencies[0] // 3)
+            + (2 if sword_level >= 2 else 0)
+            + (3 if sword_level >= 6 else 0)
+        )
         if seed % 100 < critical_rate:
-            damage *= 2
+            damage = damage * (220 if sword_level >= 9 else 200) // 100
         if self.battle_attack_talisman:
             damage = damage * 120 // 100
         if self.has_qingyun_sword:
             damage = damage * 110 // 100
+        pierce = (1 if sword_level >= 4 else 0) + (1 if sword_level >= 8 else 0)
+        damage += pierce * 2
         return max(1, damage)
 
+    def incoming_damage(self, seed: int) -> int:
+        return self.qingyun_incoming_damage(seed)
+
     def qingyun_incoming_damage(self, seed: int) -> int:
-        dodge_rate = 5 + min(20, self.tendencies[2] // 3)
+        body_level = self.technique_levels[TECHNIQUE_BODY]
+        spirit_level = self.technique_levels[TECHNIQUE_SPIRIT]
+        dodge_rate = (
+            5
+            + min(20, self.tendencies[2] // 3)
+            + (3 if body_level >= 6 else 0)
+            + (2 if spirit_level >= 2 else 0)
+            + (3 if spirit_level >= 7 else 0)
+        )
         if (seed // 100) % 100 < dodge_rate:
             return 0
         damage = max(1, 10 - min(6, self.tendencies[2] // 5))
@@ -426,6 +488,15 @@ class GameState:
         damage = max(1, damage * self._qingyun_damage_percent() // 100)
         if self.has_qingyun_sword:
             damage = max(1, damage * 90 // 100)
+        body_reduction = (
+            (3 if body_level >= 1 else 0)
+            + (4 if body_level >= 4 else 0)
+            + (5 if body_level >= 7 else 0)
+        )
+        if self.stamina < 20 and body_level >= 9:
+            body_reduction += 10
+        if body_reduction:
+            damage = max(1, damage * (100 - body_reduction) // 100)
         return damage
 
     def tick_qingyun_wolf_battle(self, seed: int) -> BattleResult:
@@ -453,6 +524,8 @@ class GameState:
             self.gain_experience(experience_reward)
             self.coins = min(65535, self.coins + coin_reward)
             self.qingyun_round = min(65535, self.qingyun_round + 1)
+            if self.technique_levels[TECHNIQUE_SPIRIT] >= 3:
+                self.energy = min(self.max_energy(), self.energy + 1)
             boss_bonus = 2 + min(3, self.qingyun_round // 5)
             for i in range(4):
                 self._add_tendency(i, boss_bonus)
@@ -461,13 +534,24 @@ class GameState:
             return BattleResult.VICTORY
 
         incoming = self.qingyun_incoming_damage(seed)
+        if self.battle_shield:
+            blocked = min(self.battle_shield, incoming)
+            self.battle_shield -= blocked
+            incoming -= blocked
         self.stamina = max(0, self.stamina - incoming)
-        affinity_rate = min(20, self.tendencies[3] // 3)
+        spirit_level = self.technique_levels[TECHNIQUE_SPIRIT]
+        affinity_rate = (
+            min(20, self.tendencies[3] // 3)
+            + (3 if spirit_level >= 1 else 0)
+            + (4 if spirit_level >= 5 else 0)
+            + (3 if spirit_level >= 8 else 0)
+        )
         if (
             self.stamina > 0
             and (seed // 10000) % 100 < affinity_rate
         ):
-            self.stamina = min(100, self.stamina + 2)
+            heal = 2 + (1 if spirit_level >= 4 else 0)
+            self.stamina = min(100, self.stamina + heal)
         if self.stamina == 0:
             self.stamina = 30
             self._reset_qingyun_run()
@@ -567,6 +651,7 @@ class GameState:
             self.boss_hp = self.boss_max_hp
         self.battle_attack_talisman = False
         self.battle_guard_talisman = False
+        self.battle_shield = 0
 
     def tick_exploration(self, seed: int) -> None:
         if self.active_region is None or self.energy == 0:

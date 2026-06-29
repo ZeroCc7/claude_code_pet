@@ -101,6 +101,51 @@ def test_recovery_item_fails_without_stock():
     assert not state.use_item(ItemType.RECOVERY_PILL)
 
 
+def test_dan_technique_improves_items_and_recovery_interval():
+    state = GameState(
+        energy=10,
+        stamina=50,
+        items=[1, 1, 0, 0, 0],
+        technique_levels=[0, 9, 0, 0],
+    )
+
+    assert state.use_item(ItemType.SPIRIT_HERB)
+    assert state.energy == 15
+    assert state.use_item(ItemType.RECOVERY_PILL)
+    assert state.stamina == 80
+    assert state.recovery_interval_seconds() == 180
+
+
+def test_spirit_technique_increases_energy_cap_without_refilling():
+    state = GameState(
+        energy=20,
+        form=PetForm.FINAL_A1,
+        technique_levels=[0, 0, 0, 9],
+    )
+
+    assert state.max_energy() == 104
+    assert state.energy == 20
+
+
+def test_techniques_change_boss_combat_math():
+    baseline = GameState(
+        level=10,
+        stamina=100,
+        energy=20,
+        tendencies=[40, 20, 40, 40],
+    )
+    trained = GameState(
+        level=10,
+        stamina=100,
+        energy=20,
+        tendencies=[40, 20, 40, 40],
+        technique_levels=[9, 0, 9, 9],
+    )
+
+    assert trained.attack_damage(seed=1) > baseline.attack_damage(seed=1)
+    assert trained.incoming_damage(seed=9999) <= baseline.incoming_damage(seed=9999)
+
+
 def test_start_exploration_consumes_energy():
     state = GameState(energy=5)
 
