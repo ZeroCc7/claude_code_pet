@@ -51,22 +51,14 @@ except ImportError:
                     pass
             fd.close()
 
-from hook_state import HookState, SOURCES, STATES
+SOURCES = {"codex", "claude-code", "opencode", "codefree-o"}
+COMMANDS = ("start", "end")
 
 
-COMMANDS = tuple(sorted(STATES | {"complete", "failure", "cancelled"}))
-
-
-def build_payload(
-    state: HookState, command: str, source: str, session: str
-) -> dict:
-    if command == "submitted":
-        return state.begin(source, session)
-    if command == "complete":
-        return state.complete(source, session, "success")
-    if command in {"failure", "cancelled"}:
-        return state.complete(source, session, command)
-    return state.status(source, session, command)
+def build_payload(command: str, source: str) -> dict:
+    if command not in COMMANDS or source not in SOURCES:
+        raise ValueError("unsupported event")
+    return {"type": command, "source": source}
 
 
 def choose_port(
@@ -174,27 +166,29 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="手动触发修仙宠物 AI Hook"
     )
-    sub = parser.add_subparsers(dest="subcommand")
+    sub = parser.add_subparsers(dest="subcommand", required=True)
 
+    # start/end subcommands
+    for command in COMMANDS:
+        cmd_parser = sub.add_parser(
+            command, help=f"触发 {command} 事件"
+        )
+        cmd_parser.add_argument(
+            "--source", choices=sorted(SOURCES), default="codex"
+        )
+        cmd_parser.add_argument("--port")
+
+    # send subcommand
     send_parser = sub.add_parser("send", help="从 stdin 读取 JSON 并发送到设备")
     send_parser.add_argument("--port")
 
-    parser.add_argument("command", nargs="?", choices=COMMANDS)
-    parser.add_argument("--source", choices=sorted(SOURCES), default="codex")
-    parser.add_argument("--session", default="manual")
-    parser.add_argument("--port")
-    parser.add_argument(
-        "--state-file",
-        type=Path,
-        default=install_root / "state.json",
-    )
     args = parser.parse_args()
 
     if args.subcommand == "send":
         return handle_send(args)
 
-    if not args.command:
-        parser.error("command is required")
+    if args.subcommand not in COMMANDS:
+        parser.error(f"未知命令：{args.subcommand}")
 
     try:
         port = choose_port(
@@ -204,12 +198,7 @@ def main() -> int:
         )
         if not port:
             raise RuntimeError("没有找到 RP2040 串口，请使用 --port COM7")
-        payload = build_payload(
-            HookState(args.state_file),
-            args.command,
-            args.source,
-            args.session,
-        )
+        payload = build_payload(args.subcommand, args.source)
         with _serial_lock(install_root / "serial.lock"):
             ack = send_payload(payload, port)
     except Exception as exc:
@@ -217,7 +206,7 @@ def main() -> int:
         return 1
 
     print(
-        f"{args.command} -> {port}\n"
+        f"{args.subcommand} -> {port}\n"
         f"{json.dumps(ack, ensure_ascii=False)}"
     )
     return 0

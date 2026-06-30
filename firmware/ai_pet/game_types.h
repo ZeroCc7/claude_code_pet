@@ -14,17 +14,89 @@ enum class PetForm : uint8_t {
 
 enum class UiPage : uint8_t {
   Home,
-  Care,
+  MeritLog,
+  Inventory,
+  RegionSelect,
   Adventure,
   Battle,
   Status,
+  TechniqueDetail,
   Cultivation,
 };
 
-enum class MeditationResult : uint8_t {
-  Restored,
-  Full,
-  Exhausted,
+enum class ItemType : uint8_t {
+  SpiritHerb,
+  RecoveryPill,
+  AttackTalisman,
+  GuardTalisman,
+  RegionToken,
+};
+
+enum class AdventurePhase : uint8_t {
+  Idle,
+  Advancing,
+  Choosing,
+  Result,
+  BossReady,
+};
+
+enum class AdventureTick : uint8_t {
+  Inactive,
+  Advanced,
+  EventTriggered,
+  WaitingForChoice,
+  EnergyDepleted,
+  BossUnlocked,
+};
+
+enum class AdventureEvent : uint8_t {
+  None,
+  Gather,
+  Fight,
+  Npc,
+  Shortcut,
+};
+
+enum class EventResult : uint8_t {
+  None,
+  Continued,
+  ItemGained,
+  RewardGained,
+  ProgressGained,
+  StaminaLost,
+};
+
+enum class BattleResult : uint8_t {
+  Inactive,
+  Continue,
+  Victory,
+  Defeat,
+  EnergyDepleted,
+  Retreated,
+};
+
+enum class BattleLogType : uint8_t {
+  None,
+  PlayerHit,
+  PlayerCritical,
+  BossHit,
+  BossMiss,
+  Shield,
+  Heal,
+  Victory,
+  Defeat,
+  EnergyDepleted,
+};
+
+struct InventoryData {
+  uint16_t items[5];
+};
+
+struct AiTaskRecord {
+  uint8_t source;
+  uint16_t durationSeconds;
+  uint16_t experienceReward;
+  uint16_t coinReward;
 };
 
 struct PetSaveData {
@@ -40,19 +112,38 @@ struct PetSaveData {
   uint16_t coins;
   uint16_t energy;
   uint16_t tendencies[4];
-  uint8_t regionProgress[3];
-  uint8_t bossDefeatedMask;
-  uint8_t bossWins[3];
+  uint8_t techniqueLevels[4];
   uint8_t activeRegion;
-  uint8_t battleRegion;
-  uint8_t bossHp;
-  uint8_t bossMaxHp;
+  uint8_t regionsUnlocked;
+  uint8_t adventureProgress;
+  uint8_t adventureEventMask;
+  uint8_t adventureEventOrder;
+  uint8_t bossUnlocked;
+  AdventurePhase adventurePhase;
+  AdventureEvent currentEvent;
+  EventResult currentEventResult;
+  uint8_t bossDefeated;
+  uint16_t bossHp;
+  uint16_t bossMaxHp;
   uint8_t inBattle;
+  uint8_t battleRound;
+  uint8_t battleAttackTalisman;
+  uint8_t battleGuardTalisman;
+  BattleResult lastBattleResult;
   uint32_t playSeconds;
   uint16_t energyRecoverySeconds;
-  uint32_t meditationCycleSeconds;
-  uint8_t meditationsUsed;
-  uint32_t recentTaskHashes[16];
-  uint8_t recentTaskIndex;
+  uint16_t staminaRecoverySeconds;
+  uint16_t regionRound[5];
+  uint8_t regionMisses[5];
+  uint8_t regionTreasure[5];
+  uint8_t regionBossWins[5];
+  uint16_t lastBossExperience;
+  uint16_t lastBossCoins;
+  uint8_t lastBossItems[4];
+  uint8_t lastBossTreasure;
+  InventoryData inventory;
+  AiTaskRecord aiTaskRecords[10];
+  uint8_t aiTaskRecordIndex;
+  uint8_t aiTaskRecordCount;
   uint32_t crc32;
 };

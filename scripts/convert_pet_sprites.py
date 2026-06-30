@@ -18,6 +18,7 @@ FINAL_FORMS = {
     "final_b1": ROOT / "assets/processed/pets/final_b1",
     "final_b2": ROOT / "assets/processed/pets/final_b2",
 }
+EVOLUTION_ACTIONS = ("evolution",)
 OUTPUT = ROOT / "firmware/ai_pet/assets/pet_sprites.h"
 
 
@@ -114,6 +115,8 @@ def convert() -> None:
         "",
         "#include <Arduino.h>",
         "",
+        '#include "../game_types.h"',
+        "",
         f"constexpr uint8_t kPetSpriteWidth = {FRAME_SIZE};",
         f"constexpr uint8_t kPetSpriteHeight = {FRAME_SIZE};",
         "constexpr uint8_t kPetSpriteFrameCount = 4;",
@@ -166,6 +169,54 @@ def convert() -> None:
             lines.append(f"  {{{pixels}, {mask}}},")
         lines.append("};")
         lines.append("")
+
+    evolution_forms: set[str] = set()
+    for form, directory in FINAL_FORMS.items():
+        evo_paths = [directory / f"evolution-{i}.png" for i in range(1, 5)]
+        has_evolution = all(p.exists() for p in evo_paths)
+        paths = evo_paths if has_evolution else [
+            directory / f"idle-{i}.png" for i in range(1, 5)
+        ]
+        crop_box = union_bbox(paths)
+        evo_names: list[tuple[str, str]] = []
+        evo_preview = preview_root / form
+        for frame_index, path in enumerate(paths):
+            frame = normalize_final_frame(path, crop_box)
+            if has_evolution:
+                frame.save(evo_preview / f"evolution-{frame_index + 1}.png")
+            pixels, mask = encode_frame(frame)
+            pixel_name = f"kPet_{form}_evolution_{frame_index}_pixels"
+            mask_name = f"kPet_{form}_evolution_{frame_index}_mask"
+            write_array(lines, "uint16_t", pixel_name, pixels)
+            write_array(lines, "uint8_t", mask_name, mask)
+            evo_names.append((pixel_name, mask_name))
+        lines.append(f"const PetSpriteFrame kPet_{form}_evolution_frames[] = {{")
+        for pixels, mask in evo_names:
+            lines.append(f"  {{{pixels}, {mask}}},")
+        lines.append("};")
+        lines.append("")
+        if has_evolution:
+            evolution_forms.add(form)
+
+    lines.append(
+        f"constexpr uint8_t kEvolutionFormCount = {len(evolution_forms)};"
+    )
+    if evolution_forms:
+        lines.append(
+            "constexpr PetForm kEvolutionForms[] = {"
+        )
+        form_enum = {
+            "final_a1": "PetForm::FinalA1",
+            "final_a2": "PetForm::FinalA2",
+            "final_b1": "PetForm::FinalB1",
+            "final_b2": "PetForm::FinalB2",
+        }
+        for f in sorted(evolution_forms):
+            lines.append(f"  {form_enum[f]},")
+        lines.append("};")
+    else:
+        lines.append("constexpr PetForm kEvolutionForms[] = {};")
+    lines.append("")
 
     OUTPUT.write_text("\n".join(lines), encoding="utf-8")
 

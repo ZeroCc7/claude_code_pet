@@ -13,6 +13,8 @@ ICONS = {
     "Care": "button-icon-2.png",
     "Adventure": "button-icon-3.png",
     "Status": "button-icon-4.png",
+    "MeritLog": "merit_log.png",
+    "Inventory": "inventory.png",
 }
 
 

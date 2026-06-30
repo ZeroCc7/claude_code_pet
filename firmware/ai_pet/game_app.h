@@ -12,13 +12,21 @@ class GameApp {
   void begin();
   void update(uint32_t now);
 
+#ifdef SIMULATOR_BUILD
+  void sim_updateButtons(const bool states[4]);
+  const uint16_t* getDisplayFramebuffer() const;
+#endif
+
  private:
   void processInput(uint32_t now);
   void processSerial(uint32_t now);
   void printStatus();
   void processPreviewCommand(const String& command, uint32_t now);
+  void processSetCommand(const String& command);
   void processAiEvent(const AiEvent& event, uint32_t now);
-  void printAck(const AiEvent& event, const char* status,
+  void completeAiTask(uint32_t now, bool halved, bool acknowledge,
+                      bool showResult = true);
+  void printAck(const char* status,
                 uint16_t experience = 0, uint16_t coins = 0);
   void requestSave();
 
@@ -31,7 +39,12 @@ class GameApp {
   bool serialOverflow_ = false;
   uint32_t lastTickAt_ = 0;
   uint32_t lastSaveAt_ = 0;
-  uint32_t lastExplorationAt_ = 0;
+  uint32_t lastAdventureStepAt_ = 0;
+  uint32_t lastBattleRoundAt_ = 0;
+  uint32_t eventResultShownAt_ = 0;
+  bool aiTaskActive_ = false;
+  char aiTaskSource_[16] = {};
+  uint32_t aiTaskStartedAt_ = 0;
   bool savePending_ = false;
   bool fsReady_ = false;
 };

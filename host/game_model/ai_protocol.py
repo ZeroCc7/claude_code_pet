@@ -2,16 +2,7 @@ from dataclasses import dataclass
 import json
 
 
-SOURCES = {"codex", "claude_code", "opencode", "codefree_o"}
-STATES = {
-    "submitted",
-    "thinking",
-    "tool",
-    "editing",
-    "waiting",
-    "blocked",
-    "idle",
-}
+SOURCES = {"codex", "claude-code", "opencode", "codefree-o"}
 
 
 class ProtocolError(ValueError):
@@ -22,10 +13,6 @@ class ProtocolError(ValueError):
 class AiEvent:
     kind: str
     source: str
-    task_id: str
-    state: str
-    duration: int = 0
-    success: bool = False
 
 
 def parse_event(payload: str) -> AiEvent:
@@ -37,35 +24,12 @@ def parse_event(payload: str) -> AiEvent:
         raise ProtocolError("invalid json") from exc
     if not isinstance(data, dict):
         raise ProtocolError("event must be an object")
-
-    kind = data.get("type")
-    source = data.get("source")
-    task_id = data.get("task_id")
-    state = data.get("state")
+    if set(data) != {"type", "source"}:
+        raise ProtocolError("invalid fields")
+    kind = data["type"]
+    source = data["source"]
+    if kind not in {"start", "end"}:
+        raise ProtocolError("unknown event type")
     if source not in SOURCES:
         raise ProtocolError("unknown source")
-    if not isinstance(task_id, str) or not task_id or len(task_id) > 63:
-        raise ProtocolError("invalid task_id")
-
-    if kind == "status":
-        if state not in STATES:
-            raise ProtocolError("unknown state")
-        return AiEvent(kind, source, task_id, state)
-
-    if kind == "task":
-        duration = data.get("duration")
-        result = data.get("result")
-        if state != "completed" or not isinstance(duration, int) or duration < 0:
-            raise ProtocolError("invalid completed task")
-        if result not in {"success", "failure", "cancelled"}:
-            raise ProtocolError("invalid result")
-        return AiEvent(
-            kind,
-            source,
-            task_id,
-            state,
-            min(duration, 3600),
-            result == "success",
-        )
-
-    raise ProtocolError("unknown event type")
+    return AiEvent(kind, source)

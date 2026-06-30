@@ -15,7 +15,7 @@ class PetRenderer {
  public:
   void draw(Adafruit_GFX& target, PetForm form, int16_t x, int16_t y,
             uint32_t now, PetEffect effect = PetEffect::None,
-            uint32_t effectElapsed = 0);
+            uint32_t effectElapsed = 0, bool evolution = false);
 
  private:
   void drawEffect(Adafruit_GFX& target, PetForm form, int16_t x, int16_t y,

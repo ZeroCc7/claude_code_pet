@@ -5,7 +5,7 @@
 
 void PetRenderer::draw(Adafruit_GFX& tft, PetForm form, int16_t x, int16_t y,
                        uint32_t now, PetEffect effect,
-                       uint32_t effectElapsed) {
+                       uint32_t effectElapsed, bool evolution) {
   const PetSpriteFrame* frames = nullptr;
   uint8_t width = kPetSpriteWidth;
   uint8_t height = kPetSpriteHeight;
@@ -31,6 +31,12 @@ void PetRenderer::draw(Adafruit_GFX& tft, PetForm form, int16_t x, int16_t y,
     frames = kPet_final_b2_frames;
     width = kFinalPetSpriteWidth;
     height = kFinalPetSpriteHeight;
+  }
+  if (evolution && form >= PetForm::FinalA1) {
+    if (form == PetForm::FinalA1) frames = kPet_final_a1_evolution_frames;
+    else if (form == PetForm::FinalA2) frames = kPet_final_a2_evolution_frames;
+    else if (form == PetForm::FinalB1) frames = kPet_final_b1_evolution_frames;
+    else if (form == PetForm::FinalB2) frames = kPet_final_b2_evolution_frames;
   }
   if (!frames) {
     return;
